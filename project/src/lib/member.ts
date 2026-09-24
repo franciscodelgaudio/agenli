@@ -1,17 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
+import { canManageMembers, MEMBER_ROLES, type MemberRole, type WorkspaceRole } from "@/lib/member-role";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export const MEMBER_ROLES = ["admin", "massage_therapist", "receptionist"] as const;
-export type MemberRole = (typeof MEMBER_ROLES)[number];
-// O dono não é um membro: vem de Workspace.userId e não pode ser editado nem removido.
-export type WorkspaceRole = "owner" | MemberRole;
-
-export function canManageMembers(role: WorkspaceRole | null) {
-  return role === "owner" || role === "admin";
-}
+export { canManageMembers, MEMBER_ROLES, type MemberRole, type WorkspaceRole } from "@/lib/member-role";
 
 function isMemberRole(value: unknown): value is MemberRole {
   return MEMBER_ROLES.includes(value as MemberRole);

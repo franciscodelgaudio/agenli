@@ -16,6 +16,8 @@ type LoginFormProps = Omit<React.ComponentProps<"form">, "action"> & {
   credentialsAction: (formData: FormData) => Promise<void>
   googleAction: () => Promise<void>
   error?: string | null
+  // Leva o callbackUrl para o cadastro (ex: quem veio de um link de convite).
+  signupHref?: string
 }
 
 export function LoginForm({
@@ -23,6 +25,7 @@ export function LoginForm({
   credentialsAction,
   googleAction,
   error,
+  signupHref = "/signup",
   ...props
 }: LoginFormProps) {
   return (
@@ -103,7 +106,7 @@ export function LoginForm({
           </Button>
           <FieldDescription className="text-center">
             Não tem uma conta?{" "}
-            <Link href="/signup" className="underline underline-offset-4">
+            <Link href={signupHref} className="underline underline-offset-4">
               Cadastre-se
             </Link>
           </FieldDescription>

@@ -17,8 +17,9 @@ import { Input } from "@/components/ui/input"
 
 export function SignupForm({
   className,
+  callbackUrl,
   ...props
-}: Omit<React.ComponentProps<"form">, "action">) {
+}: Omit<React.ComponentProps<"form">, "action"> & { callbackUrl?: string }) {
   const [state, formAction, pending] = useActionState(signupAction, {
     error: null,
   })
@@ -29,6 +30,7 @@ export function SignupForm({
       className={cn("flex flex-col gap-6", className)}
       {...props}
     >
+      {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
       <FieldGroup>
         <div className="flex flex-col items-center gap-1 text-center">
           <h1 className="text-2xl font-bold">Crie sua conta</h1>
@@ -72,7 +74,7 @@ export function SignupForm({
           </Button>
           <FieldDescription className="text-center">
             Já tem uma conta?{" "}
-            <Link href="/login" className="underline underline-offset-4">
+            <Link href={callbackUrl ? `/login?${new URLSearchParams({ callbackUrl })}` : "/login"} className="underline underline-offset-4">
               Entrar
             </Link>
           </FieldDescription>

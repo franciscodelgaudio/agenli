@@ -1,5 +1,6 @@
 import { SignupForm } from "@/components/signup-form"
 
-export default function SignupPage() {
-  return <SignupForm />
+export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
+  const { callbackUrl } = await searchParams
+  return <SignupForm callbackUrl={typeof callbackUrl === "string" ? callbackUrl : undefined} />
 }

@@ -1,16 +1,11 @@
 "use client"
 
-import { MEMBER_ROLES, type MemberRole, type WorkspaceRole } from "@/lib/member"
+import { MEMBER_ROLES, type MemberRole } from "@/lib/member-role"
+import { roleLabels } from "@/components/role-labels"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export const roleLabels: Record<WorkspaceRole, string> = {
-  owner: "Proprietário",
-  admin: "Administrador",
-  massage_therapist: "Massagista",
-  receptionist: "Recepcionista",
-}
 
 const roleItems = MEMBER_ROLES.map((role) => ({ value: role, label: roleLabels[role] }))
 

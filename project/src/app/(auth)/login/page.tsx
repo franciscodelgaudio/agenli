@@ -45,6 +45,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       credentialsAction={loginWithCredentials}
       googleAction={loginWithGoogle}
       error={errorMessage}
+      signupHref={typeof callbackUrl === "string" ? `/signup?${new URLSearchParams({ callbackUrl })}` : "/signup"}
     />
   )
 }

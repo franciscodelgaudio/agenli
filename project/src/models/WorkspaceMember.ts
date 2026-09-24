@@ -1,6 +1,6 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { connectOnUse } from "@/lib/mongoose";
-import { MEMBER_ROLES } from "@/lib/member";
+import { MEMBER_ROLES } from "@/lib/member-role";
 
 // Membro ou convite pendente de um workspace. Enquanto userId é null, é um
 // convite: tokenHash/expiresAt identificam o link enviado por email. Ao aceitar,
