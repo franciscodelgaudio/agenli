@@ -13,6 +13,7 @@ import {
   type UpdateHotelError,
 } from "@/lib/hotel"
 import { Hotel } from "@/models/Hotel"
+import { Service } from "@/models/Service"
 
 const errorMessages: Record<CreateHotelError | UpdateHotelError | "unauthenticated", string> = {
   invalid_input: "Informe o nome da unidade.",
@@ -103,7 +104,9 @@ export async function deleteHotelAction(workspaceId: string, hotelId: string): P
 
   const result = await deleteHotel(target.hotelId, async (id) => {
     const { deletedCount } = await Hotel.deleteOne({ _id: id, workspaceId: target.ownedId })
-    return deletedCount > 0
+    if (deletedCount === 0) return false
+    await Service.deleteMany({ hotelId: id })
+    return true
   })
 
   if (!result.ok) return { error: errorMessages[result.error] }
