@@ -92,7 +92,6 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
 
-  const unitNames = new Map(units.map((option) => [option.id, option.name]))
   const therapistsById = new Map(therapists.map((option) => [option.id, option]))
   const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
   // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
