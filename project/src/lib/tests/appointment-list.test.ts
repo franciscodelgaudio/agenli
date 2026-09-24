@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { appointmentListPipeline, parseAppointmentListQuery, shiftDay } from "@/lib/appointment-list";
+import { Types } from "mongoose";
+import {
+  appointmentListPipeline,
+  parseAppointmentListQuery,
+  parseWorkspaceAppointmentListQuery,
+  shiftDay,
+  workspaceAppointmentListPipeline,
+} from "@/lib/appointment-list";
 
 // 24/09/2026 às 23:30 em Brasília (já é dia 25 em UTC).
 const NOW = new Date("2026-09-25T02:30:00.000Z");
@@ -78,11 +85,12 @@ describe("appointmentListPipeline", () => {
   };
   // O total é calculado antes da ordenação para que seja possível ordenar por ele.
   const SET_TOTAL = { $set: { totalCents: { $sum: "$items.priceCents" } } };
-  // serviceId e therapistId vão junto para preencher o formulário de edição.
+  // hotelId, serviceId e therapistId vão junto para a coluna de unidade e o formulário de edição.
   const PROJECT = {
     $project: {
       _id: 0,
       id: { $toString: "$_id" },
+      hotelId: { $toString: "$hotelId" },
       performedAt: 1,
       guest: 1,
       items: {
@@ -149,5 +157,56 @@ describe("appointmentListPipeline", () => {
         ],
       },
     });
+  });
+});
+
+const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
+
+describe("parseWorkspaceAppointmentListQuery", () => {
+  it("sem parâmetros, usa os mesmos padrões da unidade e todas as unidades", () => {
+    expect(parseWorkspaceAppointmentListQuery({}, NOW)).toEqual({
+      date: "2026-09-24",
+      q: "",
+      sort: "performedAt",
+      dir: "asc",
+      unit: "",
+    });
+  });
+
+  it("lê a unidade junto com os demais parâmetros", () => {
+    expect(
+      parseWorkspaceAppointmentListQuery(
+        { date: "2026-09-20", q: "joão", sort: "totalCents", dir: "desc", unit: UNIT_ID },
+        NOW,
+      ),
+    ).toEqual({ date: "2026-09-20", q: "joão", sort: "totalCents", dir: "desc", unit: UNIT_ID });
+  });
+
+  it("usa o primeiro valor quando a unidade vem repetida", () => {
+    expect(parseWorkspaceAppointmentListQuery({ unit: [UNIT_ID, "outra"] }, NOW).unit).toBe(UNIT_ID);
+  });
+
+  it.each([
+    ["texto", "centro"],
+    ["id curto", "64b7f0c2a1b2"],
+    ["id com caractere inválido", "64b7f0c2a1b2c3d4e5f6072z"],
+    ["objeto de operador", "{ $ne: null }"],
+  ])("volta para todas as unidades quando a unidade é %s", (_label, unit) => {
+    expect(parseWorkspaceAppointmentListQuery({ unit }, NOW).unit).toBe("");
+  });
+});
+
+describe("workspaceAppointmentListPipeline", () => {
+  const BASE = { date: "2026-09-24", q: "", sort: "performedAt", dir: "asc", unit: "" } as const;
+
+  it("sem unidade, é a mesma pipeline da listagem por unidade", () => {
+    expect(workspaceAppointmentListPipeline(BASE)).toEqual(appointmentListPipeline(BASE));
+  });
+
+  it("com unidade, filtra por ela antes das demais etapas", () => {
+    expect(workspaceAppointmentListPipeline({ ...BASE, unit: UNIT_ID, q: "joão" })).toEqual([
+      { $match: { hotelId: new Types.ObjectId(UNIT_ID) } },
+      ...appointmentListPipeline({ ...BASE, q: "joão" }),
+    ]);
   });
 });

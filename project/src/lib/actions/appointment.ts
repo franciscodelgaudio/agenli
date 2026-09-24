@@ -11,6 +11,7 @@ import {
   type CreateAppointmentError,
 } from "@/lib/appointment"
 import { Appointment } from "@/models/Appointment"
+import { Hotel } from "@/models/Hotel"
 import { Service } from "@/models/Service"
 import { User } from "@/models/User"
 import { Workspace } from "@/models/Workspace"
@@ -28,7 +29,7 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
   invalid_item: "Escolha o serviço e a massagista de cada linha.",
   service_not_found: "Algum serviço não foi encontrado nesta unidade. Recarregue a página.",
   therapist_not_found: "Algum profissional escolhido não pode atender neste workspace. Recarregue a página.",
-  hotel_not_found: "Unidade não encontrada ou sem permissão.",
+  hotel_not_found: "Escolha uma unidade válida deste workspace.",
   appointment_not_found: "Atendimento não encontrado ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
@@ -125,6 +126,53 @@ export async function updateAppointmentAction(
       ...appointmentLookups(unit!),
       update: async (id, fields) => {
         const { matchedCount } = await Appointment.updateOne({ _id: id, hotelId: unit!.hotelId }, { $set: fields })
+        return matchedCount > 0
+      },
+    },
+  )
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}
+
+// Visão do workspace: a unidade vem do formulário (campo hotelId) e a posse é conferida
+// em createAppointmentAction.
+export async function createWorkspaceAppointmentAction(
+  workspaceId: string,
+  prev: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const hotelId = formData.get("hotelId")
+  return createAppointmentAction(workspaceId, typeof hotelId === "string" ? hotelId : "", prev, formData)
+}
+
+// Visão do workspace: permite mover o atendimento para outra unidade. O atendimento
+// precisa ser de alguma unidade do workspace, e a nova unidade precisa ser gerenciável.
+export async function updateWorkspaceAppointmentAction(
+  workspaceId: string,
+  appointmentId: string,
+  _prev: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const userId = await getSessionUserId()
+  if (!userId) return { error: errorMessages.unauthenticated }
+  const hotelId = formData.get("hotelId")
+  const unit = await findManagedUnit(workspaceId, typeof hotelId === "string" ? hotelId : "", userId)
+  if (!unit) return { error: errorMessages.hotel_not_found }
+
+  const result = await updateAppointment(
+    appointmentInput(formData),
+    isObjectIdOrHexString(appointmentId) ? appointmentId : null,
+    {
+      ...appointmentLookups(unit),
+      update: async (id, fields) => {
+        const workspaceHotelIds = await Hotel.find({ workspaceId: unit.workspaceId }).distinct("_id")
+        const { matchedCount } = await Appointment.updateOne(
+          { _id: id, hotelId: { $in: workspaceHotelIds } },
+          { $set: { ...fields, hotelId: unit.hotelId } },
+        )
         return matchedCount > 0
       },
     },

@@ -10,6 +10,7 @@ import {
   parseAppointmentListQuery,
   shiftDay,
 } from "@/lib/appointment-list"
+import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
 import { AppointmentTable, type AppointmentRow } from "@/components/appointment-table"
 import { CreateAppointmentSheet } from "@/components/create-appointment-sheet"
@@ -107,37 +108,12 @@ export default async function AppointmentsPage({
         ],
       },
     },
-    // Quem pode atender: o proprietário (primeiro da lista) e os membros com função de
-    // massagista que aceitaram o convite. O id é o do usuário nos dois casos.
-    {
-      $lookup: {
-        from: "users",
-        localField: "userId",
-        foreignField: "_id",
-        as: "owner",
-        pipeline: [{ $project: { _id: 0, id: { $toString: "$_id" }, name: { $ifNull: ["$name", "$email"] } } }],
-      },
-    },
-    {
-      $lookup: {
-        from: "workspace_members",
-        localField: "_id",
-        foreignField: "workspaceId",
-        as: "therapists",
-        pipeline: [
-          { $match: { role: "massage_therapist", userId: { $ne: null } } },
-          { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
-          { $set: { user: { $first: "$user" } } },
-          { $project: { _id: 0, id: { $toString: "$userId" }, name: { $ifNull: ["$user.name", "$user.email"] } } },
-          { $sort: { name: 1 } },
-        ],
-      },
-    },
+    ...therapistOptionsStages(),
     {
       $project: {
         _id: 0,
         role: 1,
-        therapists: { $concatArrays: ["$owner", "$therapists"] },
+        therapists: 1,
         hotel: { $ifNull: [{ $first: "$hotel" }, null] },
       },
     },

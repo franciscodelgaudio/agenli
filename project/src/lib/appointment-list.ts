@@ -1,4 +1,4 @@
-import type { PipelineStage } from "mongoose";
+import { Types, type PipelineStage } from "mongoose";
 import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/hotel-list";
 
 // Horário de Brasília: UTC-3 fixo (sem horário de verão desde 2019).
@@ -66,6 +66,7 @@ export function appointmentListPipeline({ date, q, sort, dir }: AppointmentListQ
       $project: {
         _id: 0,
         id: { $toString: "$_id" },
+        hotelId: { $toString: "$hotelId" },
         performedAt: 1,
         guest: 1,
         items: {
@@ -87,4 +88,25 @@ export function appointmentListPipeline({ date, q, sort, dir }: AppointmentListQ
     },
   );
   return stages;
+}
+
+// Visão do workspace: os mesmos parâmetros da unidade mais o filtro de unidade ("" = todas).
+export type WorkspaceAppointmentListQuery = AppointmentListQuery & { unit: string };
+
+export function parseWorkspaceAppointmentListQuery(
+  params: SearchParams,
+  now = new Date(),
+): WorkspaceAppointmentListQuery {
+  const unit = first(params.unit);
+  return {
+    ...parseAppointmentListQuery(params, now),
+    unit: unit && /^[0-9a-f]{24}$/i.test(unit) ? unit : "",
+  };
+}
+
+// Etapas para o $lookup de appointments a partir das unidades do workspace; o filtro de
+// unidade só estreita o resultado, a restrição ao workspace vem do $lookup.
+export function workspaceAppointmentListPipeline({ unit, ...query }: WorkspaceAppointmentListQuery) {
+  const stages = appointmentListPipeline(query);
+  return unit ? [{ $match: { hotelId: new Types.ObjectId(unit) } }, ...stages] : stages;
 }
