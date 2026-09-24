@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react"
 import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import { deleteHotelAction, updateHotelAction, type UpdateHotelState } from "@/lib/actions/hotel"
+import type { RevenueShare } from "@/lib/revenue-share"
 
 import {
   AlertDialog,
@@ -32,7 +33,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-type Hotel = { id: string; name: string; avatarUrl: string | null }
+type Hotel = { id: string; name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
 
 export function HotelActions({ workspaceId, hotel }: { workspaceId: string; hotel: Hotel }) {
   const [editOpen, setEditOpen] = useState(false)

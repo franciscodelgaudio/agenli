@@ -21,6 +21,12 @@ const errorMessages: Record<CreateHotelError | UpdateHotelError | "unauthenticat
   invalid_name: "Informe o nome da unidade.",
   name_too_long: "O nome pode ter no máximo 80 caracteres.",
   invalid_avatar_url: "Informe uma URL válida começando com http:// ou https://.",
+  invalid_ownership: "Informe onde a unidade funciona.",
+  invalid_period: "Escolha o período do faturamento.",
+  invalid_mode: "Escolha como o percentual é calculado.",
+  too_many_tiers: "Cadastre no máximo 10 faixas.",
+  invalid_tier_limit: "Os limites das faixas devem ser valores maiores que zero, em ordem crescente.",
+  invalid_tier_percent: "Os percentuais devem estar entre 0 e 100, com até 2 casas decimais.",
   workspace_not_found: "Workspace não encontrado ou sem permissão.",
   hotel_not_found: "Unidade não encontrada ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
@@ -36,6 +42,21 @@ async function findManagedWorkspaceId(workspaceId: string, userId: string) {
   return access && canManageMembers(access.role) ? access.id : undefined
 }
 
+// A ordem dos campos no FormData forma as faixas: um limite para cada, menos a última.
+function hotelInput(formData: FormData) {
+  return {
+    name: formData.get("name"),
+    avatarUrl: formData.get("avatarUrl"),
+    ownership: formData.get("ownership"),
+    revenueShare: {
+      period: formData.get("revenueSharePeriod"),
+      mode: formData.get("revenueShareMode"),
+      limits: formData.getAll("tierLimit"),
+      percents: formData.getAll("tierPercent"),
+    },
+  }
+}
+
 // workspaceId vem via argumento do cliente; a posse é conferida aqui, no servidor.
 export async function createHotelAction(
   workspaceId: string,
@@ -48,7 +69,7 @@ export async function createHotelAction(
   const ownedId = await findManagedWorkspaceId(workspaceId, userId)
 
   const result = await createHotel(
-    { name: formData.get("name"), avatarUrl: formData.get("avatarUrl") },
+    hotelInput(formData),
     ownedId,
     async (data) => {
       const hotel = await Hotel.create(data)
@@ -82,12 +103,17 @@ export async function updateHotelAction(
   if (!target) return { error: errorMessages.unauthenticated }
 
   const result = await updateHotel(
-    { name: formData.get("name"), avatarUrl: formData.get("avatarUrl") },
+    hotelInput(formData),
     target.hotelId,
-    async (id, { name, avatarUrl }) => {
+    async (id, { name, avatarUrl, revenueShare }) => {
+      // Campos null saem do documento em vez de ficarem gravados como null.
+      const $unset = { ...(!avatarUrl && { avatarUrl: 1 }), ...(!revenueShare && { revenueShare: 1 }) }
       const { matchedCount } = await Hotel.updateOne(
         { _id: id, workspaceId: target.ownedId },
-        avatarUrl ? { $set: { name, avatarUrl } } : { $set: { name }, $unset: { avatarUrl: 1 } },
+        {
+          $set: { name, ...(avatarUrl && { avatarUrl }), ...(revenueShare && { revenueShare }) },
+          ...(Object.keys($unset).length && { $unset }),
+        },
       )
       return matchedCount > 0
     },

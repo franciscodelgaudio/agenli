@@ -12,10 +12,18 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { HotelListQuery } from "@/lib/hotel-list"
+import type { RevenueShare } from "@/lib/revenue-share"
 import { dateTimeFormat } from "@/lib/utils"
 
 type Props = {
-  hotels: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date }[]
+  hotels: {
+    id: string
+    name: string
+    avatarUrl: string | null
+    revenueShare: RevenueShare | null
+    createdAt: Date
+    updatedAt: Date
+  }[]
   query: HotelListQuery
   pathname: string
   workspaceId: string

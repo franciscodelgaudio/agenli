@@ -53,7 +53,7 @@ function isStringList(value: unknown): value is string[] {
 }
 
 // "2026-09-24T14:30" no horário de Brasília -> Date em UTC; null se inválido.
-function parsePerformedAt(value: string) {
+export function parsePerformedAt(value: string) {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value);
   const day = match && parseDay(match[1]);
   if (!day) return null;

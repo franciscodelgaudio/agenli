@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { hotelListPipeline, parseHotelListQuery } from "@/lib/hotel-list"
+import type { RevenueShare } from "@/lib/revenue-share"
 import { Workspace } from "@/models/Workspace"
 import { CreateHotelSheet } from "@/components/create-hotel-sheet"
 import { ListSearch } from "@/components/list-search"
@@ -21,7 +22,14 @@ export default async function HotelsPage({
   // Parte do workspace (e não de hotels) para que o acesso ao workspace seja garantido.
   // O total sem filtro separa "workspace sem unidades" de "busca sem resultado".
   const [workspace] = await Workspace.aggregate<{
-    hotels: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date }[]
+    hotels: {
+      id: string
+      name: string
+      avatarUrl: string | null
+      revenueShare: RevenueShare | null
+      createdAt: Date
+      updatedAt: Date
+    }[]
     hotelCount: number
     role: WorkspaceRole
   }>([

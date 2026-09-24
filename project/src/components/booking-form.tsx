@@ -1,0 +1,214 @@
+"use client"
+
+import { useActionState, useState } from "react"
+import type { BookingActionState } from "@/lib/actions/booking"
+
+import { Button } from "@/components/ui/button"
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { DateTimeField } from "@/components/date-time-field"
+import { formatDuration } from "@/components/service-format"
+
+// Valor do Select para "sem serviço"; no formulário vira serviceId vazio.
+const NO_SERVICE = "none"
+
+export type BookingFormValues = {
+  hotelId: string | null
+  therapistId: string | null
+  guestName: string
+  room: string
+  // "2026-09-24T14:30", no horário de Brasília.
+  startsAt: string
+  durationMinutes: number
+  serviceId: string | null
+}
+
+export type BookingFormOptions = {
+  units: { id: string; name: string }[]
+  therapists: { id: string; name: string }[]
+  // Cada serviço traz a unidade; o formulário só oferece os da unidade escolhida.
+  services: { id: string; hotelId: string; name: string; durationMinutes: number }[]
+}
+
+type Props = BookingFormOptions & {
+  mode: "create" | "edit"
+  defaultValues: BookingFormValues
+  action: (prev: BookingActionState, formData: FormData) => Promise<BookingActionState>
+  onDone: () => void
+  // Só na edição: botão de excluir no rodapé.
+  onDelete?: () => void
+}
+
+const copy = {
+  create: {
+    title: "Novo agendamento",
+    description: "Escolha a massagista, a unidade, o hóspede e o horário. O serviço é opcional.",
+    submit: "Agendar",
+    pending: "Agendando...",
+  },
+  edit: {
+    title: "Editar agendamento",
+    description: "Altere os dados do agendamento.",
+    submit: "Salvar",
+    pending: "Salvando...",
+  },
+}
+
+export function BookingForm({ units, therapists, services: allServices, mode, defaultValues, action, onDone, onDelete }: Props) {
+  const [unitId, setUnitId] = useState(defaultValues.hotelId)
+  const [therapistId, setTherapistId] = useState(defaultValues.therapistId)
+  const [serviceId, setServiceId] = useState(defaultValues.serviceId)
+  const [duration, setDuration] = useState(String(defaultValues.durationMinutes))
+  const [state, formAction, pending] = useActionState(
+    async (prev: BookingActionState, formData: FormData) => {
+      const next = await action(prev, formData)
+      if (!next.error) onDone()
+      return next
+    },
+    { error: null },
+  )
+
+  const services = allServices.filter((service) => service.hotelId === unitId)
+  const serviceItems = [
+    { value: NO_SERVICE, label: "Sem serviço" },
+    ...services.map((service) => ({ value: service.id, label: service.name })),
+  ]
+
+  return (
+    <form action={formAction} className="flex flex-1 flex-col">
+      <SheetHeader>
+        <SheetTitle>{copy[mode].title}</SheetTitle>
+        <SheetDescription>{copy[mode].description}</SheetDescription>
+      </SheetHeader>
+      <FieldGroup className="px-4">
+        {state.error && <FieldError>{state.error}</FieldError>}
+        <Field>
+          <FieldLabel htmlFor="booking-therapist">Massagista</FieldLabel>
+          <Select
+            name="therapistId"
+            items={therapists.map((therapist) => ({ value: therapist.id, label: therapist.name }))}
+            value={therapistId}
+            onValueChange={(value) => setTherapistId(value as string | null)}
+            required
+          >
+            <SelectTrigger id="booking-therapist" className="w-full">
+              <SelectValue placeholder="Escolha a massagista" />
+            </SelectTrigger>
+            <SelectContent>
+              {therapists.map((therapist) => (
+                <SelectItem key={therapist.id} value={therapist.id}>
+                  {therapist.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="booking-unit">Hotel</FieldLabel>
+          <Select
+            name="hotelId"
+            items={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+            value={unitId}
+            onValueChange={(value) => {
+              setUnitId(value as string | null)
+              // Os serviços são de cada unidade, então trocar a unidade limpa o escolhido.
+              setServiceId(null)
+            }}
+            required
+          >
+            <SelectTrigger id="booking-unit" className="w-full">
+              <SelectValue placeholder="Escolha o hotel" />
+            </SelectTrigger>
+            <SelectContent>
+              {units.map((unit) => (
+                <SelectItem key={unit.id} value={unit.id}>
+                  {unit.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="booking-guest-name">Hóspede</FieldLabel>
+          <Input
+            id="booking-guest-name"
+            name="guestName"
+            placeholder="João Silva"
+            defaultValue={defaultValues.guestName}
+            maxLength={80}
+            required
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="booking-room">Quarto</FieldLabel>
+          <Input
+            id="booking-room"
+            name="room"
+            placeholder="204"
+            defaultValue={defaultValues.room}
+            maxLength={20}
+            required
+          />
+        </Field>
+        <DateTimeField idPrefix="booking" name="startsAt" defaultValue={defaultValues.startsAt} />
+        <Field>
+          <FieldLabel htmlFor="booking-service">Serviço (opcional)</FieldLabel>
+          <input type="hidden" name="serviceId" value={serviceId ?? ""} />
+          <Select
+            items={serviceItems}
+            value={serviceId ?? NO_SERVICE}
+            onValueChange={(value) => {
+              const next = value === NO_SERVICE ? null : (value as string)
+              setServiceId(next)
+              // A duração do serviço vira a sugestão, e ainda pode ser ajustada.
+              const service = services.find((option) => option.id === next)
+              if (service) setDuration(String(service.durationMinutes))
+            }}
+            disabled={!unitId}
+          >
+            <SelectTrigger id="booking-service" className="w-full">
+              <SelectValue placeholder={unitId ? "Sem serviço" : "Escolha o hotel primeiro"} />
+            </SelectTrigger>
+            <SelectContent>
+              {serviceItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="booking-duration">Duração (minutos)</FieldLabel>
+          <Input
+            id="booking-duration"
+            name="durationMinutes"
+            type="number"
+            inputMode="numeric"
+            min={5}
+            max={720}
+            step={5}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            required
+          />
+          {Number(duration) >= 5 && Number(duration) <= 720 && (
+            <FieldDescription>{formatDuration(Number(duration))}</FieldDescription>
+          )}
+        </Field>
+      </FieldGroup>
+      <SheetFooter>
+        <Button type="submit" disabled={pending}>
+          {pending ? copy[mode].pending : copy[mode].submit}
+        </Button>
+        {onDelete && (
+          <Button type="button" variant="destructive" onClick={onDelete} disabled={pending}>
+            Excluir
+          </Button>
+        )}
+      </SheetFooter>
+    </form>
+  )
+}

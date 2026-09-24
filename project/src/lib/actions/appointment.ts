@@ -1,8 +1,9 @@
 "use server"
 
 import { refresh } from "next/cache"
-import { isObjectIdOrHexString, Types } from "mongoose"
+import { isObjectIdOrHexString } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
+import { findWorkspaceTherapists, objectIds } from "@/lib/therapist-lookup"
 import { findManagedUnit } from "@/lib/unit-access"
 import {
   createAppointment,
@@ -13,9 +14,6 @@ import {
 import { Appointment } from "@/models/Appointment"
 import { Hotel } from "@/models/Hotel"
 import { Service } from "@/models/Service"
-import { User } from "@/models/User"
-import { Workspace } from "@/models/Workspace"
-import { WorkspaceMember } from "@/models/WorkspaceMember"
 
 const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "unauthenticated", string> = {
   invalid_input: "Preencha hóspede, quarto, data/hora e os serviços.",
@@ -35,11 +33,6 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
 }
 
 export type AppointmentActionState = { error: string | null }
-
-// Ids inválidos são descartados antes da consulta; a validação os trata como não encontrados.
-function objectIds(ids: string[]) {
-  return ids.filter((id) => isObjectIdOrHexString(id)).map((id) => new Types.ObjectId(id))
-}
 
 function appointmentInput(formData: FormData) {
   return {
@@ -65,20 +58,7 @@ function appointmentLookups(unit: { workspaceId: string; hotelId: string }) {
         durationMinutes,
       }))
     },
-    // Quem pode atender: o proprietário e os membros com função de massagista que aceitaram o convite.
-    findTherapists: async (ids: string[]) => {
-      const userIds = objectIds(ids)
-      const [workspace, members] = await Promise.all([
-        Workspace.findById(unit.workspaceId).select({ userId: 1 }).lean(),
-        WorkspaceMember.find({ workspaceId: unit.workspaceId, role: "massage_therapist", userId: { $in: userIds } })
-          .select({ userId: 1 })
-          .lean(),
-      ])
-      const allowed = members.map((member) => member.userId!)
-      if (workspace && userIds.some((id) => id.equals(workspace.userId))) allowed.push(workspace.userId)
-      const users = await User.find({ _id: { $in: allowed } }).select({ name: 1, email: 1 }).lean()
-      return users.map((user) => ({ id: user._id.toString(), name: user.name ?? user.email }))
-    },
+    findTherapists: (ids: string[]) => findWorkspaceTherapists(unit.workspaceId, ids),
   }
 }
 

@@ -1,3 +1,5 @@
+import { parseRevenueShare, type RevenueShare, type RevenueShareError } from "@/lib/revenue-share";
+
 const MAX_NAME_LENGTH = 80;
 
 export type CreateHotelError =
@@ -5,6 +7,8 @@ export type CreateHotelError =
   | "invalid_name"
   | "name_too_long"
   | "invalid_avatar_url"
+  | "invalid_ownership"
+  | RevenueShareError
   | "workspace_not_found";
 
 export type CreateHotelResult =
@@ -22,11 +26,13 @@ function isHttpUrl(value: string) {
 
 type HotelInputError = Exclude<CreateHotelError, "workspace_not_found">;
 
-// Valida e normaliza nome e avatarUrl; avatarUrl vazia vira null.
-function parseHotelInput(
-  input: unknown,
-): { ok: true; name: string; avatarUrl: string | null } | { ok: false; error: HotelInputError } {
-  const { name, avatarUrl } = (input ?? {}) as Record<string, unknown>;
+// revenueShare é null quando a unidade funciona em espaço próprio.
+type HotelInput = { name: string; avatarUrl: string | null; revenueShare: RevenueShare | null };
+
+// Valida e normaliza nome, avatarUrl e regra de repasse; avatarUrl vazia vira null.
+// A regra só é lida quando a unidade funciona dentro de um estabelecimento parceiro.
+function parseHotelInput(input: unknown): ({ ok: true } & HotelInput) | { ok: false; error: HotelInputError } {
+  const { name, avatarUrl, ownership, revenueShare } = (input ?? {}) as Record<string, unknown>;
   if (typeof name !== "string") return { ok: false, error: "invalid_input" };
   if (avatarUrl != null && typeof avatarUrl !== "string") return { ok: false, error: "invalid_input" };
 
@@ -39,13 +45,26 @@ function parseHotelInput(
     return { ok: false, error: "invalid_avatar_url" };
   }
 
-  return { ok: true, name: normalizedName, avatarUrl: normalizedAvatarUrl };
+  if (ownership === "own") {
+    return { ok: true, name: normalizedName, avatarUrl: normalizedAvatarUrl, revenueShare: null };
+  }
+  if (ownership !== "partner") return { ok: false, error: "invalid_ownership" };
+
+  const share = parseRevenueShare(revenueShare);
+  if (!share.ok) return share;
+
+  return { ok: true, name: normalizedName, avatarUrl: normalizedAvatarUrl, revenueShare: share.value };
 }
 
 export async function createHotel(
   input: unknown,
   workspaceId: string | null | undefined,
-  insert: (data: { name: string; avatarUrl?: string; workspaceId: string }) => Promise<{ id: string }>,
+  insert: (data: {
+    name: string;
+    avatarUrl?: string;
+    revenueShare?: RevenueShare;
+    workspaceId: string;
+  }) => Promise<{ id: string }>,
 ): Promise<CreateHotelResult> {
   if (!workspaceId) return { ok: false, error: "workspace_not_found" };
 
@@ -55,6 +74,7 @@ export async function createHotel(
   const hotel = await insert({
     name: parsed.name,
     ...(parsed.avatarUrl && { avatarUrl: parsed.avatarUrl }),
+    ...(parsed.revenueShare && { revenueShare: parsed.revenueShare }),
     workspaceId,
   });
   return { ok: true, hotelId: hotel.id };
@@ -68,14 +88,15 @@ export type UpdateHotelResult = { ok: true } | { ok: false; error: UpdateHotelEr
 export async function updateHotel(
   input: unknown,
   hotelId: string | null | undefined,
-  update: (hotelId: string, data: { name: string; avatarUrl: string | null }) => Promise<boolean>,
+  update: (hotelId: string, data: HotelInput) => Promise<boolean>,
 ): Promise<UpdateHotelResult> {
   if (!hotelId) return { ok: false, error: "hotel_not_found" };
 
   const parsed = parseHotelInput(input);
   if (!parsed.ok) return parsed;
 
-  const found = await update(hotelId, { name: parsed.name, avatarUrl: parsed.avatarUrl });
+  const { name, avatarUrl, revenueShare } = parsed;
+  const found = await update(hotelId, { name, avatarUrl, revenueShare });
   return found ? { ok: true } : { ok: false, error: "hotel_not_found" };
 }
 

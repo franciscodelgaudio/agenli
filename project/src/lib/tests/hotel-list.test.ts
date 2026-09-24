@@ -49,6 +49,8 @@ describe("hotelListPipeline", () => {
       id: { $toString: "$_id" },
       name: 1,
       avatarUrl: { $ifNull: ["$avatarUrl", null] },
+      // Unidades em espaço próprio não têm regra de repasse.
+      revenueShare: { $ifNull: ["$revenueShare", null] },
       createdAt: 1,
       updatedAt: 1,
     },

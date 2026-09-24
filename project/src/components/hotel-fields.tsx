@@ -1,9 +1,11 @@
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { RevenueShareFields } from "@/components/revenue-share-fields"
+import type { RevenueShare } from "@/lib/revenue-share"
 
 type Props = {
   idPrefix: string
-  defaultValues?: { name: string; avatarUrl: string | null }
+  defaultValues?: { name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
 }
 
 export function HotelFields({ idPrefix, defaultValues }: Props) {
@@ -31,6 +33,7 @@ export function HotelFields({ idPrefix, defaultValues }: Props) {
           defaultValue={defaultValues?.avatarUrl ?? undefined}
         />
       </Field>
+      <RevenueShareFields idPrefix={idPrefix} defaultValue={defaultValues?.revenueShare} />
     </>
   )
 }
