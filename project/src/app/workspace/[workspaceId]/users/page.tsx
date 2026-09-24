@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { MailIcon, UserIcon } from "lucide-react"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -18,15 +18,15 @@ export default async function UsersPage({
 }: PageProps<"/workspace/[workspaceId]/users">) {
   const { workspaceId } = await params
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
 
   // Layout e página renderizam em paralelo, então a posse é verificada aqui
   // também. Por enquanto o único usuário do workspace é o dono.
   const [workspace] = await Workspace.aggregate<{
     users: { id: string; name: string | null; email: string; image: string | null }[]
   }>([
-    match,
+    ...access,
     {
       $lookup: {
         from: "users",

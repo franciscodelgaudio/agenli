@@ -16,12 +16,37 @@ export async function getSessionUserId() {
   return id && isObjectIdOrHexString(id) ? id : null;
 }
 
-// $match que só encontra o workspace se ele for do usuário. Aggregation não
-// converte string em ObjectId sozinho, então a conversão é feita aqui; id
-// inválido vira null para a página responder 404 sem ir ao banco.
-export function matchOwnedWorkspace(workspaceId: string, userId: string) {
+// Estágios que só encontram o workspace se o usuário for o dono ou um membro
+// que aceitou o convite, e adicionam o campo role ("owner" ou a função do
+// membro). Aggregation não converte string em ObjectId sozinho, então a
+// conversão é feita aqui; id inválido vira null para a página responder 404
+// sem ir ao banco.
+export function workspaceAccessStages(workspaceId: string, userId: string) {
   if (!isObjectIdOrHexString(workspaceId)) return null;
-  return {
-    $match: { _id: new Types.ObjectId(workspaceId), userId: new Types.ObjectId(userId) },
-  };
+  const userObjectId = new Types.ObjectId(userId);
+  return [
+    { $match: { _id: new Types.ObjectId(workspaceId) } },
+    {
+      $lookup: {
+        from: "workspace_members",
+        localField: "_id",
+        foreignField: "workspaceId",
+        as: "membership",
+        pipeline: [{ $match: { userId: userObjectId } }, { $limit: 1 }, { $project: { _id: 0, role: 1 } }],
+      },
+    },
+    {
+      $set: {
+        role: {
+          $cond: [
+            { $eq: ["$userId", userObjectId] },
+            "owner",
+            { $ifNull: [{ $first: "$membership.role" }, null] },
+          ],
+        },
+      },
+    },
+    { $match: { role: { $ne: null } } },
+    { $unset: "membership" },
+  ];
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { logoutAction } from "@/lib/actions/auth"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 
 // Único arquivo do slot: o default.tsx é renderizado para qualquer sub-rota
@@ -13,15 +13,15 @@ export default async function SidebarSlot({
 }) {
   const { workspaceId } = await params
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
 
   const [workspace] = await Workspace.aggregate<{
     id: string
     name: string
     avatarUrl: string | null
   }>([
-    match,
+    ...access,
     {
       $project: {
         _id: 0,

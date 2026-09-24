@@ -2,7 +2,9 @@
 
 import { refresh } from "next/cache"
 import { isObjectIdOrHexString } from "mongoose"
-import { getSessionUserId, matchOwnedWorkspace } from "@/lib/session"
+import { getSessionUserId } from "@/lib/session"
+import { canManageMembers } from "@/lib/member"
+import { findWorkspaceAccess } from "@/lib/workspace-access"
 import {
   createHotel,
   deleteHotel,
@@ -11,7 +13,6 @@ import {
   type UpdateHotelError,
 } from "@/lib/hotel"
 import { Hotel } from "@/models/Hotel"
-import { Workspace } from "@/models/Workspace"
 
 const errorMessages: Record<CreateHotelError | UpdateHotelError | "unauthenticated", string> = {
   invalid_input: "Informe o nome da unidade.",
@@ -27,16 +28,10 @@ export type CreateHotelState = { error: string | null }
 export type UpdateHotelState = CreateHotelState
 export type DeleteHotelState = CreateHotelState
 
-// id do workspace se ele for do usuário; senão undefined.
-async function findOwnedWorkspaceId(workspaceId: string, userId: string) {
-  const match = matchOwnedWorkspace(workspaceId, userId)
-  if (!match) return undefined
-  const [owned] = await Workspace.aggregate<{ id: string }>([
-    match,
-    { $limit: 1 },
-    { $project: { _id: 0, id: { $toString: "$_id" } } },
-  ])
-  return owned?.id
+// id do workspace se o usuário puder gerenciá-lo (dono ou administrador); senão undefined.
+async function findManagedWorkspaceId(workspaceId: string, userId: string) {
+  const access = await findWorkspaceAccess(workspaceId, userId)
+  return access && canManageMembers(access.role) ? access.id : undefined
 }
 
 // workspaceId vem via argumento do cliente; a posse é conferida aqui, no servidor.
@@ -48,7 +43,7 @@ export async function createHotelAction(
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
 
-  const ownedId = await findOwnedWorkspaceId(workspaceId, userId)
+  const ownedId = await findManagedWorkspaceId(workspaceId, userId)
 
   const result = await createHotel(
     { name: formData.get("name"), avatarUrl: formData.get("avatarUrl") },
@@ -65,13 +60,13 @@ export async function createHotelAction(
   return { error: null }
 }
 
-// Só repassa o hotelId quando o workspace é do usuário; a escrita ainda filtra
+// Só repassa o hotelId quando o usuário gerencia o workspace; a escrita ainda filtra
 // por workspaceId para que um hotel de outro workspace não seja encontrado.
 // null = sessão expirada.
 async function resolveHotelTarget(workspaceId: string, hotelId: string) {
   const userId = await getSessionUserId()
   if (!userId) return null
-  const ownedId = await findOwnedWorkspaceId(workspaceId, userId)
+  const ownedId = await findManagedWorkspaceId(workspaceId, userId)
   return { ownedId, hotelId: ownedId && isObjectIdOrHexString(hotelId) ? hotelId : null }
 }
 

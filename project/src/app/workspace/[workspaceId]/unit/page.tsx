@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { hotelListPipeline, parseHotelListQuery } from "@/lib/hotel-list"
 import { Workspace } from "@/models/Workspace"
 import { CreateHotelSheet } from "@/components/create-hotel-sheet"
@@ -14,16 +15,17 @@ export default async function HotelsPage({
   const { workspaceId } = await params
   const query = parseHotelListQuery(await searchParams)
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
 
-  // Parte do workspace (e não de hotels) para que o $match garanta a posse.
+  // Parte do workspace (e não de hotels) para que o acesso ao workspace seja garantido.
   // O total sem filtro separa "workspace sem unidades" de "busca sem resultado".
   const [workspace] = await Workspace.aggregate<{
     hotels: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date }[]
     hotelCount: number
+    role: WorkspaceRole
   }>([
-    match,
+    ...access,
     {
       $lookup: {
         from: "hotels",
@@ -46,21 +48,23 @@ export default async function HotelsPage({
       $project: {
         _id: 0,
         hotels: 1,
+        role: 1,
         hotelCount: { $ifNull: [{ $first: "$hotelCount.n" }, 0] },
       },
     },
   ])
   if (!workspace) notFound()
   const { hotels, hotelCount } = workspace
+  const canManage = canManageMembers(workspace.role)
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">Unidades</h2>
-        {hotelCount > 0 && <CreateHotelSheet workspaceId={workspaceId} />}
+        {canManage && hotelCount > 0 && <CreateHotelSheet workspaceId={workspaceId} />}
       </div>
       {hotelCount === 0 ? (
-        <HotelsEmpty workspaceId={workspaceId} />
+        <HotelsEmpty workspaceId={workspaceId} canManage={canManage} />
       ) : (
         <>
           <HotelSearch query={query} />
@@ -69,6 +73,7 @@ export default async function HotelsPage({
             query={query}
             pathname={`/workspace/${workspaceId}/unit`}
             workspaceId={workspaceId}
+            canManage={canManage}
           />
         </>
       )}

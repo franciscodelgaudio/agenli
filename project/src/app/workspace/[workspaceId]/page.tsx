@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { Button } from "@/components/ui/button"
 import { CreateHotelSheet } from "@/components/create-hotel-sheet"
@@ -10,17 +11,18 @@ import { HotelsEmpty } from "@/components/hotels-empty"
 export default async function WorkspacePage({ params }: PageProps<"/workspace/[workspaceId]">) {
   const { workspaceId } = await params
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
 
   // Workspace + as 5 primeiras unidades + o total, numa consulta só.
   const [workspace] = await Workspace.aggregate<{
     id: string
     name: string
+    role: WorkspaceRole
     hotels: { id: string; name: string; avatarUrl: string | null }[]
     hotelCount: number
   }>([
-    match,
+    ...access,
     {
       $lookup: {
         from: "hotels",
@@ -45,6 +47,7 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
         _id: 0,
         id: { $toString: "$_id" },
         name: 1,
+        role: 1,
         hotels: { $slice: ["$hotels", 5] },
         hotelCount: { $size: "$hotels" },
       },
@@ -52,11 +55,12 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
   ])
   if (!workspace) notFound()
   const { hotels, hotelCount } = workspace
+  const canManage = canManageMembers(workspace.role)
 
   if (hotelCount === 0) {
     return (
       <div className="flex flex-1 flex-col p-4">
-        <HotelsEmpty workspaceId={workspace.id} />
+        <HotelsEmpty workspaceId={workspace.id} canManage={canManage} />
       </div>
     )
   }
@@ -65,7 +69,7 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">{workspace.name}</h2>
-        <CreateHotelSheet workspaceId={workspace.id} />
+        {canManage && <CreateHotelSheet workspaceId={workspace.id} />}
       </div>
       <HotelList hotels={hotels} />
       {hotelCount > hotels.length && (

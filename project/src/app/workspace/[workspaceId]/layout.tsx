@@ -2,7 +2,7 @@ import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 
 export default async function WorkspaceLayout({
@@ -12,11 +12,11 @@ export default async function WorkspaceLayout({
 }: LayoutProps<"/workspace/[workspaceId]">) {
   const { workspaceId } = await params
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
 
   const [workspace] = await Workspace.aggregate<{ name: string }>([
-    match,
+    ...access,
     { $project: { _id: 0, name: 1 } },
   ])
   if (!workspace) notFound()

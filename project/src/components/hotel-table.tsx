@@ -27,6 +27,8 @@ type Props = {
   query: HotelListQuery
   pathname: string
   workspaceId: string
+  // Sem permissão, a coluna de ações (editar/excluir) não aparece.
+  canManage: boolean
 }
 
 function SortableHead({
@@ -68,7 +70,7 @@ function SortableHead({
   )
 }
 
-export function HotelTable({ hotels, query, pathname, workspaceId }: Props) {
+export function HotelTable({ hotels, query, pathname, workspaceId, canManage }: Props) {
   return (
     <div className="border">
       <Table>
@@ -77,18 +79,20 @@ export function HotelTable({ hotels, query, pathname, workspaceId }: Props) {
             <SortableHead field="name" label="Nome" icon={Building2Icon} query={query} pathname={pathname} />
             <SortableHead field="createdAt" label="Criado em" icon={CalendarPlusIcon} query={query} pathname={pathname} />
             <SortableHead field="updatedAt" label="Atualizado em" icon={CalendarClockIcon} query={query} pathname={pathname} />
-            <TableHead className="w-0 px-4 text-right">
-              <span className="inline-flex items-center gap-1">
-                <SettingsIcon className="size-4 text-muted-foreground" />
-                Ações
-              </span>
-            </TableHead>
+            {canManage && (
+              <TableHead className="w-0 px-4 text-right">
+                <span className="inline-flex items-center gap-1">
+                  <SettingsIcon className="size-4 text-muted-foreground" />
+                  Ações
+                </span>
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {hotels.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhuma unidade encontrada.
               </TableCell>
             </TableRow>
@@ -116,9 +120,11 @@ export function HotelTable({ hotels, query, pathname, workspaceId }: Props) {
                 </TableCell>
                 <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(hotel.createdAt)}</TableCell>
                 <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(hotel.updatedAt)}</TableCell>
-                <TableCell className="relative z-10 px-4 text-right">
-                  <HotelActions workspaceId={workspaceId} hotel={hotel} />
-                </TableCell>
+                {canManage && (
+                  <TableCell className="relative z-10 px-4 text-right">
+                    <HotelActions workspaceId={workspaceId} hotel={hotel} />
+                  </TableCell>
+                )}
               </TableRow>
             ))
           )}

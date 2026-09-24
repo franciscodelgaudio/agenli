@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowLeftIcon } from "lucide-react"
-import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { dateTimeFormat } from "@/lib/utils"
 import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -15,14 +15,14 @@ export default async function UnitLayout({
 }: LayoutProps<"/workspace/[workspaceId]/unit/[unitId]">) {
   const { workspaceId, unitId } = await params
   const user = await requireUser()
-  const match = matchOwnedWorkspace(workspaceId, user.id)
-  if (!match || !isObjectIdOrHexString(unitId)) notFound()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
-  // Parte do workspace (e não de hotels) para que o $match garanta a posse.
+  // Parte do workspace (e não de hotels) para que o acesso ao workspace seja garantido.
   const [workspace] = await Workspace.aggregate<{
     hotel: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date } | null
   }>([
-    match,
+    ...access,
     {
       $lookup: {
         from: "hotels",

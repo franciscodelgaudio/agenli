@@ -9,7 +9,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-export function HotelsEmpty({ workspaceId }: { workspaceId: string }) {
+export function HotelsEmpty({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -18,12 +18,16 @@ export function HotelsEmpty({ workspaceId }: { workspaceId: string }) {
         </EmptyMedia>
         <EmptyTitle>Nenhuma unidade cadastrada</EmptyTitle>
         <EmptyDescription>
-          Este workspace ainda não tem unidades. Cadastre a primeira para começar.
+          {canManage
+            ? "Este workspace ainda não tem unidades. Cadastre a primeira para começar."
+            : "Este workspace ainda não tem unidades."}
         </EmptyDescription>
       </EmptyHeader>
-      <EmptyContent>
-        <CreateHotelSheet workspaceId={workspaceId} />
-      </EmptyContent>
+      {canManage && (
+        <EmptyContent>
+          <CreateHotelSheet workspaceId={workspaceId} />
+        </EmptyContent>
+      )}
     </Empty>
   )
 }
