@@ -17,6 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import { DateTimeField } from "@/components/date-time-field"
 import { currencyFormat, formatDuration } from "@/components/service-format"
 
 type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number }
@@ -27,7 +28,7 @@ type Props = {
   unitId: string
   services: ServiceOption[]
   therapists: TherapistOption[]
-  // Valor inicial do datetime-local, no horário de Brasília.
+  // Data/hora inicial ("2026-09-24T14:30"), no horário de Brasília.
   defaultPerformedAt: string
 }
 
@@ -96,22 +97,11 @@ function AppointmentForm({
           <FieldLabel htmlFor="appointment-guest-name">Hóspede</FieldLabel>
           <Input id="appointment-guest-name" name="guestName" placeholder="João Silva" maxLength={80} autoFocus required />
         </Field>
-        <div className="grid grid-cols-2 gap-4">
-          <Field>
-            <FieldLabel htmlFor="appointment-room">Quarto</FieldLabel>
-            <Input id="appointment-room" name="room" placeholder="204" maxLength={20} required />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="appointment-performed-at">Data e hora</FieldLabel>
-            <Input
-              id="appointment-performed-at"
-              name="performedAt"
-              type="datetime-local"
-              defaultValue={defaultPerformedAt}
-              required
-            />
-          </Field>
-        </div>
+        <Field>
+          <FieldLabel htmlFor="appointment-room">Quarto</FieldLabel>
+          <Input id="appointment-room" name="room" placeholder="204" maxLength={20} required />
+        </Field>
+        <DateTimeField idPrefix="appointment" name="performedAt" defaultValue={defaultPerformedAt} />
 
         <FieldSeparator>Serviços</FieldSeparator>
 
