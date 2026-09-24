@@ -10,7 +10,6 @@ import FullCalendar, {
 import classicThemePlugin from "@fullcalendar/react/themes/classic"
 import dayGridPlugin from "@fullcalendar/react/daygrid"
 import timeGridPlugin from "@fullcalendar/react/timegrid"
-import listPlugin from "@fullcalendar/react/list"
 import interactionPlugin from "@fullcalendar/react/interaction"
 import ptBrLocale from "@fullcalendar/react/locales/pt-br"
 import "@fullcalendar/react/skeleton.css"
@@ -255,12 +254,12 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       <div className="booking-calendar">
         <FullCalendar
           ref={calendarRef}
-          plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
           locale={ptBrLocale}
           timeZone="UTC"
           now={brtNow}
           initialView="timeGridWeek"
-          headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek,timeGridDay,listWeek" }}
+          headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek,timeGridDay" }}
           height="auto"
           allDaySlot={false}
           slotMinTime="06:00"
@@ -270,35 +269,13 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           slotMinHeight={32}
           nowIndicator
           dayMaxEvents
-          noEventsText="Nenhum agendamento neste período."
           events={fetchEvents}
           // Altura definida no miolo do evento, para o conteúdo esconder as linhas que não cabem inteiras.
           columnEventInnerClass={({ isShort }) => (isShort ? undefined : "h-full")}
-          eventContent={({ event, timeText, view, isShort, timeClass, titleClass }) => {
+          eventContent={({ event, timeText, view, isShort }) => {
             // O evento-espelho da seleção (selectMirror) não tem agendamento associado.
             const booking = event.extendedProps.booking as BookingRow | undefined
             if (!booking) return <div className="overflow-hidden px-1 text-xs font-medium">{timeText}</div>
-            // Na lista a hora tem coluna própria e cabe uma linha com todos os dados, inclusive a unidade.
-            if (view.type.startsWith("list")) {
-              return (
-                <>
-                  <div className={timeClass}>{timeText}</div>
-                  <div className={titleClass}>
-                    <span className="inline-flex items-center gap-1 font-medium">
-                      {booking.appointmentId && <CheckIcon className="size-3.5 shrink-0" aria-label="Atendido" />}
-                      {booking.guest.name}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      · Quarto {booking.guest.room} ·{" "}
-                      {therapistAvatar(booking, "inline-flex size-4 align-text-bottom")} {booking.therapistName}
-                      {` · ${booking.service.serviceName}`}
-                      {unitNames.has(booking.unitId) && ` · ${unitNames.get(booking.unitId)}`}
-                    </span>
-                  </div>
-                </>
-              )
-            }
             const guestName = (
               <span className="flex min-w-0 items-center gap-1 font-semibold">
                 {booking.appointmentId && <CheckIcon className="size-3 shrink-0" aria-label="Atendido" />}

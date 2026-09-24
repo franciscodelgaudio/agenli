@@ -21,7 +21,8 @@ export function UnitNav({ workspaceId, unitId }: { workspaceId: string; unitId: 
   return (
     <nav className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((item) => {
-        const isActive = pathname === item.href
+        // Abas com subpáginas (ex.: a lista do calendário) seguem ativas nelas.
+        const isActive = pathname === item.href || (item.href !== base && pathname.startsWith(`${item.href}/`))
         return (
           <Link
             key={item.href}

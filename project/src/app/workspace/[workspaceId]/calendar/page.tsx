@@ -4,6 +4,7 @@ import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
 import { BookingCalendar, type BookingOptions } from "@/components/booking-calendar"
+import { CalendarNav } from "@/components/calendar-nav"
 
 // Agenda de todas as unidades do workspace. Os agendamentos são buscados pelo próprio
 // calendário, conforme o período visível; aqui vêm só as opções dos filtros e do formulário.
@@ -61,7 +62,10 @@ export default async function CalendarPage({ params }: PageProps<"/workspace/[wo
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <h2 className="text-2xl font-semibold tracking-tight">Calendário</h2>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h2 className="text-2xl font-semibold tracking-tight">Calendário</h2>
+        <CalendarNav base={`/workspace/${workspaceId}/calendar`} />
+      </div>
       <BookingCalendar workspaceId={workspaceId} canManage={canManageMembers(role)} {...options} />
     </div>
   )

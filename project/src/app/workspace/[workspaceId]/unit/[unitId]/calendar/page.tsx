@@ -5,6 +5,7 @@ import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
 import { BookingCalendar, type BookingOptions } from "@/components/booking-calendar"
+import { CalendarNav } from "@/components/calendar-nav"
 
 // Agenda de uma unidade: o mesmo calendário do workspace, fixo nesta unidade.
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
@@ -71,7 +72,10 @@ export default async function UnitCalendarPage({ params }: PageProps<"/workspace
 
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-lg font-semibold tracking-tight">Calendário</h3>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h3 className="text-lg font-semibold tracking-tight">Calendário</h3>
+        <CalendarNav base={`/workspace/${workspaceId}/unit/${unitId}/calendar`} />
+      </div>
       <BookingCalendar
         workspaceId={workspaceId}
         canManage={canManageMembers(role)}

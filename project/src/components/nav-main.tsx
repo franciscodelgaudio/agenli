@@ -40,7 +40,8 @@ export function NavMain({ workspaceId }: { workspaceId: string }) {
           <SidebarMenuItem key={item.href}>
             <SidebarMenuButton
               tooltip={item.title}
-              isActive={pathname === item.href}
+              // Itens com subpáginas (ex.: a lista do calendário) seguem ativos nelas.
+              isActive={pathname === item.href || (item.href !== base && pathname.startsWith(`${item.href}/`))}
               render={<Link href={item.href} />}
             >
               <item.icon />
