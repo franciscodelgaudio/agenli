@@ -3,8 +3,7 @@
 import { refresh } from "next/cache"
 import { isObjectIdOrHexString } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
-import { canManageMembers } from "@/lib/member"
-import { findWorkspaceAccess } from "@/lib/workspace-access"
+import { findManagedUnit } from "@/lib/unit-access"
 import {
   createService,
   deleteService,
@@ -12,7 +11,6 @@ import {
   type CreateServiceError,
   type UpdateServiceError,
 } from "@/lib/service"
-import { Hotel } from "@/models/Hotel"
 import { Service } from "@/models/Service"
 
 const errorMessages: Record<CreateServiceError | UpdateServiceError | "unauthenticated", string> = {
@@ -28,15 +26,11 @@ const errorMessages: Record<CreateServiceError | UpdateServiceError | "unauthent
 
 export type ServiceActionState = { error: string | null }
 
-// id da unidade se ela for de um workspace que o usuário gerencia (dono ou
-// administrador); senão undefined. null = sessão expirada.
+// id da unidade se o usuário puder gerenciá-la; senão undefined. null = sessão expirada.
 async function findManagedHotelId(workspaceId: string, hotelId: string) {
   const userId = await getSessionUserId()
   if (!userId) return null
-  const access = await findWorkspaceAccess(workspaceId, userId)
-  if (!access || !canManageMembers(access.role) || !isObjectIdOrHexString(hotelId)) return undefined
-  const hotel = await Hotel.exists({ _id: hotelId, workspaceId: access.id })
-  return hotel ? hotelId : undefined
+  return (await findManagedUnit(workspaceId, hotelId, userId))?.hotelId
 }
 
 function serviceInput(formData: FormData) {

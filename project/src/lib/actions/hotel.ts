@@ -12,6 +12,7 @@ import {
   type CreateHotelError,
   type UpdateHotelError,
 } from "@/lib/hotel"
+import { Appointment } from "@/models/Appointment"
 import { Hotel } from "@/models/Hotel"
 import { Service } from "@/models/Service"
 
@@ -105,7 +106,7 @@ export async function deleteHotelAction(workspaceId: string, hotelId: string): P
   const result = await deleteHotel(target.hotelId, async (id) => {
     const { deletedCount } = await Hotel.deleteOne({ _id: id, workspaceId: target.ownedId })
     if (deletedCount === 0) return false
-    await Service.deleteMany({ hotelId: id })
+    await Promise.all([Service.deleteMany({ hotelId: id }), Appointment.deleteMany({ hotelId: id })])
     return true
   })
 

@@ -4,11 +4,17 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { SearchIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import type { HotelListQuery } from "@/lib/hotel-list"
 
 const DEBOUNCE_MS = 300
 
-export function HotelSearch({ query }: { query: HotelListQuery }) {
+type Props = {
+  // q é a busca; os demais campos (ordenação, data...) são preservados na URL.
+  query: { q: string } & Record<string, string>
+  placeholder: string
+}
+
+// Busca com debounce que preserva os outros parâmetros atuais da URL.
+export function ListSearch({ query, placeholder }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [value, setValue] = useState(query.q)
@@ -17,8 +23,9 @@ export function HotelSearch({ query }: { query: HotelListQuery }) {
     const q = value.trim()
     if (q === query.q) return
     const timeout = setTimeout(() => {
-      const params = new URLSearchParams({ sort: query.sort, dir: query.dir })
+      const params = new URLSearchParams(query)
       if (q) params.set("q", q)
+      else params.delete("q")
       router.replace(`${pathname}?${params}`)
     }, DEBOUNCE_MS)
     return () => clearTimeout(timeout)
@@ -31,8 +38,8 @@ export function HotelSearch({ query }: { query: HotelListQuery }) {
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Buscar unidade..."
-        aria-label="Buscar unidade"
+        placeholder={placeholder}
+        aria-label={placeholder.replace(/\.+$/, "")}
         className="pl-8"
       />
     </div>

@@ -6,9 +6,9 @@ export type HotelSortField = (typeof HOTEL_SORT_FIELDS)[number];
 export type SortDir = "asc" | "desc";
 export type HotelListQuery = { q: string; sort: HotelSortField; dir: SortDir };
 
-type SearchParams = Record<string, string | string[] | undefined>;
+export type SearchParams = Record<string, string | string[] | undefined>;
 
-function first(value: string | string[] | undefined) {
+export function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
@@ -25,7 +25,7 @@ export function parseHotelListQuery(params: SearchParams): HotelListQuery {
   };
 }
 
-function escapeRegex(value: string) {
+export function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 

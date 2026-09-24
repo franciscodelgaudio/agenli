@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboardIcon, SparklesIcon, WalletIcon, type LucideIcon } from "lucide-react"
+import { ClipboardListIcon, LayoutDashboardIcon, SparklesIcon, WalletIcon, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type NavItem = { title: string; href: string; icon: LucideIcon }
@@ -12,6 +12,7 @@ export function UnitNav({ workspaceId, unitId }: { workspaceId: string; unitId: 
   const base = `/workspace/${workspaceId}/unit/${unitId}`
   const items: NavItem[] = [
     { title: "Visão geral", href: base, icon: LayoutDashboardIcon },
+    { title: "Atendimentos", href: `${base}/appointments`, icon: ClipboardListIcon },
     { title: "Serviços", href: `${base}/services`, icon: SparklesIcon },
     { title: "Caixa", href: `${base}/cash-flow`, icon: WalletIcon },
   ]

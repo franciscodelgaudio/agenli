@@ -1,15 +1,7 @@
 import Link from "next/link"
-import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
-  Building2Icon,
-  CalendarClockIcon,
-  CalendarPlusIcon,
-  SettingsIcon,
-  type LucideIcon,
-} from "lucide-react"
+import { Building2Icon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
 import { HotelActions } from "@/components/hotel-actions"
+import { SortableHead } from "@/components/sortable-head"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   Table,
@@ -19,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { HotelListQuery, HotelSortField } from "@/lib/hotel-list"
+import type { HotelListQuery } from "@/lib/hotel-list"
 import { dateTimeFormat } from "@/lib/utils"
 
 type Props = {
@@ -29,45 +21,6 @@ type Props = {
   workspaceId: string
   // Sem permissão, a coluna de ações (editar/excluir) não aparece.
   canManage: boolean
-}
-
-function SortableHead({
-  field,
-  label,
-  icon: LabelIcon,
-  query,
-  pathname,
-}: {
-  field: HotelSortField
-  label: string
-  icon: LucideIcon
-  query: HotelListQuery
-  pathname: string
-}) {
-  const active = query.sort === field
-  // Clicar na coluna ativa inverte a direção; numa coluna nova começa crescente.
-  const dir = active && query.dir === "asc" ? "desc" : "asc"
-  const params = new URLSearchParams({ sort: field, dir })
-  if (query.q) params.set("q", query.q)
-  const Icon = !active ? ArrowUpDownIcon : query.dir === "asc" ? ArrowUpIcon : ArrowDownIcon
-
-  return (
-    <TableHead
-      className="px-4"
-      aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : undefined}
-    >
-      <Link
-        href={`${pathname}?${params}`}
-        replace
-        scroll={false}
-        className="inline-flex items-center gap-1 hover:text-foreground"
-      >
-        <LabelIcon className="size-4 text-muted-foreground" />
-        {label}
-        <Icon className={active ? "size-3.5" : "size-3.5 text-muted-foreground"} />
-      </Link>
-    </TableHead>
-  )
 }
 
 export function HotelTable({ hotels, query, pathname, workspaceId, canManage }: Props) {

@@ -3,8 +3,10 @@ import { isObjectIdOrHexString, Types } from "mongoose"
 import { SparklesIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
+import { parseServiceListQuery, serviceListPipeline } from "@/lib/service-list"
 import { Workspace } from "@/models/Workspace"
 import { CreateServiceSheet } from "@/components/create-service-sheet"
+import { ListSearch } from "@/components/list-search"
 import { ServiceTable } from "@/components/service-table"
 import {
   Empty,
@@ -18,14 +20,22 @@ import {
 type ServiceRow = { id: string; name: string; priceCents: number; durationMinutes: number }
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
-export default async function ServicesPage({ params }: PageProps<"/workspace/[workspaceId]/unit/[unitId]/services">) {
+export default async function ServicesPage({
+  params,
+  searchParams,
+}: PageProps<"/workspace/[workspaceId]/unit/[unitId]/services">) {
   const { workspaceId, unitId } = await params
+  const query = parseServiceListQuery(await searchParams)
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
   // Parte do workspace -> unidade -> serviços para que o acesso seja garantido em cada nível.
-  const [workspace] = await Workspace.aggregate<{ role: WorkspaceRole; services: ServiceRow[] | null }>([
+  // O total sem filtro separa "unidade sem serviços" de "busca sem resultado".
+  const [workspace] = await Workspace.aggregate<{
+    role: WorkspaceRole
+    hotel: { services: ServiceRow[]; serviceCount: number } | null
+  }>([
     ...access,
     {
       $lookup: {
@@ -41,29 +51,41 @@ export default async function ServicesPage({ params }: PageProps<"/workspace/[wo
               localField: "_id",
               foreignField: "hotelId",
               as: "services",
-              pipeline: [
-                { $sort: { name: 1 } },
-                { $project: { _id: 0, id: { $toString: "$_id" }, name: 1, priceCents: 1, durationMinutes: 1 } },
-              ],
+              pipeline: serviceListPipeline(query),
             },
           },
-          { $project: { _id: 0, services: 1 } },
+          {
+            $lookup: {
+              from: "services",
+              localField: "_id",
+              foreignField: "hotelId",
+              as: "serviceCount",
+              pipeline: [{ $count: "n" }],
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              services: 1,
+              serviceCount: { $ifNull: [{ $first: "$serviceCount.n" }, 0] },
+            },
+          },
         ],
       },
     },
-    { $project: { _id: 0, role: 1, services: { $ifNull: [{ $first: "$hotel.services" }, null] } } },
+    { $project: { _id: 0, role: 1, hotel: { $ifNull: [{ $first: "$hotel" }, null] } } },
   ])
-  if (!workspace?.services) notFound()
-  const { services } = workspace
+  if (!workspace?.hotel) notFound()
+  const { services, serviceCount } = workspace.hotel
   const canManage = canManageMembers(workspace.role)
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <h3 className="text-lg font-semibold tracking-tight">Serviços</h3>
-        {canManage && services.length > 0 && <CreateServiceSheet workspaceId={workspaceId} unitId={unitId} />}
+        {canManage && serviceCount > 0 && <CreateServiceSheet workspaceId={workspaceId} unitId={unitId} />}
       </div>
-      {services.length === 0 ? (
+      {serviceCount === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -83,7 +105,17 @@ export default async function ServicesPage({ params }: PageProps<"/workspace/[wo
           )}
         </Empty>
       ) : (
-        <ServiceTable services={services} workspaceId={workspaceId} unitId={unitId} canManage={canManage} />
+        <>
+          <ListSearch query={query} placeholder="Buscar serviço..." />
+          <ServiceTable
+            services={services}
+            query={query}
+            pathname={`/workspace/${workspaceId}/unit/${unitId}/services`}
+            workspaceId={workspaceId}
+            unitId={unitId}
+            canManage={canManage}
+          />
+        </>
       )}
     </div>
   )

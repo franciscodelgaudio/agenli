@@ -4,7 +4,7 @@ import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { hotelListPipeline, parseHotelListQuery } from "@/lib/hotel-list"
 import { Workspace } from "@/models/Workspace"
 import { CreateHotelSheet } from "@/components/create-hotel-sheet"
-import { HotelSearch } from "@/components/hotel-search"
+import { ListSearch } from "@/components/list-search"
 import { HotelTable } from "@/components/hotel-table"
 import { HotelsEmpty } from "@/components/hotels-empty"
 
@@ -67,7 +67,7 @@ export default async function HotelsPage({
         <HotelsEmpty workspaceId={workspaceId} canManage={canManage} />
       ) : (
         <>
-          <HotelSearch query={query} />
+          <ListSearch query={query} placeholder="Buscar unidade..." />
           <HotelTable
             hotels={hotels}
             query={query}

@@ -1,0 +1,245 @@
+import { describe, it, expect, vi } from "vitest";
+import { createAppointment, deleteAppointment } from "@/lib/appointment";
+
+const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
+const APPOINTMENT_ID = "64b7f0c2a1b2c3d4e5f60740";
+const CANDLE_ID = "64b7f0c2a1b2c3d4e5f60731";
+const RELAX_ID = "64b7f0c2a1b2c3d4e5f60732";
+const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
+const BIA_ID = "64b7f0c2a1b2c3d4e5f60752";
+
+const SERVICES = [
+  { id: CANDLE_ID, name: "Massagem Candle", priceCents: 35000, durationMinutes: 60 },
+  { id: RELAX_ID, name: "Massagem Relaxante", priceCents: 28000, durationMinutes: 50 },
+];
+const THERAPISTS = [
+  { id: ANA_ID, name: "Ana" },
+  { id: BIA_ID, name: "Bia" },
+];
+
+// Como chega do FormData: datetime-local (horário de Brasília) e os pares
+// serviço/massagista via getAll, na mesma ordem.
+const validInput = {
+  guestName: "João Silva",
+  room: "204",
+  performedAt: "2026-09-24T14:30",
+  serviceIds: [CANDLE_ID],
+  therapistIds: [ANA_ID],
+};
+
+function makeDeps({ services = SERVICES, therapists = THERAPISTS } = {}) {
+  return {
+    // Devolvem só os que existem (serviços da unidade; massagistas do workspace).
+    findServices: vi.fn(async (ids: string[]) => services.filter((s) => ids.includes(s.id))),
+    findTherapists: vi.fn(async (ids: string[]) => therapists.filter((t) => ids.includes(t.id))),
+    insert: vi.fn().mockResolvedValue({ id: APPOINTMENT_ID }),
+  };
+}
+
+describe("createAppointment", () => {
+  it("cria o atendimento copiando nome, valor e duração do serviço e o nome da massagista", async () => {
+    const deps = makeDeps();
+
+    const result = await createAppointment(validInput, HOTEL_ID, deps);
+
+    expect(result).toEqual({ ok: true, appointmentId: APPOINTMENT_ID });
+    expect(deps.insert).toHaveBeenCalledWith({
+      hotelId: HOTEL_ID,
+      performedAt: new Date("2026-09-24T17:30:00.000Z"),
+      guest: { name: "João Silva", room: "204" },
+      items: [
+        {
+          serviceId: CANDLE_ID,
+          serviceName: "Massagem Candle",
+          priceCents: 35000,
+          durationMinutes: 60,
+          therapistId: ANA_ID,
+          therapistName: "Ana",
+        },
+      ],
+    });
+  });
+
+  it("aceita vários serviços, mantendo a ordem e o par serviço/massagista", async () => {
+    const deps = makeDeps();
+
+    await createAppointment(
+      { ...validInput, serviceIds: [RELAX_ID, CANDLE_ID], therapistIds: [BIA_ID, ANA_ID] },
+      HOTEL_ID,
+      deps,
+    );
+
+    expect(deps.insert.mock.calls[0][0].items).toEqual([
+      expect.objectContaining({ serviceId: RELAX_ID, priceCents: 28000, therapistId: BIA_ID, therapistName: "Bia" }),
+      expect.objectContaining({ serviceId: CANDLE_ID, priceCents: 35000, therapistId: ANA_ID, therapistName: "Ana" }),
+    ]);
+  });
+
+  it("aceita o mesmo serviço e a mesma massagista repetidos, buscando cada id uma vez só", async () => {
+    const deps = makeDeps();
+
+    await createAppointment(
+      { ...validInput, serviceIds: [CANDLE_ID, CANDLE_ID], therapistIds: [ANA_ID, ANA_ID] },
+      HOTEL_ID,
+      deps,
+    );
+
+    expect(deps.findServices).toHaveBeenCalledWith([CANDLE_ID]);
+    expect(deps.findTherapists).toHaveBeenCalledWith([ANA_ID]);
+    expect(deps.insert.mock.calls[0][0].items).toHaveLength(2);
+  });
+
+  it("remove espaços das pontas do nome do hóspede, do quarto e dos ids", async () => {
+    const deps = makeDeps();
+
+    await createAppointment(
+      {
+        ...validInput,
+        guestName: "  João Silva  ",
+        room: " 204 ",
+        performedAt: " 2026-09-24T14:30 ",
+        serviceIds: [` ${CANDLE_ID} `],
+        therapistIds: [` ${ANA_ID} `],
+      },
+      HOTEL_ID,
+      deps,
+    );
+
+    expect(deps.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        performedAt: new Date("2026-09-24T17:30:00.000Z"),
+        guest: { name: "João Silva", room: "204" },
+        items: [expect.objectContaining({ serviceId: CANDLE_ID, therapistId: ANA_ID })],
+      }),
+    );
+  });
+
+  it("converte a data/hora de Brasília para UTC mesmo quando vira o dia", async () => {
+    const deps = makeDeps();
+
+    await createAppointment({ ...validInput, performedAt: "2026-12-31T22:15" }, HOTEL_ID, deps);
+
+    expect(deps.insert.mock.calls[0][0].performedAt).toEqual(new Date("2027-01-01T01:15:00.000Z"));
+  });
+
+  it("aceita nome do hóspede com 80 caracteres, quarto com 20 e 20 serviços (limites)", async () => {
+    const result = await createAppointment(
+      {
+        ...validInput,
+        guestName: "a".repeat(80),
+        room: "1".repeat(20),
+        serviceIds: Array(20).fill(CANDLE_ID),
+        therapistIds: Array(20).fill(ANA_ID),
+      },
+      HOTEL_ID,
+      makeDeps(),
+    );
+
+    expect(result).toEqual({ ok: true, appointmentId: APPOINTMENT_ID });
+  });
+
+  it.each([
+    ["input nulo", null, "invalid_input"],
+    ["nome do hóspede não é string", { ...validInput, guestName: 1 }, "invalid_input"],
+    ["quarto ausente (null do FormData)", { ...validInput, room: null }, "invalid_input"],
+    ["data/hora ausente", { ...validInput, performedAt: null }, "invalid_input"],
+    ["serviceIds não é lista", { ...validInput, serviceIds: CANDLE_ID }, "invalid_input"],
+    ["therapistIds ausente", { ...validInput, therapistIds: undefined }, "invalid_input"],
+    ["item da lista não é string", { ...validInput, serviceIds: [123] }, "invalid_input"],
+    ["nome do hóspede vazio", { ...validInput, guestName: "   " }, "invalid_guest_name"],
+    ["nome do hóspede com mais de 80 caracteres", { ...validInput, guestName: "a".repeat(81) }, "guest_name_too_long"],
+    ["quarto vazio", { ...validInput, room: "  " }, "invalid_room"],
+    ["quarto com mais de 20 caracteres", { ...validInput, room: "1".repeat(21) }, "room_too_long"],
+    ["data/hora vazia", { ...validInput, performedAt: "" }, "invalid_performed_at"],
+    ["data sem hora", { ...validInput, performedAt: "2026-09-24" }, "invalid_performed_at"],
+    ["data/hora não é data", { ...validInput, performedAt: "ontem" }, "invalid_performed_at"],
+    ["dia que não existe", { ...validInput, performedAt: "2026-02-30T10:00" }, "invalid_performed_at"],
+    ["hora que não existe", { ...validInput, performedAt: "2026-09-24T25:00" }, "invalid_performed_at"],
+    ["nenhum serviço", { ...validInput, serviceIds: [], therapistIds: [] }, "no_items"],
+    [
+      "mais de 20 serviços",
+      { ...validInput, serviceIds: Array(21).fill(CANDLE_ID), therapistIds: Array(21).fill(ANA_ID) },
+      "too_many_items",
+    ],
+    ["serviço sem massagista (listas de tamanhos diferentes)", { ...validInput, therapistIds: [] }, "invalid_item"],
+    ["serviço não escolhido", { ...validInput, serviceIds: [""] }, "invalid_item"],
+    ["massagista não escolhida", { ...validInput, therapistIds: ["  "] }, "invalid_item"],
+  ])("retorna erro sem buscar nem salvar quando %s", async (_label, input, error) => {
+    const deps = makeDeps();
+
+    const result = await createAppointment(input, HOTEL_ID, deps);
+
+    expect(result).toEqual({ ok: false, error });
+    expect(deps.findServices).not.toHaveBeenCalled();
+    expect(deps.findTherapists).not.toHaveBeenCalled();
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
+  it("retorna service_not_found sem salvar quando algum serviço não é da unidade", async () => {
+    const deps = makeDeps({ services: [SERVICES[0]] });
+
+    const result = await createAppointment(
+      { ...validInput, serviceIds: [CANDLE_ID, RELAX_ID], therapistIds: [ANA_ID, ANA_ID] },
+      HOTEL_ID,
+      deps,
+    );
+
+    expect(result).toEqual({ ok: false, error: "service_not_found" });
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
+  it("retorna therapist_not_found sem salvar quando alguma massagista não é do workspace", async () => {
+    const deps = makeDeps({ therapists: [THERAPISTS[0]] });
+
+    const result = await createAppointment(
+      { ...validInput, serviceIds: [CANDLE_ID, CANDLE_ID], therapistIds: [ANA_ID, BIA_ID] },
+      HOTEL_ID,
+      deps,
+    );
+
+    expect(result).toEqual({ ok: false, error: "therapist_not_found" });
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, null, ""])(
+    "retorna hotel_not_found sem buscar nem salvar quando não há hotelId (%j)",
+    async (hotelId) => {
+      const deps = makeDeps();
+
+      const result = await createAppointment(validInput, hotelId, deps);
+
+      expect(result).toEqual({ ok: false, error: "hotel_not_found" });
+      expect(deps.findServices).not.toHaveBeenCalled();
+      expect(deps.insert).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("deleteAppointment", () => {
+  it("exclui o atendimento pelo id", async () => {
+    const remove = vi.fn().mockResolvedValue(true);
+
+    const result = await deleteAppointment(APPOINTMENT_ID, remove);
+
+    expect(result).toEqual({ ok: true });
+    expect(remove).toHaveBeenCalledWith(APPOINTMENT_ID);
+  });
+
+  it.each([undefined, null, ""])(
+    "retorna appointment_not_found sem excluir quando não há appointmentId (%j)",
+    async (appointmentId) => {
+      const remove = vi.fn().mockResolvedValue(true);
+
+      const result = await deleteAppointment(appointmentId, remove);
+
+      expect(result).toEqual({ ok: false, error: "appointment_not_found" });
+      expect(remove).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retorna appointment_not_found quando o atendimento não existe (ou não é da unidade)", async () => {
+    const result = await deleteAppointment(APPOINTMENT_ID, vi.fn().mockResolvedValue(false));
+
+    expect(result).toEqual({ ok: false, error: "appointment_not_found" });
+  });
+});
