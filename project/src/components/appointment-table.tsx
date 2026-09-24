@@ -1,4 +1,4 @@
-import { BanknoteIcon, BedDoubleIcon, ClockIcon, SettingsIcon, SparklesIcon } from "lucide-react"
+import { BanknoteIcon, BedDoubleIcon, Building2Icon, ClockIcon, SettingsIcon, SparklesIcon } from "lucide-react"
 import { AppointmentActions } from "@/components/appointment-actions"
 import type { AppointmentOptions } from "@/components/appointment-form"
 import { SortableHead } from "@/components/sortable-head"
@@ -15,6 +15,7 @@ import type { AppointmentListQuery } from "@/lib/appointment-list"
 
 export type AppointmentRow = {
   id: string
+  hotelId: string
   performedAt: Date
   guest: { name: string; room: string }
   items: {
@@ -33,8 +34,7 @@ type Props = {
   query: AppointmentListQuery
   pathname: string
   workspaceId: string
-  unitId: string
-  // Opções do formulário de edição.
+  // Opções do formulário de edição; com units (visão do workspace), aparece a coluna Unidade.
   options: AppointmentOptions
   // Sem permissão, a coluna de ações (editar/excluir) não aparece.
   canManage: boolean
@@ -51,13 +51,16 @@ function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) 
   )
 }
 
-export function AppointmentTable({ appointments, query, pathname, workspaceId, unitId, options, canManage }: Props) {
+export function AppointmentTable({ appointments, query, pathname, workspaceId, options, canManage }: Props) {
+  const unitNames = options.units && new Map(options.units.map((unit) => [unit.id, unit.name]))
+  const columns = 4 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
   return (
     <div className="border">
       <Table>
         <TableHeader>
           <TableRow>
             <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
+            {unitNames && <Head icon={Building2Icon} label="Unidade" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
             <Head icon={SparklesIcon} label="Serviços" />
             <SortableHead field="totalCents" label="Total" icon={BanknoteIcon} query={query} pathname={pathname} />
@@ -74,7 +77,7 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, u
         <TableBody>
           {appointments.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 5 : 4} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={columns} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhum atendimento encontrado.
               </TableCell>
             </TableRow>
@@ -82,6 +85,9 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, u
             appointments.map((appointment) => (
               <TableRow key={appointment.id} className="align-top">
                 <TableCell className="px-4 tabular-nums">{timeFormat.format(appointment.performedAt)}</TableCell>
+                {unitNames && (
+                  <TableCell className="px-4">{unitNames.get(appointment.hotelId) ?? "—"}</TableCell>
+                )}
                 <TableCell className="px-4">
                   <div className="font-medium">{appointment.guest.name}</div>
                   <div className="text-muted-foreground">Quarto {appointment.guest.room}</div>
@@ -106,7 +112,6 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, u
                   <TableCell className="px-4 text-right">
                     <AppointmentActions
                       workspaceId={workspaceId}
-                      unitId={unitId}
                       appointment={appointment}
                       {...options}
                     />

@@ -16,8 +16,8 @@ export function SortableHead<F extends string>({ field, label, icon: LabelIcon, 
   const active = query.sort === field
   // Clicar na coluna ativa inverte a direção; numa coluna nova começa crescente.
   const dir = active && query.dir === "asc" ? "desc" : "asc"
-  const params = new URLSearchParams({ ...query, sort: field, dir })
-  if (!query.q) params.delete("q")
+  // Campos vazios (busca, unidade "todas"...) ficam fora da URL.
+  const params = new URLSearchParams(Object.entries({ ...query, sort: field, dir }).filter(([, value]) => value))
   const Icon = !active ? ArrowUpDownIcon : query.dir === "asc" ? ArrowUpIcon : ArrowDownIcon
 
   return (

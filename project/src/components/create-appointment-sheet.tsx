@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { PlusIcon } from "lucide-react"
-import { createAppointmentAction } from "@/lib/actions/appointment"
+import { createAppointmentAction, createWorkspaceAppointmentAction } from "@/lib/actions/appointment"
 
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -10,7 +10,8 @@ import { AppointmentForm, type AppointmentOptions } from "@/components/appointme
 
 type Props = AppointmentOptions & {
   workspaceId: string
-  unitId: string
+  // Na unidade, o atendimento é dela; na visão do workspace (com units), é escolhida no formulário.
+  unitId?: string
   // Data/hora inicial ("2026-09-24T14:30"), no horário de Brasília.
   defaultPerformedAt: string
 }
@@ -38,7 +39,11 @@ export function CreateAppointmentSheet({ workspaceId, unitId, defaultPerformedAt
           {...options}
           mode="create"
           defaultValues={{ guestName: "", room: "", performedAt: defaultPerformedAt }}
-          action={(prev, formData) => createAppointmentAction(workspaceId, unitId, prev, formData)}
+          action={(prev, formData) =>
+            unitId
+              ? createAppointmentAction(workspaceId, unitId, prev, formData)
+              : createWorkspaceAppointmentAction(workspaceId, prev, formData)
+          }
           onDone={() => setOpen(false)}
         />
       </SheetContent>

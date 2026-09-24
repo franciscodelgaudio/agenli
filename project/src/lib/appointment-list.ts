@@ -1,8 +1,9 @@
 import { Types, type PipelineStage } from "mongoose";
 import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/hotel-list";
+import { BRT_OFFSET_HOURS } from "@/lib/timezone";
 
-// Horário de Brasília: UTC-3 fixo (sem horário de verão desde 2019).
-export const BRT_OFFSET_HOURS = 3;
+export { BRT_OFFSET_HOURS };
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Chaves aceitas na URL e o campo correspondente no banco.

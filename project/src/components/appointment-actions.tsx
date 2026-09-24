@@ -2,8 +2,12 @@
 
 import { useState, useTransition } from "react"
 import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
-import { deleteAppointmentAction, updateAppointmentAction } from "@/lib/actions/appointment"
-import { BRT_OFFSET_HOURS } from "@/lib/appointment-list"
+import {
+  deleteAppointmentAction,
+  updateAppointmentAction,
+  updateWorkspaceAppointmentAction,
+} from "@/lib/actions/appointment"
+import { BRT_OFFSET_HOURS } from "@/lib/timezone"
 
 import {
   AlertDialog,
@@ -28,19 +32,21 @@ import { AppointmentForm, type AppointmentOptions } from "@/components/appointme
 
 type Appointment = {
   id: string
+  hotelId: string
   performedAt: Date
   guest: { name: string; room: string }
   items: { serviceId: string; therapistId: string }[]
 }
 
-type Props = AppointmentOptions & { workspaceId: string; unitId: string; appointment: Appointment }
+// Com units (visão do workspace), a edição permite trocar a unidade.
+type Props = AppointmentOptions & { workspaceId: string; appointment: Appointment }
 
 // Date (UTC) -> "2026-09-24T14:30" no horário de Brasília, o formato do formulário.
 function toFormDateTime(date: Date) {
   return new Date(date.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 16)
 }
 
-export function AppointmentActions({ workspaceId, unitId, appointment, ...options }: Props) {
+export function AppointmentActions({ workspaceId, appointment, ...options }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   // Muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
@@ -81,12 +87,17 @@ export function AppointmentActions({ workspaceId, unitId, appointment, ...option
             {...options}
             mode="edit"
             defaultValues={{
+              hotelId: appointment.hotelId,
               guestName: appointment.guest.name,
               room: appointment.guest.room,
               performedAt: toFormDateTime(appointment.performedAt),
               items: appointment.items.map(({ serviceId, therapistId }) => ({ serviceId, therapistId })),
             }}
-            action={(prev, formData) => updateAppointmentAction(workspaceId, unitId, appointment.id, prev, formData)}
+            action={(prev, formData) =>
+              options.units
+                ? updateWorkspaceAppointmentAction(workspaceId, appointment.id, prev, formData)
+                : updateAppointmentAction(workspaceId, appointment.hotelId, appointment.id, prev, formData)
+            }
             onDone={() => setEditOpen(false)}
           />
         </SheetContent>
@@ -94,7 +105,6 @@ export function AppointmentActions({ workspaceId, unitId, appointment, ...option
 
       <DeleteAppointmentDialog
         workspaceId={workspaceId}
-        unitId={unitId}
         appointment={appointment}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
@@ -105,13 +115,11 @@ export function AppointmentActions({ workspaceId, unitId, appointment, ...option
 
 function DeleteAppointmentDialog({
   workspaceId,
-  unitId,
   appointment,
   open,
   onOpenChange,
 }: {
   workspaceId: string
-  unitId: string
   appointment: Appointment
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -121,7 +129,7 @@ function DeleteAppointmentDialog({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteAppointmentAction(workspaceId, unitId, appointment.id)
+      const result = await deleteAppointmentAction(workspaceId, appointment.hotelId, appointment.id)
       setError(result.error)
       if (!result.error) onOpenChange(false)
     })

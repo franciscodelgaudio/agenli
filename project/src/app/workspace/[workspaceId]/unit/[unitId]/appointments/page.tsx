@@ -1,22 +1,20 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
-import { ChevronLeftIcon, ChevronRightIcon, ClipboardListIcon } from "lucide-react"
+import { ClipboardListIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
   appointmentListPipeline,
   BRT_OFFSET_HOURS,
   parseAppointmentListQuery,
-  shiftDay,
 } from "@/lib/appointment-list"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
 import { AppointmentTable, type AppointmentRow } from "@/components/appointment-table"
 import { CreateAppointmentSheet } from "@/components/create-appointment-sheet"
+import { DayNav } from "@/components/day-nav"
 import { ListSearch } from "@/components/list-search"
 import { currencyFormat } from "@/components/service-format"
-import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -28,15 +26,6 @@ import {
 
 type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number }
 type TherapistOption = { id: string; name: string }
-
-// A data da URL é um dia do calendário, então é formatada em UTC para não deslocar.
-const dayFormat = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-})
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
 export default async function AppointmentsPage({
@@ -125,13 +114,6 @@ export default async function AppointmentsPage({
 
   const today = parseAppointmentListQuery({}, now).date
   const pathname = `/workspace/${workspaceId}/unit/${unitId}/appointments`
-  function dayHref(date: string) {
-    const params = new URLSearchParams({ ...query, date })
-    if (!query.q) params.delete("q")
-    return `${pathname}?${params}`
-  }
-  const [year, month, day] = query.date.split("-").map(Number)
-  const dayLabel = dayFormat.format(new Date(Date.UTC(year, month - 1, day)))
   // Hoje: hora atual de Brasília; outro dia: meio-dia daquele dia.
   const defaultPerformedAt =
     query.date === today
@@ -157,37 +139,7 @@ export default async function AppointmentsPage({
         {dayCount > 0 && createButton}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Dia anterior"
-          nativeButton={false}
-          render={<Link href={dayHref(shiftDay(query.date, -1))} replace scroll={false} />}
-        >
-          <ChevronLeftIcon />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Próximo dia"
-          nativeButton={false}
-          render={<Link href={dayHref(shiftDay(query.date, 1))} replace scroll={false} />}
-        >
-          <ChevronRightIcon />
-        </Button>
-        {query.date !== today && (
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={dayHref(today)} replace scroll={false} />}
-          >
-            Hoje
-          </Button>
-        )}
-        <span className="text-sm font-medium first-letter:uppercase">{dayLabel}</span>
-      </div>
+      <DayNav query={query} today={today} pathname={pathname} />
 
       {dayCount === 0 ? (
         <Empty className="border">
@@ -222,7 +174,6 @@ export default async function AppointmentsPage({
             query={query}
             pathname={pathname}
             workspaceId={workspaceId}
-            unitId={unitId}
             options={{ services, therapists }}
             canManage={canManage}
           />

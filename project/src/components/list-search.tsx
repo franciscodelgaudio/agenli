@@ -23,9 +23,8 @@ export function ListSearch({ query, placeholder }: Props) {
     const q = value.trim()
     if (q === query.q) return
     const timeout = setTimeout(() => {
-      const params = new URLSearchParams(query)
-      if (q) params.set("q", q)
-      else params.delete("q")
+      // Campos vazios (busca apagada, unidade "todas"...) ficam fora da URL.
+      const params = new URLSearchParams(Object.entries({ ...query, q }).filter(([, v]) => v))
       router.replace(`${pathname}?${params}`)
     }, DEBOUNCE_MS)
     return () => clearTimeout(timeout)
