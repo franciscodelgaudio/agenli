@@ -272,6 +272,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           dayMaxEvents
           noEventsText="Nenhum agendamento neste período."
           events={fetchEvents}
+          // Altura definida no miolo do evento, para o conteúdo esconder as linhas que não cabem inteiras.
+          columnEventInnerClass={({ isShort }) => (isShort ? undefined : "h-full")}
           eventContent={({ event, timeText, view, isShort, timeClass, titleClass }) => {
             // O evento-espelho da seleção (selectMirror) não tem agendamento associado.
             const booking = event.extendedProps.booking as BookingRow | undefined
@@ -313,17 +315,18 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
                 </div>
               )
             }
-            // Cada linha trunca sozinha; o que não couber na altura do evento fica escondido.
+            // Cada linha trunca sozinha. A coluna quebra (flex-wrap) e cada linha ocupa a largura toda:
+            // a linha que não cabe inteira na altura vai para uma coluna fora da vista, em vez de aparecer cortada.
             return (
-              <div className="flex h-full min-w-0 flex-col gap-0.5 overflow-hidden px-1.5 py-1 text-xs leading-snug">
-                <div className="flex min-w-0 items-center gap-1.5">
+              <div className="flex h-full min-w-0 flex-col flex-wrap gap-y-0.5 overflow-hidden px-1.5 py-1 text-xs leading-snug">
+                <div className="flex w-full min-w-0 items-center gap-1.5">
                   {therapistAvatar(booking, "size-5 shrink-0 ring-1 ring-white/60")}
                   {guestName}
                 </div>
-                <div className="truncate tabular-nums opacity-85">
+                <div className="w-full truncate tabular-nums opacity-85">
                   {timeText} · Quarto {booking.guest.room}
                 </div>
-                <div className="truncate opacity-85">
+                <div className="w-full truncate opacity-85">
                   {booking.service.serviceName} · {booking.therapistName}
                 </div>
               </div>

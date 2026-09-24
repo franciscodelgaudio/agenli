@@ -5,8 +5,11 @@ import {
   dailyAppointmentTotalsPipeline,
   dailyBookingForecastPipeline,
   parseCashFlowQuery,
+  serviceAppointmentTotalsPipeline,
+  serviceBookingForecastPipeline,
   shiftCashFlowDate,
   summarizeCashFlow,
+  summarizeServices,
 } from "@/lib/cash-flow";
 import type { RevenueShare } from "@/lib/revenue-share";
 
@@ -331,5 +334,103 @@ describe("summarizeCashFlow", () => {
     // 1ª quinzena: R$ 700 -> 20% = R$ 140, dia 14 fica com 10.000/70.000 = R$ 20.
     // 2ª quinzena: R$ 100 -> 10% = R$ 10, todo do dia 18.
     expect(result.buckets[0].real).toEqual({ grossCents: 20_000, partnerShareCents: 3_000, netCents: 17_000 });
+  });
+});
+
+const PROJECT_SERVICE = { $project: { _id: 0, serviceId: { $toString: "$_id" }, serviceName: 1, count: 1, cents: 1 } };
+
+describe("serviceAppointmentTotalsPipeline", () => {
+  it("filtra o intervalo em Brasília e soma cada serviço, com o nome do registro mais recente", () => {
+    expect(serviceAppointmentTotalsPipeline(RANGE)).toEqual([
+      {
+        $match: {
+          performedAt: { $gte: new Date("2026-09-21T03:00:00.000Z"), $lt: new Date("2026-09-28T03:00:00.000Z") },
+        },
+      },
+      { $sort: { performedAt: 1 } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.serviceId",
+          serviceName: { $last: "$items.serviceName" },
+          count: { $sum: 1 },
+          cents: { $sum: "$items.priceCents" },
+        },
+      },
+      PROJECT_SERVICE,
+    ]);
+  });
+});
+
+describe("serviceBookingForecastPipeline", () => {
+  it("só conta agendamentos a partir de agora, com o nome e o preço atuais do serviço", () => {
+    expect(serviceBookingForecastPipeline(RANGE, NOW)).toEqual([
+      { $match: { startsAt: { $gte: NOW, $lt: new Date("2026-09-28T03:00:00.000Z") } } },
+      {
+        $lookup: {
+          from: "services",
+          localField: "service.serviceId",
+          foreignField: "_id",
+          as: "services",
+          pipeline: [{ $project: { _id: 0, name: 1, priceCents: 1 } }],
+        },
+      },
+      // Serviço excluído mantém o nome copiado no agendamento e conta como zero.
+      {
+        $group: {
+          _id: "$service.serviceId",
+          serviceName: { $last: { $ifNull: [{ $first: "$services.name" }, "$service.serviceName"] } },
+          count: { $sum: 1 },
+          cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
+        },
+      },
+      PROJECT_SERVICE,
+    ]);
+  });
+});
+
+describe("summarizeServices", () => {
+  it("sem movimento, lista vazia", () => {
+    expect(summarizeServices([], [])).toEqual([]);
+  });
+
+  it("real soma atendimentos; previsto soma atendimentos e agendamentos; ordena pelo previsto", () => {
+    const result = summarizeServices(
+      [
+        { serviceId: "a", serviceName: "Relaxante", count: 2, cents: 20_000 },
+        { serviceId: "b", serviceName: "Pedras quentes", count: 1, cents: 15_000 },
+      ],
+      [
+        { serviceId: "b", serviceName: "Pedras quentes", count: 1, cents: 15_000 },
+        { serviceId: "c", serviceName: "Reflexologia", count: 1, cents: 8_000 },
+      ],
+    );
+
+    expect(result).toEqual([
+      { serviceId: "b", serviceName: "Pedras quentes", real: { count: 1, cents: 15_000 }, forecast: { count: 2, cents: 30_000 } },
+      { serviceId: "a", serviceName: "Relaxante", real: { count: 2, cents: 20_000 }, forecast: { count: 2, cents: 20_000 } },
+      { serviceId: "c", serviceName: "Reflexologia", real: { count: 0, cents: 0 }, forecast: { count: 1, cents: 8_000 } },
+    ]);
+  });
+
+  it("serviço renomeado usa o nome atual, vindo dos agendamentos", () => {
+    const [row] = summarizeServices(
+      [{ serviceId: "a", serviceName: "Massagem", count: 1, cents: 10_000 }],
+      [{ serviceId: "a", serviceName: "Massagem relaxante", count: 1, cents: 10_000 }],
+    );
+
+    expect(row.serviceName).toBe("Massagem relaxante");
+  });
+
+  it("empate no previsto desempata pelo nome", () => {
+    const result = summarizeServices(
+      [
+        { serviceId: "z", serviceName: "Shiatsu", count: 1, cents: 10_000 },
+        { serviceId: "y", serviceName: "Drenagem", count: 1, cents: 10_000 },
+      ],
+      [],
+    );
+
+    expect(result.map((row) => row.serviceName)).toEqual(["Drenagem", "Shiatsu"]);
   });
 });

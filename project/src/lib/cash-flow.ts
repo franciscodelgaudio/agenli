@@ -19,6 +19,9 @@ export type DayTotal = { date: string; cents: number };
 export type CashFlowAmounts = { grossCents: number; partnerShareCents: number; netCents: number };
 export type CashFlowBucket = DayRange & { real: CashFlowAmounts; forecast: CashFlowAmounts };
 export type CashFlowSummary = { buckets: CashFlowBucket[]; total: { real: CashFlowAmounts; forecast: CashFlowAmounts } };
+export type ServiceTotal = { serviceId: string; serviceName: string; count: number; cents: number };
+export type ServiceAmounts = { count: number; cents: number };
+export type ServiceSummary = { serviceId: string; serviceName: string; real: ServiceAmounts; forecast: ServiceAmounts };
 
 function isView(value: string | undefined): value is CashFlowView {
   return CASH_FLOW_VIEWS.includes(value as CashFlowView);
@@ -157,6 +160,81 @@ export function dailyBookingForecastPipeline(range: DayRange, now: Date): Pipeli
     },
     PROJECT_DAY_TOTAL,
   ];
+}
+
+const PROJECT_SERVICE_TOTAL = {
+  $project: { _id: 0, serviceId: { $toString: "$_id" }, serviceName: 1, count: 1, cents: 1 },
+};
+
+// Etapas para o $lookup de appointments da unidade: faturamento por serviço no intervalo.
+export function serviceAppointmentTotalsPipeline(range: DayRange): PipelineStage.FacetPipelineStage[] {
+  const { start, end } = rangeBounds(range);
+  return [
+    { $match: { performedAt: { $gte: start, $lt: end } } },
+    { $sort: { performedAt: 1 } },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: "$items.serviceId",
+        serviceName: { $last: "$items.serviceName" },
+        count: { $sum: 1 },
+        cents: { $sum: "$items.priceCents" },
+      },
+    },
+    PROJECT_SERVICE_TOTAL,
+  ];
+}
+
+// Etapas para o $lookup de bookings da unidade: valor previsto por serviço dos agendamentos
+// de agora em diante, pelo nome e preço atuais do serviço.
+export function serviceBookingForecastPipeline(range: DayRange, now: Date): PipelineStage.FacetPipelineStage[] {
+  const { start, end } = rangeBounds(range);
+  return [
+    { $match: { startsAt: { $gte: now > start ? now : start, $lt: end } } },
+    {
+      $lookup: {
+        from: "services",
+        localField: "service.serviceId",
+        foreignField: "_id",
+        as: "services",
+        pipeline: [{ $project: { _id: 0, name: 1, priceCents: 1 } }],
+      },
+    },
+    {
+      $group: {
+        _id: "$service.serviceId",
+        serviceName: { $last: { $ifNull: [{ $first: "$services.name" }, "$service.serviceName"] } },
+        count: { $sum: 1 },
+        cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
+      },
+    },
+    PROJECT_SERVICE_TOTAL,
+  ];
+}
+
+// Real: atendimentos. Previsto: atendimentos mais agendamentos futuros, cujo nome é o atual.
+export function summarizeServices(appointments: ServiceTotal[], bookings: ServiceTotal[]): ServiceSummary[] {
+  const rows = new Map<string, ServiceSummary>();
+  const row = ({ serviceId, serviceName }: ServiceTotal) => {
+    const existing = rows.get(serviceId);
+    if (existing) return existing;
+    const created = { serviceId, serviceName, real: { count: 0, cents: 0 }, forecast: { count: 0, cents: 0 } };
+    rows.set(serviceId, created);
+    return created;
+  };
+  for (const total of appointments) {
+    const summary = row(total);
+    summary.real = { count: total.count, cents: total.cents };
+    summary.forecast = { count: total.count, cents: total.cents };
+  }
+  for (const total of bookings) {
+    const summary = row(total);
+    summary.serviceName = total.serviceName;
+    summary.forecast = { count: summary.forecast.count + total.count, cents: summary.forecast.cents + total.cents };
+  }
+  return [...rows.values()].sort(
+    (a, b) => b.forecast.cents - a.forecast.cents || a.serviceName.localeCompare(b.serviceName, "pt-BR"),
+  );
 }
 
 // Repasse (sem arredondar) de cada dia: calculado sobre o período de repasse inteiro

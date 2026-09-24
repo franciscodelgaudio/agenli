@@ -6,8 +6,12 @@ import {
   dailyAppointmentTotalsPipeline,
   dailyBookingForecastPipeline,
   parseCashFlowQuery,
+  serviceAppointmentTotalsPipeline,
+  serviceBookingForecastPipeline,
   summarizeCashFlow,
+  summarizeServices,
   type DayTotal,
+  type ServiceTotal,
 } from "@/lib/cash-flow"
 import type { RevenueShare } from "@/lib/revenue-share"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
@@ -15,6 +19,7 @@ import { Appointment } from "@/models/Appointment"
 import { Booking } from "@/models/Booking"
 import { Workspace } from "@/models/Workspace"
 import { CashFlowNav } from "@/components/cash-flow-nav"
+import { CashFlowServicesTable } from "@/components/cash-flow-services-table"
 import { CashFlowTable } from "@/components/cash-flow-table"
 import { periodLabels } from "@/components/revenue-share-labels"
 
@@ -51,16 +56,19 @@ export default async function CashFlowPage({
   const { revenueShare } = workspace.unit
 
   const buckets = cashFlowBuckets(query)
+  const shown = { from: buckets[0].from, to: buckets.at(-1)!.to }
   const range = cashFlowFetchRange(buckets, revenueShare?.period ?? null)
   const unitMatch = { $match: { unitId: new Types.ObjectId(unitId) } }
-  const [appointments, bookings] = await Promise.all([
+  const [appointments, bookings, serviceAppointments, serviceBookings] = await Promise.all([
     Appointment.aggregate<DayTotal>([unitMatch, ...dailyAppointmentTotalsPipeline(range)]),
     Booking.aggregate<DayTotal>([unitMatch, ...dailyBookingForecastPipeline(range, now)]),
+    Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(shown)]),
+    Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(shown, now)]),
   ])
   const summary = summarizeCashFlow(buckets, appointments, bookings, revenueShare)
+  const services = summarizeServices(serviceAppointments, serviceBookings)
 
   const today = parseCashFlowQuery({}, now).date
-  const shown = { from: buckets[0].from, to: buckets.at(-1)!.to }
   const pathname = `/workspace/${workspaceId}/unit/${unitId}/cash-flow`
 
   return (
@@ -80,6 +88,11 @@ export default async function CashFlowPage({
         {revenueShare
           ? `O repasse ao estabelecimento é calculado sobre o faturamento ${periodLabels[revenueShare.period].toLowerCase()} e distribuído proporcionalmente entre os períodos.`
           : "Unidade em espaço próprio: sem repasse, o lucro líquido é igual ao bruto."}
+      </p>
+      <h4 className="mt-4 font-semibold tracking-tight">Por serviço</h4>
+      <CashFlowServicesTable services={services} />
+      <p className="text-sm text-muted-foreground">
+        Valores brutos de cada serviço no período, com a quantidade realizada e agendada.
       </p>
     </div>
   )
