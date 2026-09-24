@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2Icon, HomeIcon, type LucideIcon } from "lucide-react"
+import { Building2Icon, HomeIcon, UsersIcon, type LucideIcon } from "lucide-react"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -20,7 +20,11 @@ export function NavMain({ workspaceId }: { workspaceId: string }) {
     { items: [{ title: "Início", href: base, icon: HomeIcon }] },
     {
       label: "Geral",
-      items: [{ title: "Unidades", href: `${base}/unidades`, icon: Building2Icon }],
+      items: [{ title: "Unidades", href: `${base}/unit`, icon: Building2Icon }],
+    },
+    {
+      label: "Configurações",
+      items: [{ title: "Usuários", href: `${base}/users`, icon: UsersIcon }],
     },
   ]
 

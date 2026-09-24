@@ -69,7 +69,12 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
       </div>
       <HotelList hotels={hotels} />
       {hotelCount > hotels.length && (
-        <Button variant="link" className="self-start" render={<Link href={`/workspace/${workspace.id}/unidades`} />}>
+        <Button
+          variant="link"
+          className="self-start"
+          nativeButton={false}
+          render={<Link href={`/workspace/${workspace.id}/unit`} />}
+        >
           Ver todas as {hotelCount} unidades
         </Button>
       )}

@@ -5,8 +5,8 @@ import { PlusIcon } from "lucide-react"
 import { createHotelAction, type CreateHotelState } from "@/lib/actions/hotel"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { FieldError, FieldGroup } from "@/components/ui/field"
+import { HotelFields } from "@/components/hotel-fields"
 import {
   Sheet,
   SheetContent,
@@ -42,26 +42,7 @@ export function CreateHotelSheet({ workspaceId }: { workspaceId: string }) {
           </SheetHeader>
           <FieldGroup className="px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
-            <Field>
-              <FieldLabel htmlFor="hotel-name">Nome</FieldLabel>
-              <Input
-                id="hotel-name"
-                name="name"
-                placeholder="Unidade Centro"
-                maxLength={80}
-                autoFocus
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="hotel-avatar-url">URL do avatar (opcional)</FieldLabel>
-              <Input
-                id="hotel-avatar-url"
-                name="avatarUrl"
-                type="url"
-                placeholder="https://exemplo.com/logo.png"
-              />
-            </Field>
+            <HotelFields idPrefix="create-hotel" />
           </FieldGroup>
           <SheetFooter>
             <Button type="submit" disabled={pending}>
