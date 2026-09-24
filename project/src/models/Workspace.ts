@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { connectOnUse } from "@/lib/mongoose";
 
 const workspaceSchema = new Schema(
   {
@@ -8,6 +9,8 @@ const workspaceSchema = new Schema(
   },
   { collection: "workspaces", timestamps: true },
 );
+
+workspaceSchema.plugin(connectOnUse);
 
 export type WorkspaceDoc = InferSchemaType<typeof workspaceSchema>;
 

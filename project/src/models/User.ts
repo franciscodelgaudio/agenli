@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { connectOnUse } from "@/lib/mongoose";
 
 // Mesma coleção "users" usada pelo @auth/mongodb-adapter. Os campos
 // name/email/image/emailVerified são os que o adapter grava; passwordHash
@@ -13,6 +14,8 @@ const userSchema = new Schema(
   },
   { collection: "users" },
 );
+
+userSchema.plugin(connectOnUse);
 
 export type UserDoc = InferSchemaType<typeof userSchema>;
 

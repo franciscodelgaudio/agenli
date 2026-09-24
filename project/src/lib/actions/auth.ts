@@ -1,7 +1,6 @@
 "use server"
 
-import { signIn } from "@/auth"
-import { connectDB } from "@/lib/mongoose"
+import { signIn, signOut } from "@/auth"
 import { registerUser, type RegisterError } from "@/lib/register"
 import { User } from "@/models/User"
 
@@ -16,6 +15,7 @@ const errorMessages: Record<RegisterError, string> = {
 
 export type SignupState = { error: string | null }
 
+// Pública: é o cadastro, então não exige sessão.
 export async function signupAction(
   _prev: SignupState,
   formData: FormData,
@@ -26,7 +26,6 @@ export async function signupAction(
     password: formData.get("password"),
   }
 
-  await connectDB()
   const result = await registerUser(input, {
     findUserByEmail: async (email) => {
       const found = await User.exists({ email })
@@ -47,4 +46,8 @@ export async function signupAction(
     redirectTo: "/",
   })
   return { error: null }
+}
+
+export async function logoutAction() {
+  await signOut({ redirectTo: "/login" })
 }

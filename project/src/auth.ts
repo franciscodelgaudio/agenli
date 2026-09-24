@@ -3,7 +3,6 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import client from "@/lib/mongodb";
-import { connectDB } from "@/lib/mongoose";
 import { User } from "@/models/User";
 import { verifyCredentials } from "@/lib/credentials";
 
@@ -28,7 +27,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       authorize: (credentials) =>
         verifyCredentials(credentials, async (email) => {
-          await connectDB();
           const user = await User.findOne({ email }).select("+passwordHash").lean();
           if (!user) return null;
           return {

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react"
 import { cn } from "@/lib/utils"
-import { createWorkspaceAction } from "@/app/workspace/new/actions"
+import { createWorkspaceAction } from "@/lib/actions/workspace"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"

@@ -1,33 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { createHotel, listWorkspaceHotels } from "@/lib/hotel";
+import { createHotel } from "@/lib/hotel";
 
 const WORKSPACE_ID = "64b7f0c2a1b2c3d4e5f60718";
 const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
-
-describe("listWorkspaceHotels", () => {
-  it("retorna os hotéis do workspace com id em string e avatarUrl null quando ausente", async () => {
-    const find = vi.fn().mockResolvedValue([
-      { _id: { toString: () => HOTEL_ID }, name: "Hotel Central", avatarUrl: "https://example.com/a.png" },
-      { _id: "64b7f0c2a1b2c3d4e5f60721", name: "Pousada Mar" },
-    ]);
-
-    const result = await listWorkspaceHotels(WORKSPACE_ID, find);
-
-    expect(find).toHaveBeenCalledWith(WORKSPACE_ID);
-    expect(result).toEqual([
-      { id: HOTEL_ID, name: "Hotel Central", avatarUrl: "https://example.com/a.png" },
-      { id: "64b7f0c2a1b2c3d4e5f60721", name: "Pousada Mar", avatarUrl: null },
-    ]);
-  });
-
-  it("retorna lista vazia quando o workspace não tem hotéis", async () => {
-    const find = vi.fn().mockResolvedValue([]);
-
-    const result = await listWorkspaceHotels(WORKSPACE_ID, find);
-
-    expect(result).toEqual([]);
-  });
-});
 
 describe("createHotel", () => {
   function makeInsert() {

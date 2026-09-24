@@ -2,7 +2,8 @@ import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { getCurrentWorkspace } from "@/lib/dal"
+import { matchOwnedWorkspace, requireUser } from "@/lib/session"
+import { Workspace } from "@/models/Workspace"
 
 export default async function WorkspaceLayout({
   children,
@@ -10,7 +11,14 @@ export default async function WorkspaceLayout({
   params,
 }: LayoutProps<"/workspace/[workspaceId]">) {
   const { workspaceId } = await params
-  const workspace = await getCurrentWorkspace(workspaceId)
+  const user = await requireUser()
+  const match = matchOwnedWorkspace(workspaceId, user.id)
+  if (!match) notFound()
+
+  const [workspace] = await Workspace.aggregate<{ name: string }>([
+    match,
+    { $project: { _id: 0, name: 1 } },
+  ])
   if (!workspace) notFound()
 
   // Mesmo cookie que o SidebarProvider grava ao abrir/fechar.

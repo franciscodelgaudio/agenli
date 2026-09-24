@@ -3,7 +3,7 @@
 import { useActionState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { signupAction } from "@/app/(auth)/signup/actions"
+import { signupAction } from "@/lib/actions/auth"
 
 import { Button } from "@/components/ui/button"
 import {

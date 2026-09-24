@@ -1,4 +1,5 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
+import { connectOnUse } from "@/lib/mongoose";
 
 const hotelSchema = new Schema(
   {
@@ -8,6 +9,8 @@ const hotelSchema = new Schema(
   },
   { collection: "hotels", timestamps: true },
 );
+
+hotelSchema.plugin(connectOnUse);
 
 export type HotelDoc = InferSchemaType<typeof hotelSchema>;
 

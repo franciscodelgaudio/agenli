@@ -1,8 +1,7 @@
 "use server"
 
 import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/lib/dal"
-import { connectDB } from "@/lib/mongoose"
+import { getSessionUserId } from "@/lib/session"
 import { createWorkspace, type CreateWorkspaceError } from "@/lib/workspace"
 import { Workspace } from "@/models/Workspace"
 
@@ -19,10 +18,10 @@ export async function createWorkspaceAction(
   _prev: CreateWorkspaceState,
   formData: FormData,
 ): Promise<CreateWorkspaceState> {
-  const user = await getCurrentUser()
+  const userId = await getSessionUserId()
+  if (!userId) return { error: errorMessages.unauthenticated }
 
-  const result = await createWorkspace({ name: formData.get("name") }, user?.id, async (data) => {
-    await connectDB()
+  const result = await createWorkspace({ name: formData.get("name") }, userId, async (data) => {
     const workspace = await Workspace.create(data)
     return { id: workspace._id.toString() }
   })
