@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
-import { REVENUE_SHARE_MODES, REVENUE_SHARE_PERIODS, type RevenueShare, type RevenueShareMode } from "@/lib/revenue-share"
+import { REVENUE_SHARE_PERIODS, type RevenueShare } from "@/lib/revenue-share"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel, FieldSeparator } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { modeLabels, ownershipLabels, periodLabels, type Ownership } from "@/components/revenue-share-labels"
+import { ownershipLabels, periodLabels, type Ownership } from "@/components/revenue-share-labels"
 import { currencyFormat } from "@/components/service-format"
 
 const MAX_TIERS = 10
@@ -30,12 +30,11 @@ type Props = {
   defaultValue?: RevenueShare | null
 }
 
-// Onde a unidade funciona e, se for dentro de outro estabelecimento, quanto do
+// Onde a unidade funciona e, se for em estabelecimento parceiro, quanto do
 // faturamento fica com ele.
 export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
   const [ownership, setOwnership] = useState<Ownership>(defaultValue ? "partner" : "own")
   const [period, setPeriod] = useState(defaultValue?.period ?? "monthly")
-  const [mode, setMode] = useState<RevenueShareMode>(defaultValue?.mode ?? "flat")
   const [tiers, setTiers] = useState(() => toTiers(defaultValue))
 
   function updateTier(key: number, patch: Partial<Tier>) {
@@ -94,33 +93,6 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
               </SelectContent>
             </Select>
           </Field>
-
-          {/* Com uma faixa só os dois cálculos dão o mesmo resultado. */}
-          {tiers.length > 1 ? (
-            <Field>
-              <FieldLabel htmlFor={`${idPrefix}-mode`}>Cálculo</FieldLabel>
-              <Select
-                name="revenueShareMode"
-                items={REVENUE_SHARE_MODES.map((value) => ({ value, label: modeLabels[value] }))}
-                value={mode}
-                onValueChange={(value) => setMode(value as RevenueShareMode)}
-                required
-              >
-                <SelectTrigger id={`${idPrefix}-mode`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REVENUE_SHARE_MODES.map((value) => (
-                    <SelectItem key={value} value={value}>
-                      {modeLabels[value]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          ) : (
-            <input type="hidden" name="revenueShareMode" value="flat" />
-          )}
 
           {tiers.map((tier, index) => {
             const isLast = index === tiers.length - 1

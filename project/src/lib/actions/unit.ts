@@ -23,7 +23,6 @@ const errorMessages: Record<CreateUnitError | UpdateUnitError | "unauthenticated
   invalid_avatar_url: "Informe uma URL válida começando com http:// ou https://.",
   invalid_ownership: "Informe onde a unidade funciona.",
   invalid_period: "Escolha o período do faturamento.",
-  invalid_mode: "Escolha como o percentual é calculado.",
   too_many_tiers: "Cadastre no máximo 10 faixas.",
   invalid_tier_limit: "Os limites das faixas devem ser valores maiores que zero, em ordem crescente.",
   invalid_tier_percent: "Os percentuais devem estar entre 0 e 100, com até 2 casas decimais.",
@@ -50,7 +49,6 @@ function unitInput(formData: FormData) {
     ownership: formData.get("ownership"),
     revenueShare: {
       period: formData.get("revenueSharePeriod"),
-      mode: formData.get("revenueShareMode"),
       limits: formData.getAll("tierLimit"),
       percents: formData.getAll("tierPercent"),
     },

@@ -5,26 +5,20 @@ const MAX_TIERS = 10;
 const MAX_LIMIT_CENTS = 100_000_000_000; // R$ 1.000.000.000,00
 
 export const REVENUE_SHARE_PERIODS = ["weekly", "biweekly", "monthly"] as const;
-// flat: o percentual da faixa atingida vale para o total.
-// progressive: cada parte do faturamento usa o percentual da sua faixa.
-export const REVENUE_SHARE_MODES = ["flat", "progressive"] as const;
 
 export type RevenueSharePeriod = (typeof REVENUE_SHARE_PERIODS)[number];
-export type RevenueShareMode = (typeof REVENUE_SHARE_MODES)[number];
 
 // upToCents é inclusivo; a última faixa não tem limite (null).
 export type RevenueShareTier = { upToCents: number | null; percent: number };
 
 export type RevenueShare = {
   period: RevenueSharePeriod;
-  mode: RevenueShareMode;
   tiers: RevenueShareTier[];
 };
 
 export type RevenueShareError =
   | "invalid_input"
   | "invalid_period"
-  | "invalid_mode"
   | "too_many_tiers"
   | "invalid_tier_limit"
   | "invalid_tier_percent";
@@ -57,12 +51,11 @@ function isStringArray(value: unknown): value is string[] {
 export function parseRevenueShare(
   input: unknown,
 ): { ok: true; value: RevenueShare } | { ok: false; error: RevenueShareError } {
-  const { period, mode, limits, percents } = (input ?? {}) as Record<string, unknown>;
+  const { period, limits, percents } = (input ?? {}) as Record<string, unknown>;
   if (!isStringArray(limits) || !isStringArray(percents)) return { ok: false, error: "invalid_input" };
   if (!percents.length || limits.length !== percents.length - 1) return { ok: false, error: "invalid_input" };
 
   if (!isOneOf(REVENUE_SHARE_PERIODS, period)) return { ok: false, error: "invalid_period" };
-  if (!isOneOf(REVENUE_SHARE_MODES, mode)) return { ok: false, error: "invalid_mode" };
   if (percents.length > MAX_TIERS) return { ok: false, error: "too_many_tiers" };
 
   const limitsCents: number[] = [];
@@ -79,24 +72,12 @@ export function parseRevenueShare(
     tiers.push({ upToCents: limitsCents[i] ?? null, percent });
   }
 
-  // Com uma faixa só os dois cálculos dão o mesmo resultado.
-  return { ok: true, value: { period, mode: tiers.length === 1 ? "flat" : mode, tiers } };
+  return { ok: true, value: { period, tiers } };
 }
 
-// Parte do faturamento do período (em centavos) que fica com o estabelecimento parceiro.
-export function calculatePartnerShareCents(revenueCents: number, { mode, tiers }: RevenueShare) {
-  if (mode === "flat") {
-    const tier = tiers.find((t) => t.upToCents === null || revenueCents <= t.upToCents) ?? tiers.at(-1)!;
-    return Math.round((revenueCents * tier.percent) / 100);
-  }
-
-  let share = 0;
-  let floor = 0;
-  for (const { upToCents, percent } of tiers) {
-    const ceiling = Math.min(revenueCents, upToCents ?? Infinity);
-    if (ceiling <= floor) break;
-    share += ((ceiling - floor) * percent) / 100;
-    floor = ceiling;
-  }
-  return Math.round(share);
+// Parte do faturamento do período (em centavos) que fica com o estabelecimento parceiro:
+// o percentual da faixa atingida vale para todo o faturamento.
+export function calculatePartnerShareCents(revenueCents: number, { tiers }: RevenueShare) {
+  const tier = tiers.find((t) => t.upToCents === null || revenueCents <= t.upToCents) ?? tiers.at(-1)!;
+  return Math.round((revenueCents * tier.percent) / 100);
 }

@@ -1,6 +1,6 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { connectOnUse } from "@/lib/mongoose";
-import { REVENUE_SHARE_MODES, REVENUE_SHARE_PERIODS } from "@/lib/revenue-share";
+import { REVENUE_SHARE_PERIODS } from "@/lib/revenue-share";
 
 // upToCents é inclusivo; a última faixa fica sem limite (null).
 const revenueShareTierSchema = new Schema(
@@ -15,7 +15,6 @@ const revenueShareTierSchema = new Schema(
 const revenueShareSchema = new Schema(
   {
     period: { type: String, enum: REVENUE_SHARE_PERIODS, required: true },
-    mode: { type: String, enum: REVENUE_SHARE_MODES, required: true },
     tiers: { type: [revenueShareTierSchema], required: true },
   },
   { _id: false },

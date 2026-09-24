@@ -142,6 +142,12 @@
   --fc-classic-strong-border: var(--input);
 }
 
+/* O tema pinta o botão da barra selecionado (e o hover) com --primary, mas não troca a cor do texto. */
+.booking-calendar button:is([aria-pressed="true"], [aria-selected="true"]),
+.booking-calendar button:is([aria-pressed], [role="tab"]):not(:disabled):is(:hover, :active) {
+  color: var(--primary-foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

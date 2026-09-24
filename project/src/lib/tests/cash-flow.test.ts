@@ -241,7 +241,7 @@ describe("summarizeCashFlow", () => {
   });
 
   it("dias buscados fora dos intervalos só entram no cálculo do repasse, não nos totais", () => {
-    const share: RevenueShare = { period: "weekly", mode: "flat", tiers: [{ upToCents: null, percent: 20 }] };
+    const share: RevenueShare = { period: "weekly", tiers: [{ upToCents: null, percent: 20 }] };
 
     const result = summarizeCashFlow(
       [day("2026-09-21"), day("2026-09-22")],
@@ -261,11 +261,10 @@ describe("summarizeCashFlow", () => {
     expect(result.total.real).toEqual({ grossCents: 40_000, partnerShareCents: 8_000, netCents: 32_000 });
   });
 
-  it("repasse mensal progressivo numa semana: calcula sobre o mês e rateia pelo faturamento de cada dia", () => {
-    // Até R$ 1.000 paga 10%; o que passar disso, 20%.
+  it("repasse mensal por faixa numa semana: calcula sobre o mês e rateia pelo faturamento de cada dia", () => {
+    // Até R$ 1.000 paga 10% sobre o total; acima disso, 20% sobre o total.
     const share: RevenueShare = {
       period: "monthly",
-      mode: "progressive",
       tiers: [
         { upToCents: 100_000, percent: 10 },
         { upToCents: null, percent: 20 },
@@ -283,29 +282,28 @@ describe("summarizeCashFlow", () => {
       share,
     );
 
-    // Real: mês = R$ 1.200 -> repasse R$ 140, rateado 20.000/120.000 para cada dia (2.333,33 -> 2.333).
-    // Previsto: mês = R$ 1.800 -> repasse R$ 260, rateado 20.000/180.000 (2.888,89 -> 2.889) e 60.000/180.000.
+    // Real: mês = R$ 1.200 -> 20% = R$ 240, rateado 20.000/120.000 para cada dia.
+    // Previsto: mês = R$ 1.800 -> 20% = R$ 360, rateado 20.000/180.000 e 60.000/180.000.
     expect(result.buckets).toEqual([
       {
         ...day("2026-09-21"),
-        real: { grossCents: 20_000, partnerShareCents: 2_333, netCents: 17_667 },
-        forecast: { grossCents: 20_000, partnerShareCents: 2_889, netCents: 17_111 },
+        real: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
+        forecast: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
       },
       {
         ...day("2026-09-22"),
-        real: { grossCents: 20_000, partnerShareCents: 2_333, netCents: 17_667 },
-        forecast: { grossCents: 20_000, partnerShareCents: 2_889, netCents: 17_111 },
+        real: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
+        forecast: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
       },
       {
         ...day("2026-09-25"),
         real: zero,
-        forecast: { grossCents: 60_000, partnerShareCents: 8_667, netCents: 51_333 },
+        forecast: { grossCents: 60_000, partnerShareCents: 12_000, netCents: 48_000 },
       },
     ]);
-    // O total é a soma dos intervalos já arredondados, para bater com a tabela.
     expect(result.total).toEqual({
-      real: { grossCents: 40_000, partnerShareCents: 4_666, netCents: 35_334 },
-      forecast: { grossCents: 100_000, partnerShareCents: 14_445, netCents: 85_555 },
+      real: { grossCents: 40_000, partnerShareCents: 8_000, netCents: 32_000 },
+      forecast: { grossCents: 100_000, partnerShareCents: 20_000, netCents: 80_000 },
     });
   });
 
@@ -313,7 +311,6 @@ describe("summarizeCashFlow", () => {
     // Quinzenal: até R$ 500 paga 10% sobre o total; acima disso, 20% sobre o total.
     const share: RevenueShare = {
       period: "biweekly",
-      mode: "flat",
       tiers: [
         { upToCents: 50_000, percent: 10 },
         { upToCents: null, percent: 20 },

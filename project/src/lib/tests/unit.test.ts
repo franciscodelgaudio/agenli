@@ -6,8 +6,8 @@ const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 
 // Unidade dentro de um estabelecimento parceiro: regra de repasse como chega do
 // formulário e como é salva.
-const SHARE_INPUT = { period: "monthly", mode: "flat", limits: [], percents: ["15"] };
-const SHARE = { period: "monthly", mode: "flat", tiers: [{ upToCents: null, percent: 15 }] };
+const SHARE_INPUT = { period: "monthly", limits: [], percents: ["15"] };
+const SHARE = { period: "monthly", tiers: [{ upToCents: null, percent: 15 }] };
 const PARTNER = { ownership: "partner", revenueShare: SHARE_INPUT };
 const OWN = { ownership: "own" };
 
