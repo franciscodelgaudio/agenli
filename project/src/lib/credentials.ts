@@ -24,6 +24,5 @@ export async function verifyCredentials(
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return null;
 
-  const { passwordHash: _, ...safeUser } = user;
-  return safeUser;
+  return { id: user.id, name: user.name, email: user.email, image: user.image };
 }
