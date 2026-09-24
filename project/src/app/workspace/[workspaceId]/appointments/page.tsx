@@ -127,7 +127,8 @@ export default async function WorkspaceAppointmentsPage({
   const totalCents = appointments.reduce((sum, appointment) => sum + appointment.totalCents, 0)
   const options = { services, therapists, units }
 
-  const createButton = canManage && services.length > 0 && therapists.length > 0 && (
+  // O proprietário sempre está entre quem pode atender, então basta haver serviço.
+  const createButton = canManage && services.length > 0 && (
     <CreateAppointmentSheet workspaceId={workspaceId} defaultPerformedAt={defaultPerformedAt} {...options} />
   )
 

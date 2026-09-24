@@ -132,8 +132,9 @@ export async function updateBookingAction(
   const result = await updateBooking(bookingInput(formData), isObjectIdOrHexString(bookingId) ? bookingId : null, {
     ...bookingLookups(unit, unitIds),
     update: async (id, fields) => {
+      // Agendamento que já virou atendimento não é mais editável.
       const { matchedCount } = await Booking.updateOne(
-        { _id: id, unitId: { $in: unitIds } },
+        { _id: id, unitId: { $in: unitIds }, appointmentId: null },
         { $set: { ...fields, unitId: unit.unitId } },
       )
       return matchedCount > 0
@@ -156,14 +157,18 @@ export async function rescheduleBookingAction(
   // Só repassa o id quando o workspace é gerenciável; a escrita ainda filtra pelas unidades dele.
   const result = await rescheduleBooking(times, unitIds && isObjectIdOrHexString(bookingId) ? bookingId : null, {
     findBooking: async (id) => {
-      const booking = await Booking.findOne({ _id: id, unitId: { $in: unitIds! } })
+      // Agendamento que já virou atendimento não pode ser arrastado.
+      const booking = await Booking.findOne({ _id: id, unitId: { $in: unitIds! }, appointmentId: null })
         .select({ therapistId: 1 })
         .lean()
       return booking && { therapistId: booking.therapistId.toString() }
     },
     hasConflict: conflictChecker(unitIds ?? []),
     update: async (id, fields) => {
-      const { matchedCount } = await Booking.updateOne({ _id: id, unitId: { $in: unitIds! } }, { $set: fields })
+      const { matchedCount } = await Booking.updateOne(
+        { _id: id, unitId: { $in: unitIds! }, appointmentId: null },
+        { $set: fields },
+      )
       return matchedCount > 0
     },
   })

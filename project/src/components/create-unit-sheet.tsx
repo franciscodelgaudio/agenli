@@ -34,7 +34,7 @@ export function CreateUnitSheet({ workspaceId }: { workspaceId: string }) {
         <PlusIcon />
         Cadastrar unidade
       </SheetTrigger>
-      <SheetContent>
+      <SheetContent className="overflow-y-auto">
         <form action={formAction} className="flex flex-1 flex-col">
           <SheetHeader>
             <SheetTitle>Cadastrar unidade</SheetTitle>

@@ -121,8 +121,8 @@ export default async function AppointmentsPage({
       : `${query.date}T12:00`
   const totalCents = appointments.reduce((sum, appointment) => sum + appointment.totalCents, 0)
 
-  const canRegister = services.length > 0 && therapists.length > 0
-  const createButton = canManage && canRegister && (
+  // O proprietário sempre está entre quem pode atender, então basta haver serviço.
+  const createButton = canManage && services.length > 0 && (
     <CreateAppointmentSheet
       workspaceId={workspaceId}
       unitId={unitId}
@@ -153,9 +153,7 @@ export default async function AppointmentsPage({
                 ? "Os atendimentos registrados nesta unidade aparecerão aqui."
                 : !services.length
                   ? "Cadastre os serviços da unidade na aba Serviços antes de registrar atendimentos."
-                  : !therapists.length
-                    ? "Convide massagistas para o workspace (em Usuários) antes de registrar atendimentos."
-                    : "Registre os atendimentos do dia com o hóspede, os serviços e as massagistas."}
+                  : "Registre os atendimentos do dia com o hóspede, os serviços e as massagistas."}
             </EmptyDescription>
           </EmptyHeader>
           {createButton && <EmptyContent>{createButton}</EmptyContent>}

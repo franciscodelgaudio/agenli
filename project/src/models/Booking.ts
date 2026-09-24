@@ -26,6 +26,8 @@ const bookingSchema = new Schema(
       ),
       default: null,
     },
+    // Atendimento registrado a partir deste agendamento; enquanto null, ainda pode ser editado.
+    appointmentId: { type: Schema.Types.ObjectId, ref: "Appointment", default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { collection: "bookings", timestamps: true },

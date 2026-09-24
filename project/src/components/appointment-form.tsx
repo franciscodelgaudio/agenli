@@ -21,7 +21,8 @@ export type AppointmentFormValues = {
   room: string
   // "2026-09-24T14:30", no horário de Brasília.
   performedAt: string
-  items: { serviceId: string; therapistId: string }[]
+  // null = ainda não escolhido (ex.: vindo de um agendamento sem serviço).
+  items: { serviceId: string | null; therapistId: string | null }[]
 }
 
 export type AppointmentOptions = {

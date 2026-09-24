@@ -1,0 +1,338 @@
+import { describe, it, expect } from "vitest";
+import {
+  cashFlowBuckets,
+  cashFlowFetchRange,
+  dailyAppointmentTotalsPipeline,
+  dailyBookingForecastPipeline,
+  parseCashFlowQuery,
+  shiftCashFlowDate,
+  summarizeCashFlow,
+} from "@/lib/cash-flow";
+import type { RevenueShare } from "@/lib/revenue-share";
+
+// 24/09/2026 (quinta-feira) às 23:30 em Brasília (já é dia 25 em UTC).
+const NOW = new Date("2026-09-25T02:30:00.000Z");
+
+const day = (date: string) => ({ from: date, to: date });
+
+describe("parseCashFlowQuery", () => {
+  it("sem parâmetros, mostra o mês de hoje em Brasília", () => {
+    expect(parseCashFlowQuery({}, NOW)).toEqual({ view: "month", date: "2026-09-24" });
+  });
+
+  it.each(["week", "month", "year"])("aceita a visão %s", (view) => {
+    expect(parseCashFlowQuery({ view, date: "2026-03-10" }, NOW)).toEqual({ view, date: "2026-03-10" });
+  });
+
+  it("usa o primeiro valor quando o parâmetro vem repetido", () => {
+    expect(parseCashFlowQuery({ view: ["year", "week"], date: ["2026-01-05", "2026-02-05"] }, NOW)).toEqual({
+      view: "year",
+      date: "2026-01-05",
+    });
+  });
+
+  it.each(["day", "semana", "", "$where"])("volta para o mês quando a visão é %j", (view) => {
+    expect(parseCashFlowQuery({ view }, NOW).view).toBe("month");
+  });
+
+  it.each(["24/09/2026", "2026-02-30", "hoje"])("volta para hoje quando a data é %s", (date) => {
+    expect(parseCashFlowQuery({ date }, NOW).date).toBe("2026-09-24");
+  });
+});
+
+describe("shiftCashFlowDate", () => {
+  it.each([
+    ["week", "2026-09-24", 1, "2026-10-01"],
+    ["week", "2026-09-24", -1, "2026-09-17"],
+    ["week", "2026-12-29", 1, "2027-01-05"],
+  ] as const)("visão %s: %s %+d = %s (7 dias por passo)", (view, date, steps, expected) => {
+    expect(shiftCashFlowDate({ view, date }, steps)).toBe(expected);
+  });
+
+  it.each([
+    ["month", "2026-09-24", 1, "2026-10-01"],
+    ["month", "2026-01-31", 1, "2026-02-01"],
+    ["month", "2026-01-15", -1, "2025-12-01"],
+    ["year", "2026-09-24", 1, "2027-01-01"],
+    ["year", "2026-09-24", -1, "2025-01-01"],
+  ] as const)("visão %s: %s %+d = %s (primeiro dia do período)", (view, date, steps, expected) => {
+    expect(shiftCashFlowDate({ view, date }, steps)).toBe(expected);
+  });
+});
+
+describe("cashFlowBuckets", () => {
+  it("semana: um intervalo por dia, de segunda a domingo", () => {
+    expect(cashFlowBuckets({ view: "week", date: "2026-09-24" })).toEqual([
+      day("2026-09-21"),
+      day("2026-09-22"),
+      day("2026-09-23"),
+      day("2026-09-24"),
+      day("2026-09-25"),
+      day("2026-09-26"),
+      day("2026-09-27"),
+    ]);
+  });
+
+  it("semana que atravessa a virada do ano", () => {
+    const buckets = cashFlowBuckets({ view: "week", date: "2027-01-01" });
+
+    expect(buckets[0]).toEqual(day("2026-12-28"));
+    expect(buckets[6]).toEqual(day("2027-01-03"));
+  });
+
+  it("mês: semanas de segunda a domingo, cortadas no início e no fim do mês", () => {
+    expect(cashFlowBuckets({ view: "month", date: "2026-09-24" })).toEqual([
+      { from: "2026-09-01", to: "2026-09-06" },
+      { from: "2026-09-07", to: "2026-09-13" },
+      { from: "2026-09-14", to: "2026-09-20" },
+      { from: "2026-09-21", to: "2026-09-27" },
+      { from: "2026-09-28", to: "2026-09-30" },
+    ]);
+  });
+
+  it("mês que começa num domingo tem a primeira semana de um dia só", () => {
+    expect(cashFlowBuckets({ view: "month", date: "2026-02-10" })).toEqual([
+      { from: "2026-02-01", to: "2026-02-01" },
+      { from: "2026-02-02", to: "2026-02-08" },
+      { from: "2026-02-09", to: "2026-02-15" },
+      { from: "2026-02-16", to: "2026-02-22" },
+      { from: "2026-02-23", to: "2026-02-28" },
+    ]);
+  });
+
+  it("ano: um intervalo por mês, respeitando anos bissextos", () => {
+    const buckets = cashFlowBuckets({ view: "year", date: "2028-06-15" });
+
+    expect(buckets).toHaveLength(12);
+    expect(buckets[0]).toEqual({ from: "2028-01-01", to: "2028-01-31" });
+    expect(buckets[1]).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+    expect(buckets[11]).toEqual({ from: "2028-12-01", to: "2028-12-31" });
+  });
+});
+
+describe("cashFlowFetchRange", () => {
+  const monthBuckets = cashFlowBuckets({ view: "month", date: "2026-09-24" });
+
+  it("sem repasse, cobre só os intervalos exibidos", () => {
+    expect(cashFlowFetchRange(monthBuckets, null)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+  });
+
+  it("repasse semanal: estende até as semanas completas das pontas", () => {
+    expect(cashFlowFetchRange(monthBuckets, "weekly")).toEqual({ from: "2026-08-31", to: "2026-10-04" });
+  });
+
+  it("repasse quinzenal: quinzenas são 1–15 e 16–fim do mês", () => {
+    const buckets = [{ from: "2026-09-14", to: "2026-09-20" }];
+
+    expect(cashFlowFetchRange(buckets, "biweekly")).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+  });
+
+  it("repasse mensal numa semana que atravessa meses: cobre os dois meses inteiros", () => {
+    const buckets = cashFlowBuckets({ view: "week", date: "2026-10-01" });
+
+    expect(cashFlowFetchRange(buckets, "monthly")).toEqual({ from: "2026-09-01", to: "2026-10-31" });
+  });
+
+  it("repasse mensal na visão anual não estende nada", () => {
+    const buckets = cashFlowBuckets({ view: "year", date: "2026-09-24" });
+
+    expect(cashFlowFetchRange(buckets, "monthly")).toEqual({ from: "2026-01-01", to: "2026-12-31" });
+  });
+});
+
+// O dia em Brasília vai de 03:00 UTC até 03:00 UTC do dia seguinte.
+const dayKey = (field: string) => ({ $dateToString: { format: "%Y-%m-%d", date: field, timezone: "-03:00" } });
+const PROJECT = { $project: { _id: 0, date: "$_id", cents: 1 } };
+const RANGE = { from: "2026-09-21", to: "2026-09-27" };
+
+describe("dailyAppointmentTotalsPipeline", () => {
+  it("filtra o intervalo em Brasília e soma os serviços por dia", () => {
+    expect(dailyAppointmentTotalsPipeline(RANGE)).toEqual([
+      {
+        $match: {
+          performedAt: { $gte: new Date("2026-09-21T03:00:00.000Z"), $lt: new Date("2026-09-28T03:00:00.000Z") },
+        },
+      },
+      { $group: { _id: dayKey("$performedAt"), cents: { $sum: { $sum: "$items.priceCents" } } } },
+      PROJECT,
+    ]);
+  });
+});
+
+describe("dailyBookingForecastPipeline", () => {
+  const stagesAfterMatch = [
+    {
+      $lookup: {
+        from: "services",
+        localField: "service.serviceId",
+        foreignField: "_id",
+        as: "services",
+        pipeline: [{ $project: { _id: 0, priceCents: 1 } }],
+      },
+    },
+    // Agendamento sem serviço (ou com serviço excluído) conta como zero.
+    {
+      $group: {
+        _id: dayKey("$startsAt"),
+        cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
+      },
+    },
+    PROJECT,
+  ];
+
+  it("só conta agendamentos a partir de agora, com o preço atual do serviço", () => {
+    expect(dailyBookingForecastPipeline(RANGE, NOW)).toEqual([
+      { $match: { startsAt: { $gte: NOW, $lt: new Date("2026-09-28T03:00:00.000Z") } } },
+      ...stagesAfterMatch,
+    ]);
+  });
+
+  it("intervalo todo no futuro começa no início do intervalo", () => {
+    const [match] = dailyBookingForecastPipeline(RANGE, new Date("2026-01-01T12:00:00.000Z"));
+
+    expect(match).toEqual({
+      $match: {
+        startsAt: { $gte: new Date("2026-09-21T03:00:00.000Z"), $lt: new Date("2026-09-28T03:00:00.000Z") },
+      },
+    });
+  });
+});
+
+const zero = { grossCents: 0, partnerShareCents: 0, netCents: 0 };
+
+describe("summarizeCashFlow", () => {
+  it("sem movimento, tudo zerado", () => {
+    expect(summarizeCashFlow([day("2026-09-21")], [], [], null)).toEqual({
+      buckets: [{ ...day("2026-09-21"), real: zero, forecast: zero }],
+      total: { real: zero, forecast: zero },
+    });
+  });
+
+  it("espaço próprio: real soma atendimentos, previsto soma atendimentos e agendamentos, sem repasse", () => {
+    const result = summarizeCashFlow(
+      [{ from: "2026-09-21", to: "2026-09-22" }, day("2026-09-23")],
+      [
+        { date: "2026-09-21", cents: 10_000 },
+        { date: "2026-09-22", cents: 5_000 },
+      ],
+      [{ date: "2026-09-23", cents: 7_000 }],
+      null,
+    );
+
+    expect(result).toEqual({
+      buckets: [
+        {
+          from: "2026-09-21",
+          to: "2026-09-22",
+          real: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
+          forecast: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
+        },
+        {
+          ...day("2026-09-23"),
+          real: zero,
+          forecast: { grossCents: 7_000, partnerShareCents: 0, netCents: 7_000 },
+        },
+      ],
+      total: {
+        real: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
+        forecast: { grossCents: 22_000, partnerShareCents: 0, netCents: 22_000 },
+      },
+    });
+  });
+
+  it("dias buscados fora dos intervalos só entram no cálculo do repasse, não nos totais", () => {
+    const share: RevenueShare = { period: "weekly", mode: "flat", tiers: [{ upToCents: null, percent: 20 }] };
+
+    const result = summarizeCashFlow(
+      [day("2026-09-21"), day("2026-09-22")],
+      [
+        { date: "2026-09-20", cents: 99_000 },
+        { date: "2026-09-21", cents: 10_000 },
+        { date: "2026-09-22", cents: 30_000 },
+      ],
+      [],
+      share,
+    );
+
+    expect(result.buckets.map((bucket) => bucket.real)).toEqual([
+      { grossCents: 10_000, partnerShareCents: 2_000, netCents: 8_000 },
+      { grossCents: 30_000, partnerShareCents: 6_000, netCents: 24_000 },
+    ]);
+    expect(result.total.real).toEqual({ grossCents: 40_000, partnerShareCents: 8_000, netCents: 32_000 });
+  });
+
+  it("repasse mensal progressivo numa semana: calcula sobre o mês e rateia pelo faturamento de cada dia", () => {
+    // Até R$ 1.000 paga 10%; o que passar disso, 20%.
+    const share: RevenueShare = {
+      period: "monthly",
+      mode: "progressive",
+      tiers: [
+        { upToCents: 100_000, percent: 10 },
+        { upToCents: null, percent: 20 },
+      ],
+    };
+
+    const result = summarizeCashFlow(
+      [day("2026-09-21"), day("2026-09-22"), day("2026-09-25")],
+      [
+        { date: "2026-09-02", cents: 80_000 },
+        { date: "2026-09-21", cents: 20_000 },
+        { date: "2026-09-22", cents: 20_000 },
+      ],
+      [{ date: "2026-09-25", cents: 60_000 }],
+      share,
+    );
+
+    // Real: mês = R$ 1.200 -> repasse R$ 140, rateado 20.000/120.000 para cada dia (2.333,33 -> 2.333).
+    // Previsto: mês = R$ 1.800 -> repasse R$ 260, rateado 20.000/180.000 (2.888,89 -> 2.889) e 60.000/180.000.
+    expect(result.buckets).toEqual([
+      {
+        ...day("2026-09-21"),
+        real: { grossCents: 20_000, partnerShareCents: 2_333, netCents: 17_667 },
+        forecast: { grossCents: 20_000, partnerShareCents: 2_889, netCents: 17_111 },
+      },
+      {
+        ...day("2026-09-22"),
+        real: { grossCents: 20_000, partnerShareCents: 2_333, netCents: 17_667 },
+        forecast: { grossCents: 20_000, partnerShareCents: 2_889, netCents: 17_111 },
+      },
+      {
+        ...day("2026-09-25"),
+        real: zero,
+        forecast: { grossCents: 60_000, partnerShareCents: 8_667, netCents: 51_333 },
+      },
+    ]);
+    // O total é a soma dos intervalos já arredondados, para bater com a tabela.
+    expect(result.total).toEqual({
+      real: { grossCents: 40_000, partnerShareCents: 4_666, netCents: 35_334 },
+      forecast: { grossCents: 100_000, partnerShareCents: 14_445, netCents: 85_555 },
+    });
+  });
+
+  it("intervalo que atravessa dois períodos de repasse soma a parte de cada um", () => {
+    // Quinzenal: até R$ 500 paga 10% sobre o total; acima disso, 20% sobre o total.
+    const share: RevenueShare = {
+      period: "biweekly",
+      mode: "flat",
+      tiers: [
+        { upToCents: 50_000, percent: 10 },
+        { upToCents: null, percent: 20 },
+      ],
+    };
+
+    const result = summarizeCashFlow(
+      [{ from: "2026-09-14", to: "2026-09-20" }],
+      [
+        { date: "2026-09-03", cents: 60_000 },
+        { date: "2026-09-14", cents: 10_000 },
+        { date: "2026-09-18", cents: 10_000 },
+      ],
+      [],
+      share,
+    );
+
+    // 1ª quinzena: R$ 700 -> 20% = R$ 140, dia 14 fica com 10.000/70.000 = R$ 20.
+    // 2ª quinzena: R$ 100 -> 10% = R$ 10, todo do dia 18.
+    expect(result.buckets[0].real).toEqual({ grossCents: 20_000, partnerShareCents: 3_000, netCents: 17_000 });
+  });
+});

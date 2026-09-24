@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState } from "react"
+import { ClipboardCheckIcon } from "lucide-react"
 import type { BookingActionState } from "@/lib/actions/booking"
 
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,8 @@ export type BookingFormOptions = {
   units: { id: string; name: string }[]
   therapists: { id: string; name: string }[]
   // Cada serviço traz a unidade; o formulário só oferece os da unidade escolhida.
-  services: { id: string; unitId: string; name: string; durationMinutes: number }[]
+  // O preço só aparece quando o agendamento vira atendimento.
+  services: { id: string; unitId: string; name: string; priceCents: number; durationMinutes: number }[]
 }
 
 type Props = BookingFormOptions & {
@@ -37,7 +39,8 @@ type Props = BookingFormOptions & {
   defaultValues: BookingFormValues
   action: (prev: BookingActionState, formData: FormData) => Promise<BookingActionState>
   onDone: () => void
-  // Só na edição: botão de excluir no rodapé.
+  // Só na edição: botões de registrar atendimento e de excluir no rodapé.
+  onConvert?: () => void
   onDelete?: () => void
 }
 
@@ -56,7 +59,17 @@ const copy = {
   },
 }
 
-export function BookingForm({ units, therapists, services: allServices, mode, defaultValues, action, onDone, onDelete }: Props) {
+export function BookingForm({
+  units,
+  therapists,
+  services: allServices,
+  mode,
+  defaultValues,
+  action,
+  onDone,
+  onConvert,
+  onDelete,
+}: Props) {
   const [unitId, setUnitId] = useState(defaultValues.unitId)
   const [therapistId, setTherapistId] = useState(defaultValues.therapistId)
   const [serviceId, setServiceId] = useState(defaultValues.serviceId)
@@ -203,6 +216,12 @@ export function BookingForm({ units, therapists, services: allServices, mode, de
         <Button type="submit" disabled={pending}>
           {pending ? copy[mode].pending : copy[mode].submit}
         </Button>
+        {onConvert && (
+          <Button type="button" variant="outline" onClick={onConvert} disabled={pending}>
+            <ClipboardCheckIcon />
+            Registrar atendimento
+          </Button>
+        )}
         {onDelete && (
           <Button type="button" variant="destructive" onClick={onDelete} disabled={pending}>
             Excluir

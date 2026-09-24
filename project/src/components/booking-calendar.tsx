@@ -15,7 +15,9 @@ import ptBrLocale from "@fullcalendar/react/locales/pt-br"
 import "@fullcalendar/react/skeleton.css"
 import "@fullcalendar/react/themes/classic/theme.css"
 import "@fullcalendar/react/themes/classic/palette.css"
-import { PlusIcon } from "lucide-react"
+import Link from "next/link"
+import { CheckIcon, PlusIcon } from "lucide-react"
+import { convertBookingAction } from "@/lib/actions/appointment"
 import {
   createBookingAction,
   deleteBookingAction,
@@ -37,8 +39,10 @@ import {
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { AppointmentForm } from "@/components/appointment-form"
 import { BookingForm, type BookingFormOptions, type BookingFormValues } from "@/components/booking-form"
+import { formatDuration } from "@/components/service-format"
 
 export type BookingOptions = BookingFormOptions
 
@@ -65,9 +69,12 @@ function brtNow() {
   return new Date(Date.now() - BRT_OFFSET_HOURS * HOUR_MS)
 }
 
+// convert: formulário de atendimento pré-preenchido; done: resumo do agendamento já atendido.
 type SheetInput =
   | { mode: "create"; values: BookingFormValues }
   | { mode: "edit"; values: BookingFormValues; booking: BookingRow }
+  | { mode: "convert"; booking: BookingRow }
+  | { mode: "done"; booking: BookingRow }
 
 // key muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
 type SheetState = SheetInput & { key: number }
@@ -84,7 +91,8 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
   const [deleting, startDelete] = useTransition()
 
   const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
-  const canCreate = canManage && units.length > 0 && therapists.length > 0
+  // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
+  const canCreate = canManage && units.length > 0
   const options = { units, therapists, services }
 
   // Uma nova função a cada troca de filtro faz o calendário buscar de novo.
@@ -108,6 +116,8 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
         start: booking.startsAt,
         end: booking.endsAt,
         color: colors.get(booking.therapistId) ?? "#64748b",
+        // Já atendido: fica no calendário como histórico, esmaecido e sem arrastar.
+        ...(booking.appointmentId && { editable: false, className: "opacity-55" }),
         extendedProps: { booking },
       }))
     },
@@ -194,7 +204,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-          {filterSelect("Filtrar por unit", "Todos os hotéis", unit, setUnit, units)}
+          {filterSelect("Filtrar por unidade", "Todas as unidades", unit, setUnit, units)}
           {filterSelect("Filtrar por massagista", "Todas as massagistas", therapist, setTherapist, therapists)}
         </div>
         {canCreate && (
@@ -217,11 +227,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
       )}
 
       {canManage && !canCreate && (
-        <p className="text-sm text-muted-foreground">
-          {!units.length
-            ? "Cadastre uma unidade antes de criar agendamentos."
-            : "Convide massagistas para o workspace (em Usuários) antes de criar agendamentos."}
-        </p>
+        <p className="text-sm text-muted-foreground">Cadastre uma unidade antes de criar agendamentos.</p>
       )}
       {error && <FieldError>{error}</FieldError>}
 
@@ -246,8 +252,11 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
             const booking = event.extendedProps.booking as BookingRow
             return (
               <div className="overflow-hidden px-1 text-xs leading-tight">
-                <div className="font-medium">
-                  {timeText} {booking.guest.name}
+                <div className="flex items-center gap-1 font-medium">
+                  {booking.appointmentId && <CheckIcon className="size-3 shrink-0" aria-label="Atendido" />}
+                  <span className="truncate">
+                    {timeText} {booking.guest.name}
+                  </span>
                 </div>
                 <div className="opacity-90">
                   Quarto {booking.guest.room} · {booking.therapistName}
@@ -271,6 +280,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
             if (!canManage) return
             const booking = event.extendedProps.booking as BookingRow
             setDeleteError(null)
+            if (booking.appointmentId) return openSheet({ mode: "done", booking })
             openSheet({
               mode: "edit",
               booking,
@@ -290,7 +300,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="overflow-y-auto">
-          {sheet && (
+          {(sheet?.mode === "create" || sheet?.mode === "edit") && (
             <BookingForm
               key={sheet.key}
               {...options}
@@ -305,9 +315,30 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
                 setSheetOpen(false)
                 refetch()
               }}
+              onConvert={sheet.mode === "edit" ? () => openSheet({ mode: "convert", booking: sheet.booking }) : undefined}
               onDelete={sheet.mode === "edit" ? () => setDeleteOpen(true) : undefined}
             />
           )}
+          {sheet?.mode === "convert" && (
+            <AppointmentForm
+              key={sheet.key}
+              {...options}
+              mode="create"
+              defaultValues={{
+                unitId: sheet.booking.unitId,
+                guestName: sheet.booking.guest.name,
+                room: sheet.booking.guest.room,
+                performedAt: sheet.booking.startsAt,
+                items: [{ serviceId: sheet.booking.service?.serviceId ?? null, therapistId: sheet.booking.therapistId }],
+              }}
+              action={(prev, formData) => convertBookingAction(workspaceId, sheet.booking.id, prev, formData)}
+              onDone={() => {
+                setSheetOpen(false)
+                refetch()
+              }}
+            />
+          )}
+          {sheet?.mode === "done" && <DoneSummary workspaceId={workspaceId} booking={sheet.booking} />}
         </SheetContent>
       </Sheet>
 
@@ -337,6 +368,64 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
           </AlertDialogContent>
         </AlertDialog>
       )}
+    </div>
+  )
+}
+
+// A data do agendamento é um horário de Brasília "de parede", então é formatada em UTC.
+const doneDateFormat = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "UTC",
+})
+
+// Agendamento que já virou atendimento: só leitura, com atalho para o dia em Atendimentos.
+function DoneSummary({ workspaceId, booking }: { workspaceId: string; booking: BookingRow }) {
+  return (
+    <div className="flex flex-1 flex-col">
+      <SheetHeader>
+        <SheetTitle>Atendimento registrado</SheetTitle>
+        <SheetDescription>
+          Este agendamento já virou atendimento. Para alterar valores e serviços, edite o atendimento. Se ele for
+          excluído, o agendamento volta a ser editável.
+        </SheetDescription>
+      </SheetHeader>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 px-4 text-sm">
+        <dt className="text-muted-foreground">Hóspede</dt>
+        <dd>
+          {booking.guest.name} · Quarto {booking.guest.room}
+        </dd>
+        <dt className="text-muted-foreground">Massagista</dt>
+        <dd>{booking.therapistName}</dd>
+        <dt className="text-muted-foreground">Horário</dt>
+        <dd className="first-letter:uppercase">
+          {doneDateFormat.format(new Date(`${booking.startsAt}:00Z`))} · {formatDuration(booking.durationMinutes)}
+        </dd>
+        {booking.service && (
+          <>
+            <dt className="text-muted-foreground">Serviço agendado</dt>
+            <dd>{booking.service.serviceName}</dd>
+          </>
+        )}
+      </dl>
+      <SheetFooter>
+        <Button
+          nativeButton={false}
+          render={
+            <Link
+              href={`/workspace/${workspaceId}/appointments?${new URLSearchParams({
+                date: booking.startsAt.slice(0, 10),
+                unit: booking.unitId,
+              })}`}
+            />
+          }
+        >
+          Ver em Atendimentos
+        </Button>
+      </SheetFooter>
     </div>
   )
 }

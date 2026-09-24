@@ -38,6 +38,7 @@ export default async function CalendarPage({ params }: PageProps<"/workspace/[wo
               id: { $toString: "$_id" },
               unitId: { $toString: "$unitId" },
               name: 1,
+              priceCents: 1,
               durationMinutes: 1,
             },
           },

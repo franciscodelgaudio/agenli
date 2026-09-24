@@ -11,11 +11,16 @@ import {
   updateAppointment,
   type CreateAppointmentError,
 } from "@/lib/appointment"
+import { convertBooking } from "@/lib/booking-convert"
 import { Appointment } from "@/models/Appointment"
+import { Booking } from "@/models/Booking"
 import { Unit } from "@/models/Unit"
 import { Service } from "@/models/Service"
 
-const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "unauthenticated", string> = {
+const errorMessages: Record<
+  CreateAppointmentError | "appointment_not_found" | "booking_not_found" | "booking_already_converted" | "unauthenticated",
+  string
+> = {
   invalid_input: "Preencha hóspede, quarto, data/hora e os serviços.",
   invalid_guest_name: "Informe o nome do hóspede.",
   guest_name_too_long: "O nome do hóspede pode ter no máximo 80 caracteres.",
@@ -29,6 +34,8 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
   therapist_not_found: "Algum profissional escolhido não pode atender neste workspace. Recarregue a página.",
   unit_not_found: "Escolha uma unidade válida deste workspace.",
   appointment_not_found: "Atendimento não encontrado ou sem permissão.",
+  booking_not_found: "Agendamento não encontrado ou sem permissão.",
+  booking_already_converted: "Este agendamento já foi registrado como atendimento.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
 
@@ -178,6 +185,8 @@ export async function deleteAppointmentAction(
     unit && isObjectIdOrHexString(appointmentId) ? appointmentId : null,
     async (id) => {
       const { deletedCount } = await Appointment.deleteOne({ _id: id, unitId: unit!.unitId })
+      // O agendamento de onde o atendimento veio volta a ser editável e convertível.
+      if (deletedCount > 0) await Booking.updateOne({ appointmentId: id }, { $set: { appointmentId: null } })
       return deletedCount > 0
     },
   )
@@ -186,4 +195,47 @@ export async function deleteAppointmentAction(
 
   refresh()
   return { error: null }
+}
+
+// Registra o atendimento a partir de um agendamento do calendário. A unidade vem do
+// formulário e precisa ser gerenciável; o agendamento precisa ser de alguma unidade do workspace.
+export async function convertBookingAction(
+  workspaceId: string,
+  bookingId: string,
+  _prev: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const userId = await getSessionUserId()
+  if (!userId) return { error: errorMessages.unauthenticated }
+  const unitId = formData.get("unitId")
+  const unit = await findManagedUnit(workspaceId, typeof unitId === "string" ? unitId : "", userId)
+  if (!unit) return { error: errorMessages.unit_not_found }
+  const workspaceUnitIds = await Unit.find({ workspaceId: unit.workspaceId }).distinct("_id")
+
+  const result = await convertBooking(
+    appointmentInput(formData),
+    { bookingId: isObjectIdOrHexString(bookingId) ? bookingId : null, unitId: unit.unitId },
+    {
+      ...appointmentLookups(unit),
+      findBooking: async (id) => {
+        const booking = await Booking.findOne({ _id: id, unitId: { $in: workspaceUnitIds } })
+          .select({ appointmentId: 1 })
+          .lean()
+        return booking && { appointmentId: booking.appointmentId?.toString() ?? null }
+      },
+      insert: async (data) => {
+        const appointment = await Appointment.create({ ...data, createdBy: userId })
+        return { id: appointment._id.toString() }
+      },
+      link: async (id, appointmentId) => {
+        const { matchedCount } = await Booking.updateOne({ _id: id, appointmentId: null }, { $set: { appointmentId } })
+        return matchedCount > 0
+      },
+      removeAppointment: async (appointmentId) => {
+        await Appointment.deleteOne({ _id: appointmentId })
+      },
+    },
+  )
+
+  return { error: result.ok ? null : errorMessages[result.error] }
 }

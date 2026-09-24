@@ -68,7 +68,7 @@ export function UnitActions({ workspaceId, unit }: { workspaceId: string; unit: 
       </DropdownMenu>
 
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent>
+        <SheetContent className="overflow-y-auto">
           <EditUnitForm
             key={editKey}
             workspaceId={workspaceId}
