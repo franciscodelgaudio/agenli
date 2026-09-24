@@ -5,15 +5,18 @@ import { appointmentListPipeline, parseAppointmentListQuery, shiftDay } from "@/
 const NOW = new Date("2026-09-25T02:30:00.000Z");
 
 describe("parseAppointmentListQuery", () => {
-  it("sem parâmetros, usa o dia de hoje em Brasília e busca vazia", () => {
-    expect(parseAppointmentListQuery({}, NOW)).toEqual({ date: "2026-09-24", q: "" });
+  it("sem parâmetros, usa o dia de hoje em Brasília, busca vazia e ordem por horário crescente", () => {
+    expect(parseAppointmentListQuery({}, NOW)).toEqual({ date: "2026-09-24", q: "", sort: "performedAt", dir: "asc" });
   });
 
-  it("lê data e busca válidas", () => {
-    expect(parseAppointmentListQuery({ date: "2026-09-20", q: "joão" }, NOW)).toEqual({
-      date: "2026-09-20",
-      q: "joão",
-    });
+  it("lê data, busca, campo e direção válidos", () => {
+    expect(
+      parseAppointmentListQuery({ date: "2026-09-20", q: "joão", sort: "totalCents", dir: "desc" }, NOW),
+    ).toEqual({ date: "2026-09-20", q: "joão", sort: "totalCents", dir: "desc" });
+  });
+
+  it("aceita ordenação por guestName", () => {
+    expect(parseAppointmentListQuery({ sort: "guestName" }, NOW).sort).toBe("guestName");
   });
 
   it("remove espaços das pontas da busca", () => {
@@ -21,10 +24,12 @@ describe("parseAppointmentListQuery", () => {
   });
 
   it("usa o primeiro valor quando o parâmetro vem repetido", () => {
-    expect(parseAppointmentListQuery({ date: ["2026-09-20", "2026-09-21"], q: ["a", "b"] }, NOW)).toEqual({
-      date: "2026-09-20",
-      q: "a",
-    });
+    expect(
+      parseAppointmentListQuery(
+        { date: ["2026-09-20", "2026-09-21"], q: ["a", "b"], sort: ["guestName", "totalCents"], dir: ["desc", "asc"] },
+        NOW,
+      ),
+    ).toEqual({ date: "2026-09-20", q: "a", sort: "guestName", dir: "desc" });
   });
 
   it.each([
@@ -34,6 +39,18 @@ describe("parseAppointmentListQuery", () => {
     ["com hora", "2026-09-20T10:00"],
   ])("volta para hoje quando a data tem %s", (_label, date) => {
     expect(parseAppointmentListQuery({ date }, NOW).date).toBe("2026-09-24");
+  });
+
+  it.each([
+    ["campo fora da lista", { sort: "hotelId" }],
+    ["caminho do banco em vez da chave", { sort: "guest.name" }],
+    ["campo com operador", { sort: "$where" }],
+  ])("volta para horário quando o sort é %s", (_label, params) => {
+    expect(parseAppointmentListQuery(params, NOW).sort).toBe("performedAt");
+  });
+
+  it("volta para crescente quando a direção é inválida", () => {
+    expect(parseAppointmentListQuery({ dir: "sideways" }, NOW).dir).toBe("asc");
   });
 });
 
@@ -51,13 +68,17 @@ describe("shiftDay", () => {
 });
 
 describe("appointmentListPipeline", () => {
+  const BASE = { date: "2026-09-24", q: "", sort: "performedAt", dir: "asc" } as const;
+
   // O dia 24/09 em Brasília vai de 03:00 UTC do dia 24 até 03:00 UTC do dia 25.
   const DAY_MATCH = {
     $match: {
       performedAt: { $gte: new Date("2026-09-24T03:00:00.000Z"), $lt: new Date("2026-09-25T03:00:00.000Z") },
     },
   };
-  const SORT = { $sort: { performedAt: 1, _id: 1 } };
+  // O total é calculado antes da ordenação para que seja possível ordenar por ele.
+  const SET_TOTAL = { $set: { totalCents: { $sum: "$items.priceCents" } } };
+  // serviceId e therapistId vão junto para preencher o formulário de edição.
   const PROJECT = {
     $project: {
       _id: 0,
@@ -69,23 +90,39 @@ describe("appointmentListPipeline", () => {
           input: "$items",
           as: "item",
           in: {
+            serviceId: { $toString: "$$item.serviceId" },
             serviceName: "$$item.serviceName",
             priceCents: "$$item.priceCents",
             durationMinutes: "$$item.durationMinutes",
+            therapistId: { $toString: "$$item.therapistId" },
             therapistName: "$$item.therapistName",
           },
         },
       },
-      totalCents: { $sum: "$items.priceCents" },
+      totalCents: 1,
     },
   };
 
-  it("sem busca, filtra o dia em Brasília, ordena por horário (com _id de desempate) e projeta", () => {
-    expect(appointmentListPipeline({ date: "2026-09-24", q: "" })).toEqual([DAY_MATCH, SORT, PROJECT]);
+  it("sem busca, filtra o dia em Brasília, calcula o total, ordena por horário (com _id de desempate) e projeta", () => {
+    expect(appointmentListPipeline(BASE)).toEqual([
+      DAY_MATCH,
+      SET_TOTAL,
+      { $sort: { performedAt: 1, _id: 1 } },
+      PROJECT,
+    ]);
   });
 
-  it("com busca, filtra nome do hóspede ou quarto sem diferenciar maiúsculas", () => {
-    expect(appointmentListPipeline({ date: "2026-09-24", q: "joão" })).toEqual([
+  it.each([
+    ["performedAt", "desc", { performedAt: -1, _id: 1 }],
+    ["guestName", "asc", { "guest.name": 1, _id: 1 }],
+    ["guestName", "desc", { "guest.name": -1, _id: 1 }],
+    ["totalCents", "desc", { totalCents: -1, _id: 1 }],
+  ] as const)("ordena por %s %s usando o campo do banco", (sort, dir, $sort) => {
+    expect(appointmentListPipeline({ ...BASE, sort, dir })).toEqual([DAY_MATCH, SET_TOTAL, { $sort }, PROJECT]);
+  });
+
+  it("com busca, filtra nome do hóspede ou quarto sem diferenciar maiúsculas antes de ordenar", () => {
+    expect(appointmentListPipeline({ ...BASE, q: "joão" })).toEqual([
       DAY_MATCH,
       {
         $match: {
@@ -95,13 +132,14 @@ describe("appointmentListPipeline", () => {
           ],
         },
       },
-      SORT,
+      SET_TOTAL,
+      { $sort: { performedAt: 1, _id: 1 } },
       PROJECT,
     ]);
   });
 
   it("escapa caracteres especiais de regex da busca", () => {
-    const [, match] = appointmentListPipeline({ date: "2026-09-24", q: "a.b*(c)" });
+    const [, match] = appointmentListPipeline({ ...BASE, q: "a.b*(c)" });
 
     expect(match).toEqual({
       $match: {

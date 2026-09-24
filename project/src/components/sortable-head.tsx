@@ -7,7 +7,8 @@ type Props<F extends string> = {
   field: F
   label: string
   icon: LucideIcon
-  query: { q: string; sort: F; dir: SortDir }
+  // Os demais campos da query (busca, data...) são preservados no link.
+  query: { q: string; sort: F; dir: SortDir } & Record<string, string>
   pathname: string
 }
 
@@ -15,8 +16,8 @@ export function SortableHead<F extends string>({ field, label, icon: LabelIcon, 
   const active = query.sort === field
   // Clicar na coluna ativa inverte a direção; numa coluna nova começa crescente.
   const dir = active && query.dir === "asc" ? "desc" : "asc"
-  const params = new URLSearchParams({ sort: field, dir })
-  if (query.q) params.set("q", query.q)
+  const params = new URLSearchParams({ ...query, sort: field, dir })
+  if (!query.q) params.delete("q")
   const Icon = !active ? ArrowUpDownIcon : query.dir === "asc" ? ArrowUpIcon : ArrowDownIcon
 
   return (

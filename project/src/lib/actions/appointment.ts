@@ -4,7 +4,12 @@ import { refresh } from "next/cache"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
 import { findManagedUnit } from "@/lib/unit-access"
-import { createAppointment, deleteAppointment, type CreateAppointmentError } from "@/lib/appointment"
+import {
+  createAppointment,
+  deleteAppointment,
+  updateAppointment,
+  type CreateAppointmentError,
+} from "@/lib/appointment"
 import { Appointment } from "@/models/Appointment"
 import { Service } from "@/models/Service"
 import { User } from "@/models/User"
@@ -30,9 +35,50 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
 
 export type AppointmentActionState = { error: string | null }
 
-// Ids inválidos são descartados antes da consulta; createAppointment os trata como não encontrados.
+// Ids inválidos são descartados antes da consulta; a validação os trata como não encontrados.
 function objectIds(ids: string[]) {
   return ids.filter((id) => isObjectIdOrHexString(id)).map((id) => new Types.ObjectId(id))
+}
+
+function appointmentInput(formData: FormData) {
+  return {
+    guestName: formData.get("guestName"),
+    room: formData.get("room"),
+    performedAt: formData.get("performedAt"),
+    serviceIds: formData.getAll("serviceId"),
+    therapistIds: formData.getAll("therapistId"),
+  }
+}
+
+// Buscas usadas por createAppointment/updateAppointment, restritas à unidade e ao workspace.
+function appointmentLookups(unit: { workspaceId: string; hotelId: string }) {
+  return {
+    findServices: async (ids: string[]) => {
+      const services = await Service.find({ _id: { $in: objectIds(ids) }, hotelId: unit.hotelId })
+        .select({ name: 1, priceCents: 1, durationMinutes: 1 })
+        .lean()
+      return services.map(({ _id, name, priceCents, durationMinutes }) => ({
+        id: _id.toString(),
+        name,
+        priceCents,
+        durationMinutes,
+      }))
+    },
+    // Quem pode atender: o proprietário e os membros com função de massagista que aceitaram o convite.
+    findTherapists: async (ids: string[]) => {
+      const userIds = objectIds(ids)
+      const [workspace, members] = await Promise.all([
+        Workspace.findById(unit.workspaceId).select({ userId: 1 }).lean(),
+        WorkspaceMember.find({ workspaceId: unit.workspaceId, role: "massage_therapist", userId: { $in: userIds } })
+          .select({ userId: 1 })
+          .lean(),
+      ])
+      const allowed = members.map((member) => member.userId!)
+      if (workspace && userIds.some((id) => id.equals(workspace.userId))) allowed.push(workspace.userId)
+      const users = await User.find({ _id: { $in: allowed } }).select({ name: 1, email: 1 }).lean()
+      return users.map((user) => ({ id: user._id.toString(), name: user.name ?? user.email }))
+    },
+  }
 }
 
 // workspaceId e hotelId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
@@ -46,44 +92,40 @@ export async function createAppointmentAction(
   if (!userId) return { error: errorMessages.unauthenticated }
   const unit = await findManagedUnit(workspaceId, hotelId, userId)
 
-  const result = await createAppointment(
-    {
-      guestName: formData.get("guestName"),
-      room: formData.get("room"),
-      performedAt: formData.get("performedAt"),
-      serviceIds: formData.getAll("serviceId"),
-      therapistIds: formData.getAll("therapistId"),
+  const result = await createAppointment(appointmentInput(formData), unit?.hotelId, {
+    ...appointmentLookups(unit!),
+    insert: async (data) => {
+      const appointment = await Appointment.create({ ...data, createdBy: userId })
+      return { id: appointment._id.toString() }
     },
-    unit?.hotelId,
+  })
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}
+
+export async function updateAppointmentAction(
+  workspaceId: string,
+  hotelId: string,
+  appointmentId: string,
+  _prev: AppointmentActionState,
+  formData: FormData,
+): Promise<AppointmentActionState> {
+  const userId = await getSessionUserId()
+  if (!userId) return { error: errorMessages.unauthenticated }
+  const unit = await findManagedUnit(workspaceId, hotelId, userId)
+
+  // Só repassa o id quando a unidade é gerenciável; a escrita ainda filtra por hotelId.
+  const result = await updateAppointment(
+    appointmentInput(formData),
+    unit && isObjectIdOrHexString(appointmentId) ? appointmentId : null,
     {
-      findServices: async (ids) => {
-        const services = await Service.find({ _id: { $in: objectIds(ids) }, hotelId: unit!.hotelId })
-          .select({ name: 1, priceCents: 1, durationMinutes: 1 })
-          .lean()
-        return services.map(({ _id, name, priceCents, durationMinutes }) => ({
-          id: _id.toString(),
-          name,
-          priceCents,
-          durationMinutes,
-        }))
-      },
-      // Quem pode atender: o proprietário e os membros com função de massagista que aceitaram o convite.
-      findTherapists: async (ids) => {
-        const userIds = objectIds(ids)
-        const [workspace, members] = await Promise.all([
-          Workspace.findById(unit!.workspaceId).select({ userId: 1 }).lean(),
-          WorkspaceMember.find({ workspaceId: unit!.workspaceId, role: "massage_therapist", userId: { $in: userIds } })
-            .select({ userId: 1 })
-            .lean(),
-        ])
-        const allowed = members.map((member) => member.userId!)
-        if (workspace && userIds.some((id) => id.equals(workspace.userId))) allowed.push(workspace.userId)
-        const users = await User.find({ _id: { $in: allowed } }).select({ name: 1, email: 1 }).lean()
-        return users.map((user) => ({ id: user._id.toString(), name: user.name ?? user.email }))
-      },
-      insert: async (data) => {
-        const appointment = await Appointment.create({ ...data, createdBy: userId })
-        return { id: appointment._id.toString() }
+      ...appointmentLookups(unit!),
+      update: async (id, fields) => {
+        const { matchedCount } = await Appointment.updateOne({ _id: id, hotelId: unit!.hotelId }, { $set: fields })
+        return matchedCount > 0
       },
     },
   )

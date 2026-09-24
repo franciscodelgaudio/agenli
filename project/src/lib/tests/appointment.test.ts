@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createAppointment, deleteAppointment } from "@/lib/appointment";
+import { createAppointment, deleteAppointment, updateAppointment } from "@/lib/appointment";
 
 const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
 const APPOINTMENT_ID = "64b7f0c2a1b2c3d4e5f60740";
@@ -213,6 +213,112 @@ describe("createAppointment", () => {
       expect(deps.insert).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("updateAppointment", () => {
+  function makeUpdateDeps({ found = true, services = SERVICES, therapists = THERAPISTS } = {}) {
+    return {
+      findServices: vi.fn(async (ids: string[]) => services.filter((s) => ids.includes(s.id))),
+      findTherapists: vi.fn(async (ids: string[]) => therapists.filter((t) => ids.includes(t.id))),
+      // Devolve false quando o atendimento não existe (ou não é da unidade).
+      update: vi.fn().mockResolvedValue(found),
+    };
+  }
+
+  it("atualiza hóspede, data/hora e serviços, copiando de novo os dados atuais do serviço e da massagista", async () => {
+    const deps = makeUpdateDeps();
+
+    const result = await updateAppointment(
+      {
+        guestName: "  Maria Souza  ",
+        room: " 310 ",
+        performedAt: "2026-09-24T16:00",
+        serviceIds: [RELAX_ID, CANDLE_ID],
+        therapistIds: [BIA_ID, ANA_ID],
+      },
+      APPOINTMENT_ID,
+      deps,
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(deps.update).toHaveBeenCalledWith(APPOINTMENT_ID, {
+      performedAt: new Date("2026-09-24T19:00:00.000Z"),
+      guest: { name: "Maria Souza", room: "310" },
+      items: [
+        {
+          serviceId: RELAX_ID,
+          serviceName: "Massagem Relaxante",
+          priceCents: 28000,
+          durationMinutes: 50,
+          therapistId: BIA_ID,
+          therapistName: "Bia",
+        },
+        {
+          serviceId: CANDLE_ID,
+          serviceName: "Massagem Candle",
+          priceCents: 35000,
+          durationMinutes: 60,
+          therapistId: ANA_ID,
+          therapistName: "Ana",
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["input nulo", null, "invalid_input"],
+    ["nome do hóspede vazio", { ...validInput, guestName: "   " }, "invalid_guest_name"],
+    ["quarto com mais de 20 caracteres", { ...validInput, room: "1".repeat(21) }, "room_too_long"],
+    ["dia que não existe", { ...validInput, performedAt: "2026-02-30T10:00" }, "invalid_performed_at"],
+    ["nenhum serviço", { ...validInput, serviceIds: [], therapistIds: [] }, "no_items"],
+    ["serviço sem massagista", { ...validInput, therapistIds: [] }, "invalid_item"],
+  ])("retorna erro sem buscar nem salvar quando %s", async (_label, input, error) => {
+    const deps = makeUpdateDeps();
+
+    const result = await updateAppointment(input, APPOINTMENT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error });
+    expect(deps.findServices).not.toHaveBeenCalled();
+    expect(deps.findTherapists).not.toHaveBeenCalled();
+    expect(deps.update).not.toHaveBeenCalled();
+  });
+
+  it("retorna service_not_found sem salvar quando algum serviço não é da unidade", async () => {
+    const deps = makeUpdateDeps({ services: [] });
+
+    const result = await updateAppointment(validInput, APPOINTMENT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error: "service_not_found" });
+    expect(deps.update).not.toHaveBeenCalled();
+  });
+
+  it("retorna therapist_not_found sem salvar quando alguma massagista não pode atender", async () => {
+    const deps = makeUpdateDeps({ therapists: [] });
+
+    const result = await updateAppointment(validInput, APPOINTMENT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error: "therapist_not_found" });
+    expect(deps.update).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, null, ""])(
+    "retorna appointment_not_found sem buscar nem salvar quando não há appointmentId (%j)",
+    async (appointmentId) => {
+      const deps = makeUpdateDeps();
+
+      const result = await updateAppointment(validInput, appointmentId, deps);
+
+      expect(result).toEqual({ ok: false, error: "appointment_not_found" });
+      expect(deps.findServices).not.toHaveBeenCalled();
+      expect(deps.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retorna appointment_not_found quando o atendimento não existe (ou não é da unidade)", async () => {
+    const result = await updateAppointment(validInput, APPOINTMENT_ID, makeUpdateDeps({ found: false }));
+
+    expect(result).toEqual({ ok: false, error: "appointment_not_found" });
+  });
 });
 
 describe("deleteAppointment", () => {

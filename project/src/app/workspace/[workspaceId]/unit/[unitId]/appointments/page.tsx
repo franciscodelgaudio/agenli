@@ -81,7 +81,7 @@ export default async function AppointmentsPage({
               localField: "_id",
               foreignField: "hotelId",
               as: "dayCount",
-              pipeline: [appointmentListPipeline({ date: query.date, q: "" })[0], { $count: "n" }],
+              pipeline: [appointmentListPipeline({ ...query, q: "" })[0], { $count: "n" }],
             },
           },
           {
@@ -150,8 +150,8 @@ export default async function AppointmentsPage({
   const today = parseAppointmentListQuery({}, now).date
   const pathname = `/workspace/${workspaceId}/unit/${unitId}/appointments`
   function dayHref(date: string) {
-    const params = new URLSearchParams({ date })
-    if (query.q) params.set("q", query.q)
+    const params = new URLSearchParams({ ...query, date })
+    if (!query.q) params.delete("q")
     return `${pathname}?${params}`
   }
   const [year, month, day] = query.date.split("-").map(Number)
@@ -243,8 +243,11 @@ export default async function AppointmentsPage({
           </div>
           <AppointmentTable
             appointments={appointments}
+            query={query}
+            pathname={pathname}
             workspaceId={workspaceId}
             unitId={unitId}
+            options={{ services, therapists }}
             canManage={canManage}
           />
         </>

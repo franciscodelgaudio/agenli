@@ -1,5 +1,7 @@
 import { BanknoteIcon, BedDoubleIcon, ClockIcon, SettingsIcon, SparklesIcon } from "lucide-react"
-import { DeleteAppointmentButton } from "@/components/delete-appointment-button"
+import { AppointmentActions } from "@/components/appointment-actions"
+import type { AppointmentOptions } from "@/components/appointment-form"
+import { SortableHead } from "@/components/sortable-head"
 import { currencyFormat, formatDuration, timeFormat } from "@/components/service-format"
 import {
   Table,
@@ -9,20 +11,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { AppointmentListQuery } from "@/lib/appointment-list"
 
 export type AppointmentRow = {
   id: string
   performedAt: Date
   guest: { name: string; room: string }
-  items: { serviceName: string; priceCents: number; durationMinutes: number; therapistName: string }[]
+  items: {
+    serviceId: string
+    serviceName: string
+    priceCents: number
+    durationMinutes: number
+    therapistId: string
+    therapistName: string
+  }[]
   totalCents: number
 }
 
 type Props = {
   appointments: AppointmentRow[]
+  query: AppointmentListQuery
+  pathname: string
   workspaceId: string
   unitId: string
-  // Sem permissão, a coluna de ações (excluir) não aparece.
+  // Opções do formulário de edição.
+  options: AppointmentOptions
+  // Sem permissão, a coluna de ações (editar/excluir) não aparece.
   canManage: boolean
 }
 
@@ -37,16 +51,16 @@ function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) 
   )
 }
 
-export function AppointmentTable({ appointments, workspaceId, unitId, canManage }: Props) {
+export function AppointmentTable({ appointments, query, pathname, workspaceId, unitId, options, canManage }: Props) {
   return (
     <div className="border">
       <Table>
         <TableHeader>
           <TableRow>
-            <Head icon={ClockIcon} label="Horário" />
-            <Head icon={BedDoubleIcon} label="Hóspede" />
+            <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
+            <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
             <Head icon={SparklesIcon} label="Serviços" />
-            <Head icon={BanknoteIcon} label="Total" />
+            <SortableHead field="totalCents" label="Total" icon={BanknoteIcon} query={query} pathname={pathname} />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">
@@ -90,7 +104,12 @@ export function AppointmentTable({ appointments, workspaceId, unitId, canManage 
                 </TableCell>
                 {canManage && (
                   <TableCell className="px-4 text-right">
-                    <DeleteAppointmentButton workspaceId={workspaceId} unitId={unitId} appointment={appointment} />
+                    <AppointmentActions
+                      workspaceId={workspaceId}
+                      unitId={unitId}
+                      appointment={appointment}
+                      {...options}
+                    />
                   </TableCell>
                 )}
               </TableRow>

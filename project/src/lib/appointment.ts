@@ -22,26 +22,31 @@ export type CreateAppointmentResult =
   | { ok: true; appointmentId: string }
   | { ok: false; error: CreateAppointmentError };
 
-export type AppointmentData = {
-  hotelId: string;
-  performedAt: Date;
-  guest: { name: string; room: string };
-  items: {
-    serviceId: string;
-    serviceName: string;
-    priceCents: number;
-    durationMinutes: number;
-    therapistId: string;
-    therapistName: string;
-  }[];
+type AppointmentItem = {
+  serviceId: string;
+  serviceName: string;
+  priceCents: number;
+  durationMinutes: number;
+  therapistId: string;
+  therapistName: string;
 };
 
-type Deps = {
-  // Devolvem só os que existem: serviços da unidade e massagistas do workspace.
+// Dados editáveis de um atendimento (tudo menos a unidade).
+export type AppointmentFields = {
+  performedAt: Date;
+  guest: { name: string; room: string };
+  items: AppointmentItem[];
+};
+
+export type AppointmentData = AppointmentFields & { hotelId: string };
+
+type Lookups = {
+  // Devolvem só os que existem: serviços da unidade e quem pode atender no workspace.
   findServices: (ids: string[]) => Promise<{ id: string; name: string; priceCents: number; durationMinutes: number }[]>;
   findTherapists: (ids: string[]) => Promise<{ id: string; name: string }[]>;
-  insert: (data: AppointmentData) => Promise<{ id: string }>;
 };
+
+type FieldsError = Exclude<CreateAppointmentError, "hotel_not_found">;
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -59,13 +64,12 @@ function parsePerformedAt(value: string) {
   return new Date(Date.UTC(year, month - 1, date, hours + BRT_OFFSET_HOURS, minutes));
 }
 
-export async function createAppointment(
+// Valida o input do formulário e resolve serviços e massagistas, copiando nome, valor e
+// duração para que mudanças futuras no serviço não alterem o histórico.
+async function resolveAppointmentFields(
   input: unknown,
-  hotelId: string | null | undefined,
-  { findServices, findTherapists, insert }: Deps,
-): Promise<CreateAppointmentResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
-
+  { findServices, findTherapists }: Lookups,
+): Promise<{ ok: true; fields: AppointmentFields } | { ok: false; error: FieldsError }> {
   const { guestName, room, performedAt, serviceIds, therapistIds } = (input ?? {}) as Record<string, unknown>;
   if (
     typeof guestName !== "string" ||
@@ -104,24 +108,58 @@ export async function createAppointment(
   if (pairs.some((pair) => !servicesById.has(pair.serviceId))) return { ok: false, error: "service_not_found" };
   if (pairs.some((pair) => !therapistsById.has(pair.therapistId))) return { ok: false, error: "therapist_not_found" };
 
-  // Nome, valor e duração são copiados para que mudanças futuras no serviço não alterem o histórico.
-  const appointment = await insert({
-    hotelId,
-    performedAt: date,
-    guest: { name, room: normalizedRoom },
-    items: pairs.map(({ serviceId, therapistId }) => {
-      const service = servicesById.get(serviceId)!;
-      return {
-        serviceId,
-        serviceName: service.name,
-        priceCents: service.priceCents,
-        durationMinutes: service.durationMinutes,
-        therapistId,
-        therapistName: therapistsById.get(therapistId)!.name,
-      };
-    }),
-  });
+  return {
+    ok: true,
+    fields: {
+      performedAt: date,
+      guest: { name, room: normalizedRoom },
+      items: pairs.map(({ serviceId, therapistId }) => {
+        const service = servicesById.get(serviceId)!;
+        return {
+          serviceId,
+          serviceName: service.name,
+          priceCents: service.priceCents,
+          durationMinutes: service.durationMinutes,
+          therapistId,
+          therapistName: therapistsById.get(therapistId)!.name,
+        };
+      }),
+    },
+  };
+}
+
+export async function createAppointment(
+  input: unknown,
+  hotelId: string | null | undefined,
+  { insert, ...lookups }: Lookups & { insert: (data: AppointmentData) => Promise<{ id: string }> },
+): Promise<CreateAppointmentResult> {
+  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+
+  const resolved = await resolveAppointmentFields(input, lookups);
+  if (!resolved.ok) return resolved;
+
+  const appointment = await insert({ hotelId, ...resolved.fields });
   return { ok: true, appointmentId: appointment.id };
+}
+
+export type UpdateAppointmentError = FieldsError | "appointment_not_found";
+
+export type UpdateAppointmentResult = { ok: true } | { ok: false; error: UpdateAppointmentError };
+
+// update devolve false quando o atendimento não existe (ou não é da unidade).
+// Os dados do serviço são copiados de novo do cadastro atual, como no registro.
+export async function updateAppointment(
+  input: unknown,
+  appointmentId: string | null | undefined,
+  { update, ...lookups }: Lookups & { update: (appointmentId: string, fields: AppointmentFields) => Promise<boolean> },
+): Promise<UpdateAppointmentResult> {
+  if (!appointmentId) return { ok: false, error: "appointment_not_found" };
+
+  const resolved = await resolveAppointmentFields(input, lookups);
+  if (!resolved.ok) return resolved;
+
+  const found = await update(appointmentId, resolved.fields);
+  return found ? { ok: true } : { ok: false, error: "appointment_not_found" };
 }
 
 export type DeleteAppointmentResult = { ok: true } | { ok: false; error: "appointment_not_found" };
