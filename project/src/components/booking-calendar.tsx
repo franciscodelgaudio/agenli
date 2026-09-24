@@ -249,7 +249,9 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
           dayMaxEvents
           events={fetchEvents}
           eventContent={({ event, timeText }) => {
-            const booking = event.extendedProps.booking as BookingRow
+            // O evento-espelho da seleção (selectMirror) não tem agendamento associado.
+            const booking = event.extendedProps.booking as BookingRow | undefined
+            if (!booking) return <div className="overflow-hidden px-1 text-xs font-medium">{timeText}</div>
             return (
               <div className="overflow-hidden px-1 text-xs leading-tight">
                 <div className="flex items-center gap-1 font-medium">
@@ -299,7 +301,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
       </div>
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent>
           {(sheet?.mode === "create" || sheet?.mode === "edit") && (
             <BookingForm
               key={sheet.key}

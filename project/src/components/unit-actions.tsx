@@ -68,7 +68,7 @@ export function UnitActions({ workspaceId, unit }: { workspaceId: string; unit: 
       </DropdownMenu>
 
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent>
           <EditUnitForm
             key={editKey}
             workspaceId={workspaceId}
@@ -107,12 +107,13 @@ function EditUnitForm({
   )
 
   return (
-    <form action={formAction} className="flex flex-1 flex-col">
+    <form action={formAction} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
         <SheetTitle>Editar unidade</SheetTitle>
         <SheetDescription>Altere os dados desta unidade.</SheetDescription>
       </SheetHeader>
-      <FieldGroup className="px-4">
+      {/* Só os campos rolam; título e botões ficam fixos. */}
+      <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
         <UnitFields idPrefix={`edit-unit-${unit.id}`} defaultValues={unit} />
       </FieldGroup>

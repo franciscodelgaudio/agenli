@@ -35,12 +35,13 @@ export function CreateServiceSheet({ workspaceId, unitId }: { workspaceId: strin
         Cadastrar serviço
       </SheetTrigger>
       <SheetContent>
-        <form action={formAction} className="flex flex-1 flex-col">
+        <form action={formAction} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader>
             <SheetTitle>Cadastrar serviço</SheetTitle>
             <SheetDescription>Adicione um serviço prestado nesta unidade.</SheetDescription>
           </SheetHeader>
-          <FieldGroup className="px-4">
+          {/* Só os campos rolam; título e botões ficam fixos. */}
+          <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
             <ServiceFields idPrefix="create-service" />
           </FieldGroup>

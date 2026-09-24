@@ -81,7 +81,7 @@ export function AppointmentActions({ workspaceId, appointment, ...options }: Pro
       </DropdownMenu>
 
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
-        <SheetContent className="overflow-y-auto">
+        <SheetContent>
           <AppointmentForm
             key={editKey}
             {...options}

@@ -83,12 +83,13 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
   }
 
   return (
-    <form action={formAction} className="flex flex-1 flex-col">
+    <form action={formAction} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
         <SheetTitle>{copy[mode].title}</SheetTitle>
         <SheetDescription>{copy[mode].description}</SheetDescription>
       </SheetHeader>
-      <FieldGroup className="px-4">
+      {/* Só os campos rolam; título e botões ficam fixos. */}
+      <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
         {units && (
           <Field>

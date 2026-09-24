@@ -33,7 +33,7 @@ export function CreateAppointmentSheet({ workspaceId, unitId, defaultPerformedAt
         <PlusIcon />
         Registrar atendimento
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto">
+      <SheetContent>
         <AppointmentForm
           key={formKey}
           {...options}

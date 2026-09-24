@@ -1,0 +1,233 @@
+import type { PipelineStage } from "mongoose";
+import { parseDay } from "@/lib/appointment-list";
+import { calculatePartnerShareCents, type RevenueShare, type RevenueSharePeriod } from "@/lib/revenue-share";
+import { BRT_OFFSET_HOURS } from "@/lib/timezone";
+import { first, type SearchParams } from "@/lib/unit-list";
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+// week: um dia por linha; month: uma semana por linha; year: um mês por linha.
+export const CASH_FLOW_VIEWS = ["week", "month", "year"] as const;
+
+export type CashFlowView = (typeof CASH_FLOW_VIEWS)[number];
+export type CashFlowQuery = { view: CashFlowView; date: string };
+// Dias do calendário ("2026-09-24"), ambos inclusivos.
+export type DayRange = { from: string; to: string };
+export type DayTotal = { date: string; cents: number };
+
+export type CashFlowAmounts = { grossCents: number; partnerShareCents: number; netCents: number };
+export type CashFlowBucket = DayRange & { real: CashFlowAmounts; forecast: CashFlowAmounts };
+export type CashFlowSummary = { buckets: CashFlowBucket[]; total: { real: CashFlowAmounts; forecast: CashFlowAmounts } };
+
+function isView(value: string | undefined): value is CashFlowView {
+  return CASH_FLOW_VIEWS.includes(value as CashFlowView);
+}
+
+function toDay(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+// Date.UTC normaliza estouros: dia 0 é o último dia do mês anterior, mês 13 é janeiro seguinte.
+function utcDay(year: number, month: number, day: number) {
+  return toDay(new Date(Date.UTC(year, month - 1, day)));
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = parseDay(date)!;
+  return utcDay(year, month, day + days);
+}
+
+// Segunda-feira da semana do dia.
+function weekStart(date: string) {
+  const [year, month, day] = parseDay(date)!;
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return addDays(date, -((weekday + 6) % 7));
+}
+
+export function parseCashFlowQuery(params: SearchParams, now = new Date()): CashFlowQuery {
+  const view = first(params.view);
+  const date = first(params.date);
+  return {
+    view: isView(view) ? view : "month",
+    date: date && parseDay(date) ? date : toDay(new Date(now.getTime() - BRT_OFFSET_HOURS * HOUR_MS)),
+  };
+}
+
+// Data do período anterior (steps < 0) ou seguinte; mês e ano vão para o primeiro dia.
+export function shiftCashFlowDate({ view, date }: CashFlowQuery, steps: number) {
+  const [year, month] = parseDay(date)!;
+  if (view === "week") return addDays(date, 7 * steps);
+  if (view === "month") return utcDay(year, month + steps, 1);
+  return utcDay(year + steps, 1, 1);
+}
+
+// Linhas da tabela do caixa para a visão escolhida.
+export function cashFlowBuckets({ view, date }: CashFlowQuery): DayRange[] {
+  const [year, month] = parseDay(date)!;
+  if (view === "week") {
+    const monday = weekStart(date);
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(monday, i);
+      return { from: day, to: day };
+    });
+  }
+  if (view === "year") {
+    return Array.from({ length: 12 }, (_, i) => ({ from: utcDay(year, i + 1, 1), to: utcDay(year, i + 2, 0) }));
+  }
+
+  // Semanas de segunda a domingo, cortadas no início e no fim do mês.
+  const last = utcDay(year, month + 1, 0);
+  const buckets: DayRange[] = [];
+  for (let from = utcDay(year, month, 1); from <= last; ) {
+    const sunday = addDays(weekStart(from), 6);
+    const to = sunday < last ? sunday : last;
+    buckets.push({ from, to });
+    from = addDays(to, 1);
+  }
+  return buckets;
+}
+
+// Período de repasse que contém o dia. Quinzenas: 1–15 e 16–fim do mês.
+function sharePeriodOf(date: string, period: RevenueSharePeriod): DayRange {
+  const [year, month, day] = parseDay(date)!;
+  if (period === "weekly") {
+    const monday = weekStart(date);
+    return { from: monday, to: addDays(monday, 6) };
+  }
+  if (period === "biweekly" && day <= 15) return { from: utcDay(year, month, 1), to: utcDay(year, month, 15) };
+  if (period === "biweekly") return { from: utcDay(year, month, 16), to: utcDay(year, month + 1, 0) };
+  return { from: utcDay(year, month, 1), to: utcDay(year, month + 1, 0) };
+}
+
+// Dias a buscar no banco: os exibidos mais o resto dos períodos de repasse das pontas,
+// porque a faixa do repasse depende do faturamento do período inteiro.
+export function cashFlowFetchRange(buckets: DayRange[], period: RevenueSharePeriod | null): DayRange {
+  const from = buckets[0].from;
+  const to = buckets.at(-1)!.to;
+  if (!period) return { from, to };
+  return { from: sharePeriodOf(from, period).from, to: sharePeriodOf(to, period).to };
+}
+
+// Início e fim (exclusivo) do intervalo em Brasília, em UTC.
+function rangeBounds({ from, to }: DayRange) {
+  const [year, month, day] = parseDay(from)!;
+  const start = new Date(Date.UTC(year, month - 1, day, BRT_OFFSET_HOURS));
+  const [toYear, toMonth, toDate] = parseDay(to)!;
+  const end = new Date(Date.UTC(toYear, toMonth - 1, toDate, BRT_OFFSET_HOURS) + DAY_MS);
+  return { start, end };
+}
+
+function dayKey(field: string) {
+  return { $dateToString: { format: "%Y-%m-%d", date: field, timezone: "-03:00" } };
+}
+
+const PROJECT_DAY_TOTAL = { $project: { _id: 0, date: "$_id", cents: 1 } };
+
+// Etapas para o $lookup de appointments da unidade: faturamento por dia.
+export function dailyAppointmentTotalsPipeline(range: DayRange): PipelineStage.FacetPipelineStage[] {
+  const { start, end } = rangeBounds(range);
+  return [
+    { $match: { performedAt: { $gte: start, $lt: end } } },
+    { $group: { _id: dayKey("$performedAt"), cents: { $sum: { $sum: "$items.priceCents" } } } },
+    PROJECT_DAY_TOTAL,
+  ];
+}
+
+// Etapas para o $lookup de bookings da unidade: valor previsto por dia dos agendamentos
+// de agora em diante, pelo preço atual do serviço.
+export function dailyBookingForecastPipeline(range: DayRange, now: Date): PipelineStage.FacetPipelineStage[] {
+  const { start, end } = rangeBounds(range);
+  return [
+    { $match: { startsAt: { $gte: now > start ? now : start, $lt: end } } },
+    {
+      $lookup: {
+        from: "services",
+        localField: "service.serviceId",
+        foreignField: "_id",
+        as: "services",
+        pipeline: [{ $project: { _id: 0, priceCents: 1 } }],
+      },
+    },
+    {
+      $group: {
+        _id: dayKey("$startsAt"),
+        cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
+      },
+    },
+    PROJECT_DAY_TOTAL,
+  ];
+}
+
+// Repasse (sem arredondar) de cada dia: calculado sobre o período de repasse inteiro
+// e rateado pelo faturamento de cada dia.
+function partnerShareByDay(totals: Map<string, number>, revenueShare: RevenueShare | null) {
+  const shares = new Map<string, number>();
+  if (!revenueShare) return shares;
+
+  const periodRevenue = new Map<string, number>();
+  for (const [date, cents] of totals) {
+    const key = sharePeriodOf(date, revenueShare.period).from;
+    periodRevenue.set(key, (periodRevenue.get(key) ?? 0) + cents);
+  }
+  for (const [date, cents] of totals) {
+    if (!cents) continue;
+    const revenue = periodRevenue.get(sharePeriodOf(date, revenueShare.period).from)!;
+    shares.set(date, (calculatePartnerShareCents(revenue, revenueShare) * cents) / revenue);
+  }
+  return shares;
+}
+
+function sumTotals(...lists: DayTotal[][]) {
+  const totals = new Map<string, number>();
+  for (const { date, cents } of lists.flat()) totals.set(date, (totals.get(date) ?? 0) + cents);
+  return totals;
+}
+
+function bucketAmounts({ from, to }: DayRange, totals: Map<string, number>, shares: Map<string, number>) {
+  let grossCents = 0;
+  let share = 0;
+  for (const [date, cents] of totals) {
+    if (date < from || date > to) continue;
+    grossCents += cents;
+    share += shares.get(date) ?? 0;
+  }
+  const partnerShareCents = Math.round(share);
+  return { grossCents, partnerShareCents, netCents: grossCents - partnerShareCents };
+}
+
+function addAmounts(a: CashFlowAmounts, b: CashFlowAmounts): CashFlowAmounts {
+  return {
+    grossCents: a.grossCents + b.grossCents,
+    partnerShareCents: a.partnerShareCents + b.partnerShareCents,
+    netCents: a.netCents + b.netCents,
+  };
+}
+
+// Real: atendimentos. Previsto: atendimentos mais agendamentos futuros. Os dias fora dos
+// intervalos só servem para o repasse; o total é a soma dos intervalos já arredondados.
+export function summarizeCashFlow(
+  buckets: DayRange[],
+  appointments: DayTotal[],
+  bookings: DayTotal[],
+  revenueShare: RevenueShare | null,
+): CashFlowSummary {
+  const real = sumTotals(appointments);
+  const forecast = sumTotals(appointments, bookings);
+  const realShares = partnerShareByDay(real, revenueShare);
+  const forecastShares = partnerShareByDay(forecast, revenueShare);
+
+  const zero = { grossCents: 0, partnerShareCents: 0, netCents: 0 };
+  const rows = buckets.map((bucket) => ({
+    ...bucket,
+    real: bucketAmounts(bucket, real, realShares),
+    forecast: bucketAmounts(bucket, forecast, forecastShares),
+  }));
+  return {
+    buckets: rows,
+    total: {
+      real: rows.reduce((sum, row) => addAmounts(sum, row.real), zero),
+      forecast: rows.reduce((sum, row) => addAmounts(sum, row.forecast), zero),
+    },
+  };
+}

@@ -53,14 +53,15 @@ function InviteMemberForm({ workspaceId, onDone }: { workspaceId: string; onDone
   )
 
   return (
-    <form action={formAction} className="flex flex-1 flex-col">
+    <form action={formAction} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
         <SheetTitle>Convidar usuário</SheetTitle>
         <SheetDescription>
           A pessoa recebe um email com um link para entrar no workspace. O convite vale por 7 dias.
         </SheetDescription>
       </SheetHeader>
-      <FieldGroup className="px-4">
+      {/* Só os campos rolam; título e botões ficam fixos. */}
+      <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
         <Field>
           <FieldLabel htmlFor="invite-member-email">Email</FieldLabel>

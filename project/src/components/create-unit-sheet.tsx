@@ -34,13 +34,14 @@ export function CreateUnitSheet({ workspaceId }: { workspaceId: string }) {
         <PlusIcon />
         Cadastrar unidade
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto">
-        <form action={formAction} className="flex flex-1 flex-col">
+      <SheetContent>
+        <form action={formAction} className="flex min-h-0 flex-1 flex-col">
           <SheetHeader>
             <SheetTitle>Cadastrar unidade</SheetTitle>
             <SheetDescription>Adicione uma unidade a este workspace.</SheetDescription>
           </SheetHeader>
-          <FieldGroup className="px-4">
+          {/* Só os campos rolam; título e botões ficam fixos. */}
+          <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
             <UnitFields idPrefix="create-unit" />
           </FieldGroup>
