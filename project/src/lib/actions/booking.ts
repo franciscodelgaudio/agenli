@@ -20,6 +20,7 @@ import { Service } from "@/models/Service"
 const errorMessages: Record<BookingError | "unauthenticated", string> = {
   invalid_input: "Preencha massagista, hóspede, quarto, início e duração.",
   invalid_therapist: "Escolha a massagista.",
+  invalid_service: "Escolha o serviço.",
   invalid_guest_name: "Informe o nome do hóspede.",
   guest_name_too_long: "O nome do hóspede pode ter no máximo 80 caracteres.",
   invalid_room: "Informe o quarto.",

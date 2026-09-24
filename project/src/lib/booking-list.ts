@@ -1,5 +1,6 @@
 import { Types, type PipelineStage } from "mongoose";
-import { parseDay } from "@/lib/appointment-list";
+import { parseAppointmentListQuery, parseDay } from "@/lib/appointment-list";
+import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/unit-list";
 import { BRT_OFFSET_HOURS } from "@/lib/timezone";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -20,7 +21,7 @@ export type BookingRow = {
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
-  service: { serviceId: string; serviceName: string } | null;
+  service: { serviceId: string; serviceName: string };
   appointmentId: string | null;
 };
 
@@ -51,6 +52,24 @@ function brtDateTime(path: string) {
   return { $dateToString: { date: path, format: "%Y-%m-%dT%H:%M", timezone: BRT_TIMEZONE } };
 }
 
+// Linha no formato BookingRow, compartilhada pelo calendário e pela lista.
+const BOOKING_PROJECT: PipelineStage.Project = {
+  $project: {
+    _id: 0,
+    id: { $toString: "$_id" },
+    unitId: { $toString: "$unitId" },
+    therapistId: { $toString: "$therapistId" },
+    therapistName: 1,
+    guest: 1,
+    startsAt: brtDateTime("$startsAt"),
+    endsAt: brtDateTime("$endsAt"),
+    durationMinutes: { $dateDiff: { startDate: "$startsAt", endDate: "$endsAt", unit: "minute" } },
+    service: { serviceId: { $toString: "$service.serviceId" }, serviceName: "$service.serviceName" },
+    // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
+    appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
+  },
+};
+
 // Etapas para o $lookup de bookings a partir das unidades do workspace; os filtros só
 // estreitam o resultado, a restrição ao workspace vem do $lookup.
 export function bookingListPipeline({ start, end, unit, therapist }: BookingRange) {
@@ -63,28 +82,56 @@ export function bookingListPipeline({ start, end, unit, therapist }: BookingRang
   const stages: PipelineStage.FacetPipelineStage[] = [
     { $match: match },
     { $sort: { startsAt: 1, _id: 1 } },
-    {
-      $project: {
-        _id: 0,
-        id: { $toString: "$_id" },
-        unitId: { $toString: "$unitId" },
-        therapistId: { $toString: "$therapistId" },
-        therapistName: 1,
-        guest: 1,
-        startsAt: brtDateTime("$startsAt"),
-        endsAt: brtDateTime("$endsAt"),
-        durationMinutes: { $dateDiff: { startDate: "$startsAt", endDate: "$endsAt", unit: "minute" } },
-        service: {
-          $cond: [
-            { $eq: [{ $type: "$service" }, "object"] },
-            { serviceId: { $toString: "$service.serviceId" }, serviceName: "$service.serviceName" },
-            null,
-          ],
-        },
-        // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
-        appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
-      },
-    },
+    BOOKING_PROJECT,
   ];
+  return stages;
+}
+
+// Lista do dia: chaves aceitas na URL e o campo correspondente no banco.
+const SORT_PATHS = { startsAt: "startsAt", guestName: "guest.name", therapistName: "therapistName" } as const;
+
+export type BookingSortField = keyof typeof SORT_PATHS;
+export type BookingListQuery = {
+  date: string;
+  q: string;
+  sort: BookingSortField;
+  dir: SortDir;
+  unit: string;
+  therapist: string;
+};
+
+function isSortField(value: string | undefined): value is BookingSortField {
+  return value !== undefined && Object.hasOwn(SORT_PATHS, value);
+}
+
+export function parseBookingListQuery(params: SearchParams, now = new Date()): BookingListQuery {
+  // Data, busca e direção seguem as mesmas regras da lista de atendimentos.
+  const { date, q, dir } = parseAppointmentListQuery(params, now);
+  const sort = first(params.sort);
+  return {
+    date,
+    q,
+    sort: isSortField(sort) ? sort : "startsAt",
+    dir,
+    unit: objectIdOrEmpty(first(params.unit)),
+    therapist: objectIdOrEmpty(first(params.therapist)),
+  };
+}
+
+// Etapas para o $lookup de bookings a partir das unidades do workspace: os que começam no dia.
+export function bookingDayListPipeline({ date, q, sort, dir, unit, therapist }: BookingListQuery) {
+  const start = dayStart(date)!;
+  const match: Record<string, unknown> = { startsAt: { $gte: start, $lt: new Date(start.getTime() + DAY_MS) } };
+  if (unit) match.unitId = new Types.ObjectId(unit);
+  if (therapist) match.therapistId = new Types.ObjectId(therapist);
+  const stages: PipelineStage.FacetPipelineStage[] = [{ $match: match }];
+  if (q) {
+    const regex = { $regex: escapeRegex(q), $options: "i" };
+    stages.push({ $match: { $or: [{ "guest.name": regex }, { "guest.room": regex }] } });
+  }
+  stages.push(
+    { $sort: { [SORT_PATHS[sort]]: dir === "desc" ? -1 : 1, _id: 1 } },
+    BOOKING_PROJECT,
+  );
   return stages;
 }

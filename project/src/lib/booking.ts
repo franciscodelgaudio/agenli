@@ -9,6 +9,7 @@ const MINUTE_MS = 60 * 1000;
 export type BookingError =
   | "invalid_input"
   | "invalid_therapist"
+  | "invalid_service"
   | "invalid_guest_name"
   | "guest_name_too_long"
   | "invalid_room"
@@ -29,7 +30,7 @@ export type BookingFields = {
   guest: { name: string; room: string };
   startsAt: Date;
   endsAt: Date;
-  service: { serviceId: string; serviceName: string } | null;
+  service: { serviceId: string; serviceName: string };
 };
 
 export type BookingData = BookingFields & { unitId: string };
@@ -50,7 +51,7 @@ function isDurationValid(minutes: number) {
   return minutes >= MIN_DURATION_MINUTES && minutes <= MAX_DURATION_MINUTES;
 }
 
-// Valida o input do formulário, resolve massagista e serviço (opcional) e confere conflito
+// Valida o input do formulário, resolve massagista e serviço e confere conflito
 // de horário da massagista, ignorando o próprio agendamento na edição.
 async function resolveBookingFields(
   input: unknown,
@@ -67,13 +68,16 @@ async function resolveBookingFields(
     typeof room !== "string" ||
     typeof startsAt !== "string" ||
     typeof durationMinutes !== "string" ||
-    (serviceId !== null && typeof serviceId !== "string")
+    typeof serviceId !== "string"
   ) {
     return { ok: false, error: "invalid_input" };
   }
 
   const normalizedTherapistId = therapistId.trim();
   if (!normalizedTherapistId) return { ok: false, error: "invalid_therapist" };
+
+  const normalizedServiceId = serviceId.trim();
+  if (!normalizedServiceId) return { ok: false, error: "invalid_service" };
 
   const name = guestName.trim();
   if (!name) return { ok: false, error: "invalid_guest_name" };
@@ -90,12 +94,11 @@ async function resolveBookingFields(
   if (!/^\d+$/.test(duration) || !isDurationValid(Number(duration))) return { ok: false, error: "invalid_duration" };
   const end = new Date(start.getTime() + Number(duration) * MINUTE_MS);
 
-  const normalizedServiceId = serviceId?.trim() ?? "";
   const [service, therapist] = await Promise.all([
-    normalizedServiceId ? findService(normalizedServiceId) : null,
+    findService(normalizedServiceId),
     findTherapist(normalizedTherapistId),
   ]);
-  if (normalizedServiceId && !service) return { ok: false, error: "service_not_found" };
+  if (!service) return { ok: false, error: "service_not_found" };
   if (!therapist) return { ok: false, error: "therapist_not_found" };
 
   const interval: Interval = { therapistId: normalizedTherapistId, startsAt: start, endsAt: end };
@@ -110,7 +113,7 @@ async function resolveBookingFields(
       guest: { name, room: normalizedRoom },
       startsAt: start,
       endsAt: end,
-      service: service ? { serviceId: normalizedServiceId, serviceName: service.name } : null,
+      service: { serviceId: normalizedServiceId, serviceName: service.name },
     },
   };
 }

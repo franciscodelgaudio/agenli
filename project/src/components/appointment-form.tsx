@@ -11,11 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
 import { currencyFormat, formatDuration } from "@/components/service-format"
+import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
 type Row = { key: number; serviceId: string | null; therapistId: string | null }
 
 export type AppointmentFormValues = {
-  // Só usado na visão do workspace, onde a unidade é escolhida no formulário.
+  // Na visão do workspace, a unidade é escolhida no formulário; no calendário de uma
+  // unidade, vai num campo oculto para a action que lê a unidade do formulário.
   unitId?: string
   guestName: string
   room: string
@@ -29,7 +31,7 @@ export type AppointmentOptions = {
   // Na visão do workspace, cada serviço traz a unidade e units lista as unidades;
   // na unidade, units fica ausente e todos os serviços são dela.
   services: { id: string; unitId?: string; name: string; priceCents: number; durationMinutes: number }[]
-  therapists: { id: string; name: string }[]
+  therapists: TherapistOption[]
   units?: { id: string; name: string }[]
 }
 
@@ -91,6 +93,7 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
       {/* Só os campos rolam; título e botões ficam fixos. */}
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
+        {!units && unitId && <input type="hidden" name="unitId" value={unitId} />}
         {units && (
           <Field>
             <FieldLabel htmlFor="appointment-unit">Unidade</FieldLabel>
@@ -200,12 +203,12 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
                 required
               >
                 <SelectTrigger className="w-full" aria-label={`Massagista do serviço ${index + 1}`}>
-                  <SelectValue placeholder="Escolha a massagista" />
+                  <TherapistSelectValue therapists={therapists} placeholder="Escolha a massagista" />
                 </SelectTrigger>
                 <SelectContent>
                   {therapists.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
-                      {option.name}
+                      <TherapistLabel therapist={option} />
                     </SelectItem>
                   ))}
                 </SelectContent>

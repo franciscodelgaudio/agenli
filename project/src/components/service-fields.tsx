@@ -1,5 +1,6 @@
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { AmountInput } from "@/components/amount-input"
 
 type Props = {
   idPrefix: string
@@ -22,18 +23,13 @@ export function ServiceFields({ idPrefix, defaultValues }: Props) {
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor={`${idPrefix}-price`}>Valor (R$)</FieldLabel>
-        {/* type="number" envia sempre ponto decimal, o formato que o servidor espera. */}
-        <Input
+        <FieldLabel htmlFor={`${idPrefix}-price`}>Valor</FieldLabel>
+        <AmountInput
           id={`${idPrefix}-price`}
           name="price"
-          type="number"
-          inputMode="decimal"
-          min={0}
-          max={1000000}
-          step={0.01}
-          placeholder="350,00"
-          defaultValue={defaultValues ? (defaultValues.priceCents / 100).toFixed(2) : undefined}
+          max={100_000_000}
+          placeholder="R$ 350,00"
+          defaultValue={defaultValues?.priceCents}
           required
         />
       </Field>

@@ -4,8 +4,9 @@ import { therapistOptionsStages } from "@/lib/therapist";
 describe("therapistOptionsStages", () => {
   // Aplicadas sobre o documento do workspace: o proprietário (Workspace.userId) vem
   // primeiro, seguido dos membros com função de massagista que aceitaram o convite,
-  // por nome. O id é sempre o do usuário e o nome cai para o email quando não há.
-  it("monta o campo therapists com o proprietário e as massagistas, sem deixar campos auxiliares", () => {
+  // por nome. O id é sempre o do usuário, o nome cai para o email quando não há e a
+  // foto (image) vem como null quando o usuário não tem.
+  it("monta o campo therapists com o proprietário e as massagistas (com foto), sem deixar campos auxiliares", () => {
     expect(therapistOptionsStages()).toEqual([
       {
         $lookup: {
@@ -13,7 +14,16 @@ describe("therapistOptionsStages", () => {
           localField: "userId",
           foreignField: "_id",
           as: "ownerOption",
-          pipeline: [{ $project: { _id: 0, id: { $toString: "$_id" }, name: { $ifNull: ["$name", "$email"] } } }],
+          pipeline: [
+            {
+              $project: {
+                _id: 0,
+                id: { $toString: "$_id" },
+                name: { $ifNull: ["$name", "$email"] },
+                image: { $ifNull: ["$image", null] },
+              },
+            },
+          ],
         },
       },
       {
@@ -26,7 +36,14 @@ describe("therapistOptionsStages", () => {
             { $match: { role: "massage_therapist", userId: { $ne: null } } },
             { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
             { $set: { user: { $first: "$user" } } },
-            { $project: { _id: 0, id: { $toString: "$userId" }, name: { $ifNull: ["$user.name", "$user.email"] } } },
+            {
+              $project: {
+                _id: 0,
+                id: { $toString: "$userId" },
+                name: { $ifNull: ["$user.name", "$user.email"] },
+                image: { $ifNull: ["$user.image", null] },
+              },
+            },
             { $sort: { name: 1, id: 1 } },
           ],
         },

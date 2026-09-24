@@ -6,21 +6,22 @@ import { REVENUE_SHARE_PERIODS, type RevenueShare } from "@/lib/revenue-share"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldLabel, FieldSeparator } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { AmountInput } from "@/components/amount-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ownershipLabels, periodLabels, type Ownership } from "@/components/revenue-share-labels"
 import { currencyFormat } from "@/components/service-format"
 
 const MAX_TIERS = 10
 
-type Tier = { key: number; limit: string; percent: string }
+// Em centésimos: centavos no limite, centésimos de ponto no percentual.
+type Tier = { key: number; limit: number | null; percent: number | null }
 
 function toTiers(revenueShare: RevenueShare | null): Tier[] {
-  if (!revenueShare) return [{ key: 0, limit: "", percent: "" }]
+  if (!revenueShare) return [{ key: 0, limit: null, percent: null }]
   return revenueShare.tiers.map((tier, key) => ({
     key,
-    limit: tier.upToCents === null ? "" : (tier.upToCents / 100).toFixed(2),
-    percent: String(tier.percent),
+    limit: tier.upToCents,
+    percent: Math.round(tier.percent * 100),
   }))
 }
 
@@ -96,7 +97,7 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
 
           {tiers.map((tier, index) => {
             const isLast = index === tiers.length - 1
-            const previousLimit = Number(tiers[index - 1]?.limit)
+            const previousLimit = tiers[index - 1]?.limit
             return (
               <div key={tier.key} className="grid gap-2 border p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -105,7 +106,7 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
                       ? "Sobre todo o faturamento"
                       : isLast
                         ? previousLimit
-                          ? `Acima de ${currencyFormat.format(previousLimit)}`
+                          ? `Acima de ${currencyFormat.format(previousLimit / 100)}`
                           : "Acima do limite anterior"
                         : `Faixa ${index + 1}`}
                   </span>
@@ -124,31 +125,25 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
                 <div className="grid grid-cols-2 gap-2">
                   {/* A ordem dos campos no FormData forma as faixas; a última não tem limite. */}
                   {!isLast && (
-                    <Input
+                    <AmountInput
                       name="tierLimit"
-                      type="number"
-                      inputMode="decimal"
-                      min={0.01}
-                      step={0.01}
-                      placeholder="Até R$ 30000,00"
-                      aria-label={`Limite da faixa ${index + 1} (R$)`}
+                      max={100_000_000_000}
+                      placeholder="Até R$ 30.000,00"
+                      aria-label={`Limite da faixa ${index + 1}`}
                       value={tier.limit}
-                      onChange={(event) => updateTier(tier.key, { limit: event.target.value })}
+                      onValueChange={(limit) => updateTier(tier.key, { limit })}
                       required
                     />
                   )}
-                  <Input
+                  <AmountInput
+                    mode="percent"
                     name="tierPercent"
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    max={100}
-                    step={0.01}
+                    max={10_000}
                     placeholder="% do estabelecimento"
                     aria-label={`Percentual da faixa ${index + 1}`}
                     className={isLast ? "col-span-2" : undefined}
                     value={tier.percent}
-                    onChange={(event) => updateTier(tier.key, { percent: event.target.value })}
+                    onValueChange={(percent) => updateTier(tier.key, { percent })}
                     required
                   />
                 </div>
@@ -163,7 +158,7 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
               onClick={() =>
                 setTiers((current) => [
                   ...current,
-                  { key: Math.max(...current.map((t) => t.key)) + 1, limit: "", percent: "" },
+                  { key: Math.max(...current.map((t) => t.key)) + 1, limit: null, percent: null },
                 ])
               }
             >

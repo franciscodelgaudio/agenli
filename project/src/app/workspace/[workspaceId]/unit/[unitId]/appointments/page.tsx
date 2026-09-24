@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/empty"
 
 type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number }
-type TherapistOption = { id: string; name: string }
+type TherapistOption = { id: string; name: string; image: string | null }
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
 export default async function AppointmentsPage({

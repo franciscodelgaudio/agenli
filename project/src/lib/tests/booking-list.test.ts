@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { Types } from "mongoose";
-import { bookingListPipeline, parseBookingRange } from "@/lib/booking-list";
+import {
+  bookingDayListPipeline,
+  bookingListPipeline,
+  parseBookingListQuery,
+  parseBookingRange,
+} from "@/lib/booking-list";
 
 const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
@@ -75,13 +80,7 @@ describe("bookingListPipeline", () => {
       startsAt: { $dateToString: { date: "$startsAt", format: "%Y-%m-%dT%H:%M", timezone: "-03:00" } },
       endsAt: { $dateToString: { date: "$endsAt", format: "%Y-%m-%dT%H:%M", timezone: "-03:00" } },
       durationMinutes: { $dateDiff: { startDate: "$startsAt", endDate: "$endsAt", unit: "minute" } },
-      service: {
-        $cond: [
-          { $eq: [{ $type: "$service" }, "object"] },
-          { serviceId: { $toString: "$service.serviceId" }, serviceName: "$service.serviceName" },
-          null,
-        ],
-      },
+      service: { serviceId: { $toString: "$service.serviceId" }, serviceName: "$service.serviceName" },
       // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
       appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
     },
@@ -104,5 +103,143 @@ describe("bookingListPipeline", () => {
       SORT,
       PROJECT,
     ]);
+  });
+});
+
+// 24/09/2026 às 23:30 em Brasília (já é dia 25 em UTC).
+const NOW = new Date("2026-09-25T02:30:00.000Z");
+
+// Lista de agendamentos do dia: busca, ordenação e filtros vêm da URL.
+describe("parseBookingListQuery", () => {
+  it("sem parâmetros, usa o dia de hoje em Brasília, sem busca nem filtros e ordem por início crescente", () => {
+    expect(parseBookingListQuery({}, NOW)).toEqual({
+      date: "2026-09-24",
+      q: "",
+      sort: "startsAt",
+      dir: "asc",
+      unit: "",
+      therapist: "",
+    });
+  });
+
+  it("lê data, busca, ordenação, direção e filtros válidos", () => {
+    expect(
+      parseBookingListQuery(
+        { date: "2026-09-20", q: "joão", sort: "therapistName", dir: "desc", unit: UNIT_ID, therapist: ANA_ID },
+        NOW,
+      ),
+    ).toEqual({ date: "2026-09-20", q: "joão", sort: "therapistName", dir: "desc", unit: UNIT_ID, therapist: ANA_ID });
+  });
+
+  it("aceita ordenação por guestName", () => {
+    expect(parseBookingListQuery({ sort: "guestName" }, NOW).sort).toBe("guestName");
+  });
+
+  it("remove espaços das pontas da busca", () => {
+    expect(parseBookingListQuery({ q: "  204  " }, NOW).q).toBe("204");
+  });
+
+  it("usa o primeiro valor quando o parâmetro vem repetido", () => {
+    expect(
+      parseBookingListQuery(
+        {
+          date: ["2026-09-20", "2026-09-21"],
+          q: ["a", "b"],
+          sort: ["guestName", "startsAt"],
+          dir: ["desc", "asc"],
+          unit: [UNIT_ID, ANA_ID],
+          therapist: [ANA_ID, UNIT_ID],
+        },
+        NOW,
+      ),
+    ).toEqual({ date: "2026-09-20", q: "a", sort: "guestName", dir: "desc", unit: UNIT_ID, therapist: ANA_ID });
+  });
+
+  it.each([
+    ["formato errado", "24/09/2026"],
+    ["dia que não existe", "2026-02-30"],
+    ["com hora", "2026-09-20T10:00"],
+  ])("volta para hoje quando a data tem %s", (_label, date) => {
+    expect(parseBookingListQuery({ date }, NOW).date).toBe("2026-09-24");
+  });
+
+  it.each([
+    ["campo fora da lista", "unitId"],
+    ["caminho do banco em vez da chave", "guest.name"],
+    ["campo com operador", "$where"],
+  ])("volta para início quando o sort é %s", (_label, sort) => {
+    expect(parseBookingListQuery({ sort }, NOW).sort).toBe("startsAt");
+  });
+
+  it("volta para crescente quando a direção é inválida", () => {
+    expect(parseBookingListQuery({ dir: "sideways" }, NOW).dir).toBe("asc");
+  });
+
+  it.each([
+    ["texto", "centro"],
+    ["id curto", "64b7f0c2a1b2"],
+  ])("ignora filtros inválidos (%s)", (_label, value) => {
+    expect(parseBookingListQuery({ unit: value, therapist: value }, NOW)).toEqual(
+      expect.objectContaining({ unit: "", therapist: "" }),
+    );
+  });
+});
+
+describe("bookingDayListPipeline", () => {
+  const BASE = { date: "2026-09-24", q: "", sort: "startsAt", dir: "asc", unit: "", therapist: "" } as const;
+
+  // Entram os que começam no dia 24/09 em Brasília: de 03:00 UTC do dia 24 até 03:00 UTC do dia 25.
+  const DAY = { startsAt: { $gte: new Date("2026-09-24T03:00:00.000Z"), $lt: new Date("2026-09-25T03:00:00.000Z") } };
+  // Mesmo formato de linha do calendário, para reaproveitar o formulário de edição.
+  const PROJECT = bookingListPipeline({ start: "2026-09-24", end: "2026-09-25", unit: "", therapist: "" }).at(-1);
+
+  it("sem busca nem filtros, pega os que começam no dia, ordena por início (com _id de desempate) e projeta", () => {
+    expect(bookingDayListPipeline(BASE)).toEqual([{ $match: DAY }, { $sort: { startsAt: 1, _id: 1 } }, PROJECT]);
+  });
+
+  it.each([
+    ["startsAt", "desc", { startsAt: -1, _id: 1 }],
+    ["guestName", "asc", { "guest.name": 1, _id: 1 }],
+    ["guestName", "desc", { "guest.name": -1, _id: 1 }],
+    ["therapistName", "asc", { therapistName: 1, _id: 1 }],
+  ] as const)("ordena por %s %s usando o campo do banco", (sort, dir, $sort) => {
+    expect(bookingDayListPipeline({ ...BASE, sort, dir })).toEqual([{ $match: DAY }, { $sort }, PROJECT]);
+  });
+
+  it("com filtros, restringe por unidade e massagista no mesmo $match do dia", () => {
+    expect(bookingDayListPipeline({ ...BASE, unit: UNIT_ID, therapist: ANA_ID })).toEqual([
+      { $match: { ...DAY, unitId: new Types.ObjectId(UNIT_ID), therapistId: new Types.ObjectId(ANA_ID) } },
+      { $sort: { startsAt: 1, _id: 1 } },
+      PROJECT,
+    ]);
+  });
+
+  it("com busca, filtra nome do hóspede ou quarto sem diferenciar maiúsculas antes de ordenar", () => {
+    expect(bookingDayListPipeline({ ...BASE, q: "joão" })).toEqual([
+      { $match: DAY },
+      {
+        $match: {
+          $or: [
+            { "guest.name": { $regex: "joão", $options: "i" } },
+            { "guest.room": { $regex: "joão", $options: "i" } },
+          ],
+        },
+      },
+      { $sort: { startsAt: 1, _id: 1 } },
+      PROJECT,
+    ]);
+  });
+
+  it("escapa caracteres especiais de regex da busca", () => {
+    const [, match] = bookingDayListPipeline({ ...BASE, q: "a.b*(c)" });
+
+    expect(match).toEqual({
+      $match: {
+        $or: [
+          { "guest.name": { $regex: "a\\.b\\*\\(c\\)", $options: "i" } },
+          { "guest.room": { $regex: "a\\.b\\*\\(c\\)", $options: "i" } },
+        ],
+      },
+    });
   });
 });

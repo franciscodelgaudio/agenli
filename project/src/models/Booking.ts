@@ -15,7 +15,6 @@ const bookingSchema = new Schema(
     },
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
-    // Opcional: sem serviço, fica null.
     service: {
       type: new Schema(
         {
@@ -24,7 +23,7 @@ const bookingSchema = new Schema(
         },
         { _id: false },
       ),
-      default: null,
+      required: true,
     },
     // Atendimento registrado a partir deste agendamento; enquanto null, ainda pode ser editado.
     appointmentId: { type: Schema.Types.ObjectId, ref: "Appointment", default: null, index: true },

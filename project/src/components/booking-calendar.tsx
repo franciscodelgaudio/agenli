@@ -10,6 +10,7 @@ import FullCalendar, {
 import classicThemePlugin from "@fullcalendar/react/themes/classic"
 import dayGridPlugin from "@fullcalendar/react/daygrid"
 import timeGridPlugin from "@fullcalendar/react/timegrid"
+import listPlugin from "@fullcalendar/react/list"
 import interactionPlugin from "@fullcalendar/react/interaction"
 import ptBrLocale from "@fullcalendar/react/locales/pt-br"
 import "@fullcalendar/react/skeleton.css"
@@ -43,10 +44,12 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { AppointmentForm } from "@/components/appointment-form"
 import { BookingForm, type BookingFormOptions, type BookingFormValues } from "@/components/booking-form"
 import { formatDuration } from "@/components/service-format"
+import { TherapistAvatar, TherapistLabel, TherapistSelectValue } from "@/components/therapist-avatar"
 
-export type BookingOptions = BookingFormOptions
+export type BookingOptions = Required<BookingFormOptions>
 
-type Props = BookingOptions & { workspaceId: string; canManage: boolean }
+// unitId: calendário de uma unidade (units traz só ela); sem filtro nem escolha de unidade.
+type Props = BookingOptions & { workspaceId: string; canManage: boolean; unitId?: string }
 
 const ALL = "all"
 const HOUR_MS = 60 * 60 * 1000
@@ -79,9 +82,9 @@ type SheetInput =
 // key muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
 type SheetState = SheetInput & { key: number }
 
-export function BookingCalendar({ workspaceId, canManage, units, therapists, services }: Props) {
+export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services }: Props) {
   const calendarRef = useRef<CalendarRef>(null)
-  const [unit, setUnit] = useState("")
+  const [unit, setUnit] = useState(unitId ?? "")
   const [therapist, setTherapist] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetState | null>(null)
@@ -90,10 +93,12 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
 
+  const unitNames = new Map(units.map((option) => [option.id, option.name]))
+  const therapistsById = new Map(therapists.map((option) => [option.id, option]))
   const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
   // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
   const canCreate = canManage && units.length > 0
-  const options = { units, therapists, services }
+  const options = { units: unitId ? undefined : units, therapists, services }
 
   // Uma nova função a cada troca de filtro faz o calendário buscar de novo.
   const fetchEvents = useCallback(
@@ -176,25 +181,36 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
     })
   }
 
+  // Nos eventos, o avatar vem da lista de massagistas; quem saiu do workspace fica só com o nome.
+  const therapistAvatar = (booking: BookingRow, className: string) => {
+    const option = therapistsById.get(booking.therapistId)
+    return option && <TherapistAvatar therapist={option} className={className} />
+  }
+
   const filterSelect = (
     label: string,
     allLabel: string,
     value: string,
     onChange: (value: string) => void,
     list: { id: string; name: string }[],
+    // Filtro de massagista: o valor e as opções mostram o avatar.
+    withAvatar = false,
   ) => {
     const items = [{ value: ALL, label: allLabel }, ...list.map((item) => ({ value: item.id, label: item.name }))]
     return (
       <Select items={items} value={value || ALL} onValueChange={(next) => onChange(next === ALL ? "" : (next as string))}>
         <SelectTrigger className="w-full sm:w-56" aria-label={label}>
-          <SelectValue />
+          {withAvatar ? <TherapistSelectValue therapists={therapists} fallback={allLabel} /> : <SelectValue />}
         </SelectTrigger>
         <SelectContent>
-          {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
+          {items.map((item) => {
+            const option = withAvatar && therapistsById.get(item.value)
+            return (
+              <SelectItem key={item.value} value={item.value}>
+                {option ? <TherapistLabel therapist={option} /> : item.label}
+              </SelectItem>
+            )
+          })}
         </SelectContent>
       </Select>
     )
@@ -204,8 +220,8 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-          {filterSelect("Filtrar por unidade", "Todas as unidades", unit, setUnit, units)}
-          {filterSelect("Filtrar por massagista", "Todas as massagistas", therapist, setTherapist, therapists)}
+          {!unitId && filterSelect("Filtrar por unidade", "Todas as unidades", unit, setUnit, units)}
+          {filterSelect("Filtrar por massagista", "Todas as massagistas", therapist, setTherapist, therapists, true)}
         </div>
         {canCreate && (
           <Button onClick={() => openCreate(toWallTime(new Date(Math.ceil(brtNow().getTime() / HOUR_MS) * HOUR_MS)), 60)}>
@@ -218,8 +234,13 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
       {therapists.length > 0 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground" aria-label="Cores por massagista">
           {therapists.map((option) => (
-            <li key={option.id} className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full" style={{ backgroundColor: colors.get(option.id) }} />
+            <li key={option.id} className="flex items-center gap-2">
+              {/* O anel na cor da massagista faz a vez da legenda de cores. */}
+              <TherapistAvatar
+                therapist={option}
+                className="size-5"
+                style={{ outline: `2px solid ${colors.get(option.id)}`, outlineOffset: 1 }}
+              />
               {option.name}
             </li>
           ))}
@@ -234,35 +255,76 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
       <div className="booking-calendar">
         <FullCalendar
           ref={calendarRef}
-          plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
           locale={ptBrLocale}
           timeZone="UTC"
           now={brtNow}
           initialView="timeGridWeek"
-          headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek,timeGridDay" }}
+          headerToolbar={{ start: "prev,next today", center: "title", end: "dayGridMonth,timeGridWeek,timeGridDay,listWeek" }}
           height="auto"
           allDaySlot={false}
           slotMinTime="06:00"
           slotMaxTime="24:00"
           scrollTime="08:00"
+          // Faixas de 30 min mais altas: um agendamento de 45 min já mostra hóspede, hora e quarto.
+          slotMinHeight={32}
           nowIndicator
           dayMaxEvents
+          noEventsText="Nenhum agendamento neste período."
           events={fetchEvents}
-          eventContent={({ event, timeText }) => {
+          eventContent={({ event, timeText, view, isShort, timeClass, titleClass }) => {
             // O evento-espelho da seleção (selectMirror) não tem agendamento associado.
             const booking = event.extendedProps.booking as BookingRow | undefined
             if (!booking) return <div className="overflow-hidden px-1 text-xs font-medium">{timeText}</div>
-            return (
-              <div className="overflow-hidden px-1 text-xs leading-tight">
-                <div className="flex items-center gap-1 font-medium">
-                  {booking.appointmentId && <CheckIcon className="size-3 shrink-0" aria-label="Atendido" />}
-                  <span className="truncate">
-                    {timeText} {booking.guest.name}
-                  </span>
+            // Na lista a hora tem coluna própria e cabe uma linha com todos os dados, inclusive a unidade.
+            if (view.type.startsWith("list")) {
+              return (
+                <>
+                  <div className={timeClass}>{timeText}</div>
+                  <div className={titleClass}>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      {booking.appointmentId && <CheckIcon className="size-3.5 shrink-0" aria-label="Atendido" />}
+                      {booking.guest.name}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · Quarto {booking.guest.room} ·{" "}
+                      {therapistAvatar(booking, "inline-flex size-4 align-text-bottom")} {booking.therapistName}
+                      {` · ${booking.service.serviceName}`}
+                      {unitNames.has(booking.unitId) && ` · ${unitNames.get(booking.unitId)}`}
+                    </span>
+                  </div>
+                </>
+              )
+            }
+            const guestName = (
+              <span className="flex min-w-0 items-center gap-1 font-semibold">
+                {booking.appointmentId && <CheckIcon className="size-3 shrink-0" aria-label="Atendido" />}
+                <span className="truncate">{booking.guest.name}</span>
+              </span>
+            )
+            // No mês e em eventos curtos cabe uma linha só: hora e hóspede.
+            if (view.type.startsWith("dayGrid") || isShort) {
+              return (
+                <div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-1 text-xs leading-tight">
+                  {therapistAvatar(booking, "size-4 shrink-0")}
+                  <span className="shrink-0 tabular-nums opacity-85">{toWallTime(event.start!).slice(11)}</span>
+                  {guestName}
                 </div>
-                <div className="opacity-90">
-                  Quarto {booking.guest.room} · {booking.therapistName}
-                  {booking.service && ` · ${booking.service.serviceName}`}
+              )
+            }
+            // Cada linha trunca sozinha; o que não couber na altura do evento fica escondido.
+            return (
+              <div className="flex h-full min-w-0 flex-col gap-0.5 overflow-hidden px-1.5 py-1 text-xs leading-snug">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {therapistAvatar(booking, "size-5 shrink-0 ring-1 ring-white/60")}
+                  {guestName}
+                </div>
+                <div className="truncate tabular-nums opacity-85">
+                  {timeText} · Quarto {booking.guest.room}
+                </div>
+                <div className="truncate opacity-85">
+                  {booking.service.serviceName} · {booking.therapistName}
                 </div>
               </div>
             )
@@ -293,7 +355,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
                 room: booking.guest.room,
                 startsAt: booking.startsAt,
                 durationMinutes: booking.durationMinutes,
-                serviceId: booking.service?.serviceId ?? null,
+                serviceId: booking.service.serviceId,
               },
             })
           }}
@@ -331,7 +393,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
                 guestName: sheet.booking.guest.name,
                 room: sheet.booking.guest.room,
                 performedAt: sheet.booking.startsAt,
-                items: [{ serviceId: sheet.booking.service?.serviceId ?? null, therapistId: sheet.booking.therapistId }],
+                items: [{ serviceId: sheet.booking.service.serviceId, therapistId: sheet.booking.therapistId }],
               }}
               action={(prev, formData) => convertBookingAction(workspaceId, sheet.booking.id, prev, formData)}
               onDone={() => {
@@ -340,7 +402,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
               }}
             />
           )}
-          {sheet?.mode === "done" && <DoneSummary workspaceId={workspaceId} booking={sheet.booking} />}
+          {sheet?.mode === "done" && <DoneSummary workspaceId={workspaceId} booking={sheet.booking} inUnit={!!unitId} />}
         </SheetContent>
       </Sheet>
 
@@ -384,8 +446,10 @@ const doneDateFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 })
 
-// Agendamento que já virou atendimento: só leitura, com atalho para o dia em Atendimentos.
-function DoneSummary({ workspaceId, booking }: { workspaceId: string; booking: BookingRow }) {
+// Agendamento que já virou atendimento: só leitura, com atalho para o dia em Atendimentos
+// (o da unidade, quando o calendário é de uma unidade).
+function DoneSummary({ workspaceId, booking, inUnit }: { workspaceId: string; booking: BookingRow; inUnit: boolean }) {
+  const date = booking.startsAt.slice(0, 10)
   return (
     <div className="flex flex-1 flex-col">
       <SheetHeader>
@@ -406,22 +470,19 @@ function DoneSummary({ workspaceId, booking }: { workspaceId: string; booking: B
         <dd className="first-letter:uppercase">
           {doneDateFormat.format(new Date(`${booking.startsAt}:00Z`))} · {formatDuration(booking.durationMinutes)}
         </dd>
-        {booking.service && (
-          <>
-            <dt className="text-muted-foreground">Serviço agendado</dt>
-            <dd>{booking.service.serviceName}</dd>
-          </>
-        )}
+        <dt className="text-muted-foreground">Serviço agendado</dt>
+        <dd>{booking.service.serviceName}</dd>
       </dl>
       <SheetFooter>
         <Button
           nativeButton={false}
           render={
             <Link
-              href={`/workspace/${workspaceId}/appointments?${new URLSearchParams({
-                date: booking.startsAt.slice(0, 10),
-                unit: booking.unitId,
-              })}`}
+              href={
+                inUnit
+                  ? `/workspace/${workspaceId}/unit/${booking.unitId}/appointments?${new URLSearchParams({ date })}`
+                  : `/workspace/${workspaceId}/appointments?${new URLSearchParams({ date, unit: booking.unitId })}`
+              }
             />
           }
         >

@@ -9,8 +9,7 @@ const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
 const CANDLE = { id: CANDLE_ID, name: "Massagem Candle" };
 const ANA = { id: ANA_ID, name: "Ana" };
 
-// Como chega do FormData: início no horário de Brasília, duração em minutos (texto)
-// e serviço opcional ("" quando não escolhido).
+// Como chega do FormData: início no horário de Brasília e duração em minutos (texto).
 const validInput = {
   therapistId: ANA_ID,
   guestName: "João Silva",
@@ -62,20 +61,6 @@ describe("createBooking", () => {
       startsAt: new Date("2026-09-24T17:30:00.000Z"),
       endsAt: new Date("2026-09-24T18:30:00.000Z"),
     });
-  });
-
-  it.each([
-    ["vazio", ""],
-    ["só espaços", "   "],
-    ["ausente (null do FormData)", null],
-  ])("aceita serviço %s: agenda sem serviço e não busca serviço", async (_label, serviceId) => {
-    const deps = makeDeps();
-
-    const result = await createBooking({ ...validInput, serviceId }, UNIT_ID, deps);
-
-    expect(result).toEqual({ ok: true, bookingId: BOOKING_ID });
-    expect(deps.findService).not.toHaveBeenCalled();
-    expect(deps.insert.mock.calls[0][0].service).toBeNull();
   });
 
   it("remove espaços das pontas de hóspede, quarto, início, duração e ids", async () => {
@@ -141,8 +126,11 @@ describe("createBooking", () => {
     ["quarto ausente", { ...validInput, room: undefined }, "invalid_input"],
     ["início ausente", { ...validInput, startsAt: null }, "invalid_input"],
     ["duração ausente", { ...validInput, durationMinutes: null }, "invalid_input"],
-    ["serviço não é string nem null", { ...validInput, serviceId: 123 }, "invalid_input"],
+    ["serviço não é string", { ...validInput, serviceId: 123 }, "invalid_input"],
+    ["serviço ausente (null do FormData)", { ...validInput, serviceId: null }, "invalid_input"],
     ["massagista não escolhida", { ...validInput, therapistId: "  " }, "invalid_therapist"],
+    ["serviço vazio", { ...validInput, serviceId: "" }, "invalid_service"],
+    ["serviço não escolhido", { ...validInput, serviceId: "   " }, "invalid_service"],
     ["nome do hóspede vazio", { ...validInput, guestName: "   " }, "invalid_guest_name"],
     ["nome do hóspede com mais de 80 caracteres", { ...validInput, guestName: "a".repeat(81) }, "guest_name_too_long"],
     ["quarto vazio", { ...validInput, room: "  " }, "invalid_room"],
@@ -221,7 +209,7 @@ describe("updateBooking", () => {
     const deps = makeDeps();
 
     const result = await updateBooking(
-      { ...validInput, guestName: "Maria Souza", room: "310", startsAt: "2026-09-24T16:00", durationMinutes: "45", serviceId: "" },
+      { ...validInput, guestName: "Maria Souza", room: "310", startsAt: "2026-09-24T16:00", durationMinutes: "45" },
       BOOKING_ID,
       deps,
     );
@@ -239,13 +227,14 @@ describe("updateBooking", () => {
       guest: { name: "Maria Souza", room: "310" },
       startsAt: new Date("2026-09-24T19:00:00.000Z"),
       endsAt: new Date("2026-09-24T19:45:00.000Z"),
-      service: null,
+      service: { serviceId: CANDLE_ID, serviceName: "Massagem Candle" },
     });
   });
 
   it.each([
     ["input nulo", null, "invalid_input"],
     ["massagista não escolhida", { ...validInput, therapistId: "" }, "invalid_therapist"],
+    ["serviço não escolhido", { ...validInput, serviceId: "" }, "invalid_service"],
     ["nome do hóspede vazio", { ...validInput, guestName: "   " }, "invalid_guest_name"],
     ["dia que não existe", { ...validInput, startsAt: "2026-02-30T10:00" }, "invalid_starts_at"],
     ["duração acima de 12 horas", { ...validInput, durationMinutes: "721" }, "invalid_duration"],

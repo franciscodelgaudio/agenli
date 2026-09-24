@@ -11,9 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
 import { formatDuration } from "@/components/service-format"
-
-// Valor do Select para "sem serviço"; no formulário vira serviceId vazio.
-const NO_SERVICE = "none"
+import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
 export type BookingFormValues = {
   unitId: string | null
@@ -27,8 +25,9 @@ export type BookingFormValues = {
 }
 
 export type BookingFormOptions = {
-  units: { id: string; name: string }[]
-  therapists: { id: string; name: string }[]
+  // Ausente no calendário de uma unidade: a unidade vem de defaultValues e não é escolhida.
+  units?: { id: string; name: string }[]
+  therapists: TherapistOption[]
   // Cada serviço traz a unidade; o formulário só oferece os da unidade escolhida.
   // O preço só aparece quando o agendamento vira atendimento.
   services: { id: string; unitId: string; name: string; priceCents: number; durationMinutes: number }[]
@@ -47,7 +46,7 @@ type Props = BookingFormOptions & {
 const copy = {
   create: {
     title: "Novo agendamento",
-    description: "Escolha a massagista, a unidade, o hóspede e o horário. O serviço é opcional.",
+    description: "Escolha a massagista, a unidade, o serviço, o hóspede e o horário.",
     submit: "Agendar",
     pending: "Agendando...",
   },
@@ -84,10 +83,7 @@ export function BookingForm({
   )
 
   const services = allServices.filter((service) => service.unitId === unitId)
-  const serviceItems = [
-    { value: NO_SERVICE, label: "Sem serviço" },
-    ...services.map((service) => ({ value: service.id, label: service.name })),
-  ]
+  const serviceItems = services.map((service) => ({ value: service.id, label: service.name }))
 
   return (
     <form action={formAction} className="flex min-h-0 flex-1 flex-col">
@@ -108,42 +104,46 @@ export function BookingForm({
             required
           >
             <SelectTrigger id="booking-therapist" className="w-full">
-              <SelectValue placeholder="Escolha a massagista" />
+              <TherapistSelectValue therapists={therapists} placeholder="Escolha a massagista" />
             </SelectTrigger>
             <SelectContent>
               {therapists.map((therapist) => (
                 <SelectItem key={therapist.id} value={therapist.id}>
-                  {therapist.name}
+                  <TherapistLabel therapist={therapist} />
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </Field>
-        <Field>
-          <FieldLabel htmlFor="booking-unit">Unidade</FieldLabel>
-          <Select
-            name="unitId"
-            items={units.map((unit) => ({ value: unit.id, label: unit.name }))}
-            value={unitId}
-            onValueChange={(value) => {
-              setUnitId(value as string | null)
-              // Os serviços são de cada unidade, então trocar a unidade limpa o escolhido.
-              setServiceId(null)
-            }}
-            required
-          >
-            <SelectTrigger id="booking-unit" className="w-full">
-              <SelectValue placeholder="Escolha a unidade" />
-            </SelectTrigger>
-            <SelectContent>
-              {units.map((unit) => (
-                <SelectItem key={unit.id} value={unit.id}>
-                  {unit.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+        {units ? (
+          <Field>
+            <FieldLabel htmlFor="booking-unit">Unidade</FieldLabel>
+            <Select
+              name="unitId"
+              items={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+              value={unitId}
+              onValueChange={(value) => {
+                setUnitId(value as string | null)
+                // Os serviços são de cada unidade, então trocar a unidade limpa o escolhido.
+                setServiceId(null)
+              }}
+              required
+            >
+              <SelectTrigger id="booking-unit" className="w-full">
+                <SelectValue placeholder="Escolha a unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {units.map((unit) => (
+                  <SelectItem key={unit.id} value={unit.id}>
+                    {unit.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        ) : (
+          <input type="hidden" name="unitId" value={unitId ?? ""} />
+        )}
         <Field>
           <FieldLabel htmlFor="booking-guest-name">Hóspede</FieldLabel>
           <Input
@@ -168,22 +168,23 @@ export function BookingForm({
         </Field>
         <DateTimeField idPrefix="booking" name="startsAt" defaultValue={defaultValues.startsAt} />
         <Field>
-          <FieldLabel htmlFor="booking-service">Serviço (opcional)</FieldLabel>
-          <input type="hidden" name="serviceId" value={serviceId ?? ""} />
+          <FieldLabel htmlFor="booking-service">Serviço</FieldLabel>
           <Select
+            name="serviceId"
             items={serviceItems}
-            value={serviceId ?? NO_SERVICE}
+            value={serviceId}
             onValueChange={(value) => {
-              const next = value === NO_SERVICE ? null : (value as string)
+              const next = value as string | null
               setServiceId(next)
               // A duração do serviço vira a sugestão, e ainda pode ser ajustada.
               const service = services.find((option) => option.id === next)
               if (service) setDuration(String(service.durationMinutes))
             }}
             disabled={!unitId}
+            required
           >
             <SelectTrigger id="booking-service" className="w-full">
-              <SelectValue placeholder={unitId ? "Sem serviço" : "Escolha a unidade primeiro"} />
+              <SelectValue placeholder={unitId ? "Escolha o serviço" : "Escolha a unidade primeiro"} />
             </SelectTrigger>
             <SelectContent>
               {serviceItems.map((item) => (
