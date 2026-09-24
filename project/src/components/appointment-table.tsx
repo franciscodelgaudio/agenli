@@ -15,7 +15,7 @@ import type { AppointmentListQuery } from "@/lib/appointment-list"
 
 export type AppointmentRow = {
   id: string
-  hotelId: string
+  unitId: string
   performedAt: Date
   guest: { name: string; room: string }
   items: {
@@ -86,7 +86,7 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
               <TableRow key={appointment.id} className="align-top">
                 <TableCell className="px-4 tabular-nums">{timeFormat.format(appointment.performedAt)}</TableCell>
                 {unitNames && (
-                  <TableCell className="px-4">{unitNames.get(appointment.hotelId) ?? "—"}</TableCell>
+                  <TableCell className="px-4">{unitNames.get(appointment.unitId) ?? "—"}</TableCell>
                 )}
                 <TableCell className="px-4">
                   <div className="font-medium">{appointment.guest.name}</div>

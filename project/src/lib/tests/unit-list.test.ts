@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { hotelListPipeline, parseHotelListQuery } from "@/lib/hotel-list";
+import { unitListPipeline, parseUnitListQuery } from "@/lib/unit-list";
 
-describe("parseHotelListQuery", () => {
+describe("parseUnitListQuery", () => {
   it("usa busca vazia e ordenação por nome crescente quando não há parâmetros", () => {
-    expect(parseHotelListQuery({})).toEqual({ q: "", sort: "name", dir: "asc" });
+    expect(parseUnitListQuery({})).toEqual({ q: "", sort: "name", dir: "asc" });
   });
 
   it("lê busca, campo e direção válidos", () => {
-    expect(parseHotelListQuery({ q: "central", sort: "createdAt", dir: "desc" })).toEqual({
+    expect(parseUnitListQuery({ q: "central", sort: "createdAt", dir: "desc" })).toEqual({
       q: "central",
       sort: "createdAt",
       dir: "desc",
@@ -15,15 +15,15 @@ describe("parseHotelListQuery", () => {
   });
 
   it("aceita ordenação por updatedAt", () => {
-    expect(parseHotelListQuery({ sort: "updatedAt" }).sort).toBe("updatedAt");
+    expect(parseUnitListQuery({ sort: "updatedAt" }).sort).toBe("updatedAt");
   });
 
   it("remove espaços das pontas da busca", () => {
-    expect(parseHotelListQuery({ q: "  central  " }).q).toBe("central");
+    expect(parseUnitListQuery({ q: "  central  " }).q).toBe("central");
   });
 
   it("usa o primeiro valor quando o parâmetro vem repetido", () => {
-    expect(parseHotelListQuery({ q: ["a", "b"], sort: ["createdAt", "name"], dir: ["desc", "asc"] })).toEqual({
+    expect(parseUnitListQuery({ q: ["a", "b"], sort: ["createdAt", "name"], dir: ["desc", "asc"] })).toEqual({
       q: "a",
       sort: "createdAt",
       dir: "desc",
@@ -34,15 +34,15 @@ describe("parseHotelListQuery", () => {
     ["campo fora da lista", { sort: "workspaceId" }],
     ["campo com operador", { sort: "$where" }],
   ])("volta para nome quando o sort é %s", (_label, params) => {
-    expect(parseHotelListQuery(params).sort).toBe("name");
+    expect(parseUnitListQuery(params).sort).toBe("name");
   });
 
   it("volta para crescente quando a direção é inválida", () => {
-    expect(parseHotelListQuery({ dir: "sideways" }).dir).toBe("asc");
+    expect(parseUnitListQuery({ dir: "sideways" }).dir).toBe("asc");
   });
 });
 
-describe("hotelListPipeline", () => {
+describe("unitListPipeline", () => {
   const PROJECT = {
     $project: {
       _id: 0,
@@ -57,21 +57,21 @@ describe("hotelListPipeline", () => {
   };
 
   it("sem busca, só ordena (com _id de desempate) e projeta", () => {
-    expect(hotelListPipeline({ q: "", sort: "name", dir: "asc" })).toEqual([
+    expect(unitListPipeline({ q: "", sort: "name", dir: "asc" })).toEqual([
       { $sort: { name: 1, _id: 1 } },
       PROJECT,
     ]);
   });
 
   it("ordena de forma decrescente pelo campo escolhido", () => {
-    expect(hotelListPipeline({ q: "", sort: "createdAt", dir: "desc" })).toEqual([
+    expect(unitListPipeline({ q: "", sort: "createdAt", dir: "desc" })).toEqual([
       { $sort: { createdAt: -1, _id: 1 } },
       PROJECT,
     ]);
   });
 
   it("com busca, filtra o nome sem diferenciar maiúsculas antes de ordenar", () => {
-    expect(hotelListPipeline({ q: "central", sort: "name", dir: "asc" })).toEqual([
+    expect(unitListPipeline({ q: "central", sort: "name", dir: "asc" })).toEqual([
       { $match: { name: { $regex: "central", $options: "i" } } },
       { $sort: { name: 1, _id: 1 } },
       PROJECT,
@@ -79,7 +79,7 @@ describe("hotelListPipeline", () => {
   });
 
   it("escapa caracteres especiais de regex da busca", () => {
-    const [match] = hotelListPipeline({ q: "a.b*(c)", sort: "name", dir: "asc" });
+    const [match] = unitListPipeline({ q: "a.b*(c)", sort: "name", dir: "asc" });
 
     expect(match).toEqual({ $match: { name: { $regex: "a\\.b\\*\\(c\\)", $options: "i" } } });
   });

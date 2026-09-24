@@ -1,28 +1,28 @@
 import { notFound } from "next/navigation"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
-import { hotelListPipeline, parseHotelListQuery } from "@/lib/hotel-list"
+import { unitListPipeline, parseUnitListQuery } from "@/lib/unit-list"
 import type { RevenueShare } from "@/lib/revenue-share"
 import { Workspace } from "@/models/Workspace"
-import { CreateHotelSheet } from "@/components/create-hotel-sheet"
+import { CreateUnitSheet } from "@/components/create-unit-sheet"
 import { ListSearch } from "@/components/list-search"
-import { HotelTable } from "@/components/hotel-table"
-import { HotelsEmpty } from "@/components/hotels-empty"
+import { UnitTable } from "@/components/unit-table"
+import { UnitsEmpty } from "@/components/units-empty"
 
-export default async function HotelsPage({
+export default async function UnitsPage({
   params,
   searchParams,
 }: PageProps<"/workspace/[workspaceId]/unit">) {
   const { workspaceId } = await params
-  const query = parseHotelListQuery(await searchParams)
+  const query = parseUnitListQuery(await searchParams)
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 
-  // Parte do workspace (e não de hotels) para que o acesso ao workspace seja garantido.
+  // Parte do workspace (e não de units) para que o acesso ao workspace seja garantido.
   // O total sem filtro separa "workspace sem unidades" de "busca sem resultado".
   const [workspace] = await Workspace.aggregate<{
-    hotels: {
+    units: {
       id: string
       name: string
       avatarUrl: string | null
@@ -30,54 +30,54 @@ export default async function HotelsPage({
       createdAt: Date
       updatedAt: Date
     }[]
-    hotelCount: number
+    unitCount: number
     role: WorkspaceRole
   }>([
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotels",
-        pipeline: hotelListPipeline(query),
+        as: "units",
+        pipeline: unitListPipeline(query),
       },
     },
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotelCount",
+        as: "unitCount",
         pipeline: [{ $count: "n" }],
       },
     },
     {
       $project: {
         _id: 0,
-        hotels: 1,
+        units: 1,
         role: 1,
-        hotelCount: { $ifNull: [{ $first: "$hotelCount.n" }, 0] },
+        unitCount: { $ifNull: [{ $first: "$unitCount.n" }, 0] },
       },
     },
   ])
   if (!workspace) notFound()
-  const { hotels, hotelCount } = workspace
+  const { units, unitCount } = workspace
   const canManage = canManageMembers(workspace.role)
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">Unidades</h2>
-        {canManage && hotelCount > 0 && <CreateHotelSheet workspaceId={workspaceId} />}
+        {canManage && unitCount > 0 && <CreateUnitSheet workspaceId={workspaceId} />}
       </div>
-      {hotelCount === 0 ? (
-        <HotelsEmpty workspaceId={workspaceId} canManage={canManage} />
+      {unitCount === 0 ? (
+        <UnitsEmpty workspaceId={workspaceId} canManage={canManage} />
       ) : (
         <>
           <ListSearch query={query} placeholder="Buscar unidade..." />
-          <HotelTable
-            hotels={hotels}
+          <UnitTable
+            units={units}
             query={query}
             pathname={`/workspace/${workspaceId}/unit`}
             workspaceId={workspaceId}

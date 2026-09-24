@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createAppointment, deleteAppointment, updateAppointment } from "@/lib/appointment";
 
-const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
+const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 const APPOINTMENT_ID = "64b7f0c2a1b2c3d4e5f60740";
 const CANDLE_ID = "64b7f0c2a1b2c3d4e5f60731";
 const RELAX_ID = "64b7f0c2a1b2c3d4e5f60732";
@@ -40,11 +40,11 @@ describe("createAppointment", () => {
   it("cria o atendimento copiando nome, valor e duração do serviço e o nome da massagista", async () => {
     const deps = makeDeps();
 
-    const result = await createAppointment(validInput, HOTEL_ID, deps);
+    const result = await createAppointment(validInput, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: true, appointmentId: APPOINTMENT_ID });
     expect(deps.insert).toHaveBeenCalledWith({
-      hotelId: HOTEL_ID,
+      unitId: UNIT_ID,
       performedAt: new Date("2026-09-24T17:30:00.000Z"),
       guest: { name: "João Silva", room: "204" },
       items: [
@@ -65,7 +65,7 @@ describe("createAppointment", () => {
 
     await createAppointment(
       { ...validInput, serviceIds: [RELAX_ID, CANDLE_ID], therapistIds: [BIA_ID, ANA_ID] },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -80,7 +80,7 @@ describe("createAppointment", () => {
 
     await createAppointment(
       { ...validInput, serviceIds: [CANDLE_ID, CANDLE_ID], therapistIds: [ANA_ID, ANA_ID] },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -101,7 +101,7 @@ describe("createAppointment", () => {
         serviceIds: [` ${CANDLE_ID} `],
         therapistIds: [` ${ANA_ID} `],
       },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -117,7 +117,7 @@ describe("createAppointment", () => {
   it("converte a data/hora de Brasília para UTC mesmo quando vira o dia", async () => {
     const deps = makeDeps();
 
-    await createAppointment({ ...validInput, performedAt: "2026-12-31T22:15" }, HOTEL_ID, deps);
+    await createAppointment({ ...validInput, performedAt: "2026-12-31T22:15" }, UNIT_ID, deps);
 
     expect(deps.insert.mock.calls[0][0].performedAt).toEqual(new Date("2027-01-01T01:15:00.000Z"));
   });
@@ -131,7 +131,7 @@ describe("createAppointment", () => {
         serviceIds: Array(20).fill(CANDLE_ID),
         therapistIds: Array(20).fill(ANA_ID),
       },
-      HOTEL_ID,
+      UNIT_ID,
       makeDeps(),
     );
 
@@ -167,7 +167,7 @@ describe("createAppointment", () => {
   ])("retorna erro sem buscar nem salvar quando %s", async (_label, input, error) => {
     const deps = makeDeps();
 
-    const result = await createAppointment(input, HOTEL_ID, deps);
+    const result = await createAppointment(input, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: false, error });
     expect(deps.findServices).not.toHaveBeenCalled();
@@ -180,7 +180,7 @@ describe("createAppointment", () => {
 
     const result = await createAppointment(
       { ...validInput, serviceIds: [CANDLE_ID, RELAX_ID], therapistIds: [ANA_ID, ANA_ID] },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -193,7 +193,7 @@ describe("createAppointment", () => {
 
     const result = await createAppointment(
       { ...validInput, serviceIds: [CANDLE_ID, CANDLE_ID], therapistIds: [ANA_ID, BIA_ID] },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -202,13 +202,13 @@ describe("createAppointment", () => {
   });
 
   it.each([undefined, null, ""])(
-    "retorna hotel_not_found sem buscar nem salvar quando não há hotelId (%j)",
-    async (hotelId) => {
+    "retorna unit_not_found sem buscar nem salvar quando não há unitId (%j)",
+    async (unitId) => {
       const deps = makeDeps();
 
-      const result = await createAppointment(validInput, hotelId, deps);
+      const result = await createAppointment(validInput, unitId, deps);
 
-      expect(result).toEqual({ ok: false, error: "hotel_not_found" });
+      expect(result).toEqual({ ok: false, error: "unit_not_found" });
       expect(deps.findServices).not.toHaveBeenCalled();
       expect(deps.insert).not.toHaveBeenCalled();
     },

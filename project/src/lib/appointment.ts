@@ -16,7 +16,7 @@ export type CreateAppointmentError =
   | "invalid_item"
   | "service_not_found"
   | "therapist_not_found"
-  | "hotel_not_found";
+  | "unit_not_found";
 
 export type CreateAppointmentResult =
   | { ok: true; appointmentId: string }
@@ -38,7 +38,7 @@ export type AppointmentFields = {
   items: AppointmentItem[];
 };
 
-export type AppointmentData = AppointmentFields & { hotelId: string };
+export type AppointmentData = AppointmentFields & { unitId: string };
 
 type Lookups = {
   // Devolvem só os que existem: serviços da unidade e quem pode atender no workspace.
@@ -46,7 +46,7 @@ type Lookups = {
   findTherapists: (ids: string[]) => Promise<{ id: string; name: string }[]>;
 };
 
-type FieldsError = Exclude<CreateAppointmentError, "hotel_not_found">;
+type FieldsError = Exclude<CreateAppointmentError, "unit_not_found">;
 
 function isStringList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -130,15 +130,15 @@ async function resolveAppointmentFields(
 
 export async function createAppointment(
   input: unknown,
-  hotelId: string | null | undefined,
+  unitId: string | null | undefined,
   { insert, ...lookups }: Lookups & { insert: (data: AppointmentData) => Promise<{ id: string }> },
 ): Promise<CreateAppointmentResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+  if (!unitId) return { ok: false, error: "unit_not_found" };
 
   const resolved = await resolveAppointmentFields(input, lookups);
   if (!resolved.ok) return resolved;
 
-  const appointment = await insert({ hotelId, ...resolved.fields });
+  const appointment = await insert({ unitId, ...resolved.fields });
   return { ok: true, appointmentId: appointment.id };
 }
 

@@ -47,7 +47,7 @@ function parseServiceInput(
   return { ok: true, name: normalizedName, priceCents, durationMinutes: minutes };
 }
 
-export type CreateServiceError = ServiceInputError | "hotel_not_found";
+export type CreateServiceError = ServiceInputError | "unit_not_found";
 
 export type CreateServiceResult =
   | { ok: true; serviceId: string }
@@ -55,16 +55,16 @@ export type CreateServiceResult =
 
 export async function createService(
   input: unknown,
-  hotelId: string | null | undefined,
-  insert: (data: ServiceData & { hotelId: string }) => Promise<{ id: string }>,
+  unitId: string | null | undefined,
+  insert: (data: ServiceData & { unitId: string }) => Promise<{ id: string }>,
 ): Promise<CreateServiceResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+  if (!unitId) return { ok: false, error: "unit_not_found" };
 
   const parsed = parseServiceInput(input);
   if (!parsed.ok) return parsed;
 
   const { name, priceCents, durationMinutes } = parsed;
-  const service = await insert({ name, priceCents, durationMinutes, hotelId });
+  const service = await insert({ name, priceCents, durationMinutes, unitId });
   return { ok: true, serviceId: service.id };
 }
 

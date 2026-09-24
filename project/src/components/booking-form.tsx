@@ -15,7 +15,7 @@ import { formatDuration } from "@/components/service-format"
 const NO_SERVICE = "none"
 
 export type BookingFormValues = {
-  hotelId: string | null
+  unitId: string | null
   therapistId: string | null
   guestName: string
   room: string
@@ -29,7 +29,7 @@ export type BookingFormOptions = {
   units: { id: string; name: string }[]
   therapists: { id: string; name: string }[]
   // Cada serviço traz a unidade; o formulário só oferece os da unidade escolhida.
-  services: { id: string; hotelId: string; name: string; durationMinutes: number }[]
+  services: { id: string; unitId: string; name: string; durationMinutes: number }[]
 }
 
 type Props = BookingFormOptions & {
@@ -57,7 +57,7 @@ const copy = {
 }
 
 export function BookingForm({ units, therapists, services: allServices, mode, defaultValues, action, onDone, onDelete }: Props) {
-  const [unitId, setUnitId] = useState(defaultValues.hotelId)
+  const [unitId, setUnitId] = useState(defaultValues.unitId)
   const [therapistId, setTherapistId] = useState(defaultValues.therapistId)
   const [serviceId, setServiceId] = useState(defaultValues.serviceId)
   const [duration, setDuration] = useState(String(defaultValues.durationMinutes))
@@ -70,7 +70,7 @@ export function BookingForm({ units, therapists, services: allServices, mode, de
     { error: null },
   )
 
-  const services = allServices.filter((service) => service.hotelId === unitId)
+  const services = allServices.filter((service) => service.unitId === unitId)
   const serviceItems = [
     { value: NO_SERVICE, label: "Sem serviço" },
     ...services.map((service) => ({ value: service.id, label: service.name })),
@@ -106,9 +106,9 @@ export function BookingForm({ units, therapists, services: allServices, mode, de
           </Select>
         </Field>
         <Field>
-          <FieldLabel htmlFor="booking-unit">Hotel</FieldLabel>
+          <FieldLabel htmlFor="booking-unit">Unidade</FieldLabel>
           <Select
-            name="hotelId"
+            name="unitId"
             items={units.map((unit) => ({ value: unit.id, label: unit.name }))}
             value={unitId}
             onValueChange={(value) => {
@@ -119,7 +119,7 @@ export function BookingForm({ units, therapists, services: allServices, mode, de
             required
           >
             <SelectTrigger id="booking-unit" className="w-full">
-              <SelectValue placeholder="Escolha o hotel" />
+              <SelectValue placeholder="Escolha a unidade" />
             </SelectTrigger>
             <SelectContent>
               {units.map((unit) => (
@@ -169,7 +169,7 @@ export function BookingForm({ units, therapists, services: allServices, mode, de
             disabled={!unitId}
           >
             <SelectTrigger id="booking-service" className="w-full">
-              <SelectValue placeholder={unitId ? "Sem serviço" : "Escolha o hotel primeiro"} />
+              <SelectValue placeholder={unitId ? "Sem serviço" : "Escolha a unidade primeiro"} />
             </SelectTrigger>
             <SelectContent>
               {serviceItems.map((item) => (

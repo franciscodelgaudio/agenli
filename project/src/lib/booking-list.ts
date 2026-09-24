@@ -13,7 +13,7 @@ export type BookingRange = { start: string; end: string; unit: string; therapist
 // Como sai de bookingListPipeline: datas no horário de Brasília ("2026-09-24T14:30").
 export type BookingRow = {
   id: string;
-  hotelId: string;
+  unitId: string;
   therapistId: string;
   therapistName: string;
   guest: { name: string; room: string };
@@ -21,6 +21,7 @@ export type BookingRow = {
   endsAt: string;
   durationMinutes: number;
   service: { serviceId: string; serviceName: string } | null;
+  appointmentId: string | null;
 };
 
 function objectIdOrEmpty(value: unknown) {
@@ -57,7 +58,7 @@ export function bookingListPipeline({ start, end, unit, therapist }: BookingRang
     startsAt: { $lt: dayStart(end) },
     endsAt: { $gt: dayStart(start) },
   };
-  if (unit) match.hotelId = new Types.ObjectId(unit);
+  if (unit) match.unitId = new Types.ObjectId(unit);
   if (therapist) match.therapistId = new Types.ObjectId(therapist);
   const stages: PipelineStage.FacetPipelineStage[] = [
     { $match: match },
@@ -66,7 +67,7 @@ export function bookingListPipeline({ start, end, unit, therapist }: BookingRang
       $project: {
         _id: 0,
         id: { $toString: "$_id" },
-        hotelId: { $toString: "$hotelId" },
+        unitId: { $toString: "$unitId" },
         therapistId: { $toString: "$therapistId" },
         therapistName: 1,
         guest: 1,
@@ -80,6 +81,8 @@ export function bookingListPipeline({ start, end, unit, therapist }: BookingRang
             null,
           ],
         },
+        // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
+        appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
       },
     },
   ];

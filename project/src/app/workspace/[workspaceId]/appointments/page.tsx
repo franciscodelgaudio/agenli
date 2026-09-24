@@ -54,18 +54,18 @@ export default async function WorkspaceAppointmentsPage({
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotels",
+        as: "units",
         pipeline: [{ $sort: { name: 1, _id: 1 } }, { $project: { name: 1 } }],
       },
     },
     {
       $lookup: {
         from: "appointments",
-        localField: "hotels._id",
-        foreignField: "hotelId",
+        localField: "units._id",
+        foreignField: "unitId",
         as: "appointments",
         pipeline: workspaceAppointmentListPipeline(query),
       },
@@ -73,8 +73,8 @@ export default async function WorkspaceAppointmentsPage({
     {
       $lookup: {
         from: "appointments",
-        localField: "hotels._id",
-        foreignField: "hotelId",
+        localField: "units._id",
+        foreignField: "unitId",
         as: "dayCount",
         pipeline: [appointmentListPipeline({ ...query, q: "" })[0], { $count: "n" }],
       },
@@ -82,8 +82,8 @@ export default async function WorkspaceAppointmentsPage({
     {
       $lookup: {
         from: "services",
-        localField: "hotels._id",
-        foreignField: "hotelId",
+        localField: "units._id",
+        foreignField: "unitId",
         as: "services",
         pipeline: [
           { $sort: { name: 1, _id: 1 } },
@@ -91,7 +91,7 @@ export default async function WorkspaceAppointmentsPage({
             $project: {
               _id: 0,
               id: { $toString: "$_id" },
-              hotelId: { $toString: "$hotelId" },
+              unitId: { $toString: "$unitId" },
               name: 1,
               priceCents: 1,
               durationMinutes: 1,
@@ -105,7 +105,7 @@ export default async function WorkspaceAppointmentsPage({
       $project: {
         _id: 0,
         role: 1,
-        units: { $map: { input: "$hotels", as: "hotel", in: { id: { $toString: "$$hotel._id" }, name: "$$hotel.name" } } },
+        units: { $map: { input: "$units", as: "unit", in: { id: { $toString: "$$unit._id" }, name: "$$unit.name" } } },
         appointments: 1,
         dayCount: { $ifNull: [{ $first: "$dayCount.n" }, 0] },
         services: 1,

@@ -4,9 +4,9 @@ import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { Button } from "@/components/ui/button"
-import { CreateHotelSheet } from "@/components/create-hotel-sheet"
-import { HotelList } from "@/components/hotel-list"
-import { HotelsEmpty } from "@/components/hotels-empty"
+import { CreateUnitSheet } from "@/components/create-unit-sheet"
+import { UnitList } from "@/components/unit-list"
+import { UnitsEmpty } from "@/components/units-empty"
 
 export default async function WorkspacePage({ params }: PageProps<"/workspace/[workspaceId]">) {
   const { workspaceId } = await params
@@ -19,16 +19,16 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
     id: string
     name: string
     role: WorkspaceRole
-    hotels: { id: string; name: string; avatarUrl: string | null }[]
-    hotelCount: number
+    units: { id: string; name: string; avatarUrl: string | null }[]
+    unitCount: number
   }>([
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotels",
+        as: "units",
         pipeline: [
           { $sort: { name: 1 } },
           {
@@ -48,19 +48,19 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
         id: { $toString: "$_id" },
         name: 1,
         role: 1,
-        hotels: { $slice: ["$hotels", 5] },
-        hotelCount: { $size: "$hotels" },
+        units: { $slice: ["$units", 5] },
+        unitCount: { $size: "$units" },
       },
     },
   ])
   if (!workspace) notFound()
-  const { hotels, hotelCount } = workspace
+  const { units, unitCount } = workspace
   const canManage = canManageMembers(workspace.role)
 
-  if (hotelCount === 0) {
+  if (unitCount === 0) {
     return (
       <div className="flex flex-1 flex-col p-4">
-        <HotelsEmpty workspaceId={workspace.id} canManage={canManage} />
+        <UnitsEmpty workspaceId={workspace.id} canManage={canManage} />
       </div>
     )
   }
@@ -69,17 +69,17 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">{workspace.name}</h2>
-        {canManage && <CreateHotelSheet workspaceId={workspace.id} />}
+        {canManage && <CreateUnitSheet workspaceId={workspace.id} />}
       </div>
-      <HotelList hotels={hotels} />
-      {hotelCount > hotels.length && (
+      <UnitList units={units} />
+      {unitCount > units.length && (
         <Button
           variant="link"
           className="self-start"
           nativeButton={false}
           render={<Link href={`/workspace/${workspace.id}/unit`} />}
         >
-          Ver todas as {hotelCount} unidades
+          Ver todas as {unitCount} unidades
         </Button>
       )}
     </div>

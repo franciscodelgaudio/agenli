@@ -34,22 +34,22 @@ export default async function ServicesPage({
   // O total sem filtro separa "unidade sem serviços" de "busca sem resultado".
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
-    hotel: { services: ServiceRow[]; serviceCount: number } | null
+    unit: { services: ServiceRow[]; serviceCount: number } | null
   }>([
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotel",
+        as: "unit",
         pipeline: [
           { $match: { _id: new Types.ObjectId(unitId) } },
           {
             $lookup: {
               from: "services",
               localField: "_id",
-              foreignField: "hotelId",
+              foreignField: "unitId",
               as: "services",
               pipeline: serviceListPipeline(query),
             },
@@ -58,7 +58,7 @@ export default async function ServicesPage({
             $lookup: {
               from: "services",
               localField: "_id",
-              foreignField: "hotelId",
+              foreignField: "unitId",
               as: "serviceCount",
               pipeline: [{ $count: "n" }],
             },
@@ -73,10 +73,10 @@ export default async function ServicesPage({
         ],
       },
     },
-    { $project: { _id: 0, role: 1, hotel: { $ifNull: [{ $first: "$hotel" }, null] } } },
+    { $project: { _id: 0, role: 1, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
-  if (!workspace?.hotel) notFound()
-  const { services, serviceCount } = workspace.hotel
+  if (!workspace?.unit) notFound()
+  const { services, serviceCount } = workspace.unit
   const canManage = canManageMembers(workspace.role)
 
   return (

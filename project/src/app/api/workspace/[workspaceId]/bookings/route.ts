@@ -16,12 +16,12 @@ export async function GET(request: Request, { params }: RouteContext<"/api/works
 
   const [workspace] = await Workspace.aggregate<{ bookings: BookingRow[] }>([
     ...access,
-    { $lookup: { from: "hotels", localField: "_id", foreignField: "workspaceId", as: "hotels" } },
+    { $lookup: { from: "units", localField: "_id", foreignField: "workspaceId", as: "units" } },
     {
       $lookup: {
         from: "bookings",
-        localField: "hotels._id",
-        foreignField: "hotelId",
+        localField: "units._id",
+        foreignField: "unitId",
         as: "bookings",
         pipeline: bookingListPipeline(query),
       },

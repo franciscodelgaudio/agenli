@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createService, deleteService, updateService } from "@/lib/service";
 
-const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
+const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 const SERVICE_ID = "64b7f0c2a1b2c3d4e5f60730";
 
 // Como chega do FormData: o input de preço é type="number", que sempre envia ponto decimal.
@@ -15,14 +15,14 @@ describe("createService", () => {
   it("cria o serviço na unidade com o preço em centavos e retorna o id", async () => {
     const insert = makeInsert();
 
-    const result = await createService(validInput, HOTEL_ID, insert);
+    const result = await createService(validInput, UNIT_ID, insert);
 
     expect(result).toEqual({ ok: true, serviceId: SERVICE_ID });
     expect(insert).toHaveBeenCalledWith({
       name: "Massagem Candle",
       priceCents: 35000,
       durationMinutes: 60,
-      hotelId: HOTEL_ID,
+      unitId: UNIT_ID,
     });
   });
 
@@ -31,7 +31,7 @@ describe("createService", () => {
 
     await createService(
       { name: "  Massagem Candle  ", price: " 350 ", durationMinutes: " 90 " },
-      HOTEL_ID,
+      UNIT_ID,
       insert,
     );
 
@@ -39,7 +39,7 @@ describe("createService", () => {
       name: "Massagem Candle",
       priceCents: 35000,
       durationMinutes: 90,
-      hotelId: HOTEL_ID,
+      unitId: UNIT_ID,
     });
   });
 
@@ -53,7 +53,7 @@ describe("createService", () => {
   ])("converte o preço %j em %d centavos", async (price, priceCents) => {
     const insert = makeInsert();
 
-    await createService({ ...validInput, price }, HOTEL_ID, insert);
+    await createService({ ...validInput, price }, UNIT_ID, insert);
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ priceCents }));
   });
@@ -64,13 +64,13 @@ describe("createService", () => {
   ])("aceita duração de %s minuto(s) (limites)", async (durationMinutes, expected) => {
     const insert = makeInsert();
 
-    await createService({ ...validInput, durationMinutes }, HOTEL_ID, insert);
+    await createService({ ...validInput, durationMinutes }, UNIT_ID, insert);
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ durationMinutes: expected }));
   });
 
   it("aceita nome com exatamente 80 caracteres", async () => {
-    const result = await createService({ ...validInput, name: "a".repeat(80) }, HOTEL_ID, makeInsert());
+    const result = await createService({ ...validInput, name: "a".repeat(80) }, UNIT_ID, makeInsert());
 
     expect(result).toEqual({ ok: true, serviceId: SERVICE_ID });
   });
@@ -99,20 +99,20 @@ describe("createService", () => {
   ])("retorna erro sem salvar quando %s", async (_label, input, error) => {
     const insert = makeInsert();
 
-    const result = await createService(input, HOTEL_ID, insert);
+    const result = await createService(input, UNIT_ID, insert);
 
     expect(result).toEqual({ ok: false, error });
     expect(insert).not.toHaveBeenCalled();
   });
 
   it.each([undefined, null, ""])(
-    "retorna hotel_not_found sem salvar quando não há hotelId (%j)",
-    async (hotelId) => {
+    "retorna unit_not_found sem salvar quando não há unitId (%j)",
+    async (unitId) => {
       const insert = makeInsert();
 
-      const result = await createService(validInput, hotelId, insert);
+      const result = await createService(validInput, unitId, insert);
 
-      expect(result).toEqual({ ok: false, error: "hotel_not_found" });
+      expect(result).toEqual({ ok: false, error: "unit_not_found" });
       expect(insert).not.toHaveBeenCalled();
     },
   );

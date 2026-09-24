@@ -21,7 +21,7 @@ const revenueShareSchema = new Schema(
   { _id: false },
 );
 
-const hotelSchema = new Schema(
+const unitSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     avatarUrl: { type: String, trim: true },
@@ -29,11 +29,11 @@ const hotelSchema = new Schema(
     revenueShare: { type: revenueShareSchema },
     workspaceId: { type: Schema.Types.ObjectId, ref: "Workspace", required: true, index: true },
   },
-  { collection: "hotels", timestamps: true },
+  { collection: "units", timestamps: true },
 );
 
-hotelSchema.plugin(connectOnUse);
+unitSchema.plugin(connectOnUse);
 
-export type HotelDoc = InferSchemaType<typeof hotelSchema>;
+export type UnitDoc = InferSchemaType<typeof unitSchema>;
 
-export const Hotel: Model<HotelDoc> = models.Hotel ?? model<HotelDoc>("Hotel", hotelSchema);
+export const Unit: Model<UnitDoc> = models.Unit ?? model<UnitDoc>("Unit", unitSchema);

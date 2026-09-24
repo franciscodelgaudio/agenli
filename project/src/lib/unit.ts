@@ -2,7 +2,7 @@ import { parseRevenueShare, type RevenueShare, type RevenueShareError } from "@/
 
 const MAX_NAME_LENGTH = 80;
 
-export type CreateHotelError =
+export type CreateUnitError =
   | "invalid_input"
   | "invalid_name"
   | "name_too_long"
@@ -11,9 +11,9 @@ export type CreateHotelError =
   | RevenueShareError
   | "workspace_not_found";
 
-export type CreateHotelResult =
-  | { ok: true; hotelId: string }
-  | { ok: false; error: CreateHotelError };
+export type CreateUnitResult =
+  | { ok: true; unitId: string }
+  | { ok: false; error: CreateUnitError };
 
 function isHttpUrl(value: string) {
   try {
@@ -24,14 +24,14 @@ function isHttpUrl(value: string) {
   }
 }
 
-type HotelInputError = Exclude<CreateHotelError, "workspace_not_found">;
+type UnitInputError = Exclude<CreateUnitError, "workspace_not_found">;
 
 // revenueShare é null quando a unidade funciona em espaço próprio.
-type HotelInput = { name: string; avatarUrl: string | null; revenueShare: RevenueShare | null };
+type UnitInput = { name: string; avatarUrl: string | null; revenueShare: RevenueShare | null };
 
 // Valida e normaliza nome, avatarUrl e regra de repasse; avatarUrl vazia vira null.
 // A regra só é lida quando a unidade funciona dentro de um estabelecimento parceiro.
-function parseHotelInput(input: unknown): ({ ok: true } & HotelInput) | { ok: false; error: HotelInputError } {
+function parseUnitInput(input: unknown): ({ ok: true } & UnitInput) | { ok: false; error: UnitInputError } {
   const { name, avatarUrl, ownership, revenueShare } = (input ?? {}) as Record<string, unknown>;
   if (typeof name !== "string") return { ok: false, error: "invalid_input" };
   if (avatarUrl != null && typeof avatarUrl !== "string") return { ok: false, error: "invalid_input" };
@@ -56,7 +56,7 @@ function parseHotelInput(input: unknown): ({ ok: true } & HotelInput) | { ok: fa
   return { ok: true, name: normalizedName, avatarUrl: normalizedAvatarUrl, revenueShare: share.value };
 }
 
-export async function createHotel(
+export async function createUnit(
   input: unknown,
   workspaceId: string | null | undefined,
   insert: (data: {
@@ -65,50 +65,50 @@ export async function createHotel(
     revenueShare?: RevenueShare;
     workspaceId: string;
   }) => Promise<{ id: string }>,
-): Promise<CreateHotelResult> {
+): Promise<CreateUnitResult> {
   if (!workspaceId) return { ok: false, error: "workspace_not_found" };
 
-  const parsed = parseHotelInput(input);
+  const parsed = parseUnitInput(input);
   if (!parsed.ok) return parsed;
 
-  const hotel = await insert({
+  const unit = await insert({
     name: parsed.name,
     ...(parsed.avatarUrl && { avatarUrl: parsed.avatarUrl }),
     ...(parsed.revenueShare && { revenueShare: parsed.revenueShare }),
     workspaceId,
   });
-  return { ok: true, hotelId: hotel.id };
+  return { ok: true, unitId: unit.id };
 }
 
-export type UpdateHotelError = HotelInputError | "hotel_not_found";
+export type UpdateUnitError = UnitInputError | "unit_not_found";
 
-export type UpdateHotelResult = { ok: true } | { ok: false; error: UpdateHotelError };
+export type UpdateUnitResult = { ok: true } | { ok: false; error: UpdateUnitError };
 
-// update devolve false quando o hotel não existe (ou não é do workspace).
-export async function updateHotel(
+// update devolve false quando a unidade não existe (ou não é do workspace).
+export async function updateUnit(
   input: unknown,
-  hotelId: string | null | undefined,
-  update: (hotelId: string, data: HotelInput) => Promise<boolean>,
-): Promise<UpdateHotelResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+  unitId: string | null | undefined,
+  update: (unitId: string, data: UnitInput) => Promise<boolean>,
+): Promise<UpdateUnitResult> {
+  if (!unitId) return { ok: false, error: "unit_not_found" };
 
-  const parsed = parseHotelInput(input);
+  const parsed = parseUnitInput(input);
   if (!parsed.ok) return parsed;
 
   const { name, avatarUrl, revenueShare } = parsed;
-  const found = await update(hotelId, { name, avatarUrl, revenueShare });
-  return found ? { ok: true } : { ok: false, error: "hotel_not_found" };
+  const found = await update(unitId, { name, avatarUrl, revenueShare });
+  return found ? { ok: true } : { ok: false, error: "unit_not_found" };
 }
 
-export type DeleteHotelResult = { ok: true } | { ok: false; error: "hotel_not_found" };
+export type DeleteUnitResult = { ok: true } | { ok: false; error: "unit_not_found" };
 
-// remove devolve false quando o hotel não existe (ou não é do workspace).
-export async function deleteHotel(
-  hotelId: string | null | undefined,
-  remove: (hotelId: string) => Promise<boolean>,
-): Promise<DeleteHotelResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+// remove devolve false quando a unidade não existe (ou não é do workspace).
+export async function deleteUnit(
+  unitId: string | null | undefined,
+  remove: (unitId: string) => Promise<boolean>,
+): Promise<DeleteUnitResult> {
+  if (!unitId) return { ok: false, error: "unit_not_found" };
 
-  const found = await remove(hotelId);
-  return found ? { ok: true } : { ok: false, error: "hotel_not_found" };
+  const found = await remove(unitId);
+  return found ? { ok: true } : { ok: false, error: "unit_not_found" };
 }

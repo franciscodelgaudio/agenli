@@ -19,7 +19,7 @@ const appointmentItemSchema = new Schema(
 // Atendimento de um hóspede numa unidade, com um ou mais serviços.
 const appointmentSchema = new Schema(
   {
-    hotelId: { type: Schema.Types.ObjectId, ref: "Hotel", required: true },
+    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
     performedAt: { type: Date, required: true },
     guest: {
       name: { type: String, required: true, trim: true },
@@ -32,7 +32,7 @@ const appointmentSchema = new Schema(
 );
 
 // A listagem sempre filtra por unidade e dia.
-appointmentSchema.index({ hotelId: 1, performedAt: 1 });
+appointmentSchema.index({ unitId: 1, performedAt: 1 });
 
 appointmentSchema.plugin(connectOnUse);
 

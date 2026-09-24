@@ -16,7 +16,7 @@ type Row = { key: number; serviceId: string | null; therapistId: string | null }
 
 export type AppointmentFormValues = {
   // Só usado na visão do workspace, onde a unidade é escolhida no formulário.
-  hotelId?: string
+  unitId?: string
   guestName: string
   room: string
   // "2026-09-24T14:30", no horário de Brasília.
@@ -27,7 +27,7 @@ export type AppointmentFormValues = {
 export type AppointmentOptions = {
   // Na visão do workspace, cada serviço traz a unidade e units lista as unidades;
   // na unidade, units fica ausente e todos os serviços são dela.
-  services: { id: string; hotelId?: string; name: string; priceCents: number; durationMinutes: number }[]
+  services: { id: string; unitId?: string; name: string; priceCents: number; durationMinutes: number }[]
   therapists: { id: string; name: string }[]
   units?: { id: string; name: string }[]
 }
@@ -56,8 +56,8 @@ const copy = {
 }
 
 export function AppointmentForm({ services: allServices, therapists, units, mode, defaultValues, action, onDone }: Props) {
-  const [unitId, setUnitId] = useState<string | null>(defaultValues.hotelId ?? null)
-  const services = units ? allServices.filter((service) => service.hotelId === unitId) : allServices
+  const [unitId, setUnitId] = useState<string | null>(defaultValues.unitId ?? null)
+  const services = units ? allServices.filter((service) => service.unitId === unitId) : allServices
   const [rows, setRows] = useState<Row[]>(() =>
     defaultValues.items?.length
       ? defaultValues.items.map((item, key) => ({ key, ...item }))
@@ -93,7 +93,7 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
           <Field>
             <FieldLabel htmlFor="appointment-unit">Unidade</FieldLabel>
             <Select
-              name="hotelId"
+              name="unitId"
               items={units.map((unit) => ({ value: unit.id, label: unit.name }))}
               value={unitId}
               onValueChange={(value) => {

@@ -12,7 +12,7 @@ import {
   type CreateAppointmentError,
 } from "@/lib/appointment"
 import { Appointment } from "@/models/Appointment"
-import { Hotel } from "@/models/Hotel"
+import { Unit } from "@/models/Unit"
 import { Service } from "@/models/Service"
 
 const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "unauthenticated", string> = {
@@ -27,7 +27,7 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
   invalid_item: "Escolha o serviço e a massagista de cada linha.",
   service_not_found: "Algum serviço não foi encontrado nesta unidade. Recarregue a página.",
   therapist_not_found: "Algum profissional escolhido não pode atender neste workspace. Recarregue a página.",
-  hotel_not_found: "Escolha uma unidade válida deste workspace.",
+  unit_not_found: "Escolha uma unidade válida deste workspace.",
   appointment_not_found: "Atendimento não encontrado ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
@@ -45,10 +45,10 @@ function appointmentInput(formData: FormData) {
 }
 
 // Buscas usadas por createAppointment/updateAppointment, restritas à unidade e ao workspace.
-function appointmentLookups(unit: { workspaceId: string; hotelId: string }) {
+function appointmentLookups(unit: { workspaceId: string; unitId: string }) {
   return {
     findServices: async (ids: string[]) => {
-      const services = await Service.find({ _id: { $in: objectIds(ids) }, hotelId: unit.hotelId })
+      const services = await Service.find({ _id: { $in: objectIds(ids) }, unitId: unit.unitId })
         .select({ name: 1, priceCents: 1, durationMinutes: 1 })
         .lean()
       return services.map(({ _id, name, priceCents, durationMinutes }) => ({
@@ -62,18 +62,18 @@ function appointmentLookups(unit: { workspaceId: string; hotelId: string }) {
   }
 }
 
-// workspaceId e hotelId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
+// workspaceId e unitId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
 export async function createAppointmentAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   _prev: AppointmentActionState,
   formData: FormData,
 ): Promise<AppointmentActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const unit = await findManagedUnit(workspaceId, hotelId, userId)
+  const unit = await findManagedUnit(workspaceId, unitId, userId)
 
-  const result = await createAppointment(appointmentInput(formData), unit?.hotelId, {
+  const result = await createAppointment(appointmentInput(formData), unit?.unitId, {
     ...appointmentLookups(unit!),
     insert: async (data) => {
       const appointment = await Appointment.create({ ...data, createdBy: userId })
@@ -89,23 +89,23 @@ export async function createAppointmentAction(
 
 export async function updateAppointmentAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   appointmentId: string,
   _prev: AppointmentActionState,
   formData: FormData,
 ): Promise<AppointmentActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const unit = await findManagedUnit(workspaceId, hotelId, userId)
+  const unit = await findManagedUnit(workspaceId, unitId, userId)
 
-  // Só repassa o id quando a unidade é gerenciável; a escrita ainda filtra por hotelId.
+  // Só repassa o id quando a unidade é gerenciável; a escrita ainda filtra por unitId.
   const result = await updateAppointment(
     appointmentInput(formData),
     unit && isObjectIdOrHexString(appointmentId) ? appointmentId : null,
     {
       ...appointmentLookups(unit!),
       update: async (id, fields) => {
-        const { matchedCount } = await Appointment.updateOne({ _id: id, hotelId: unit!.hotelId }, { $set: fields })
+        const { matchedCount } = await Appointment.updateOne({ _id: id, unitId: unit!.unitId }, { $set: fields })
         return matchedCount > 0
       },
     },
@@ -117,15 +117,15 @@ export async function updateAppointmentAction(
   return { error: null }
 }
 
-// Visão do workspace: a unidade vem do formulário (campo hotelId) e a posse é conferida
+// Visão do workspace: a unidade vem do formulário (campo unitId) e a posse é conferida
 // em createAppointmentAction.
 export async function createWorkspaceAppointmentAction(
   workspaceId: string,
   prev: AppointmentActionState,
   formData: FormData,
 ): Promise<AppointmentActionState> {
-  const hotelId = formData.get("hotelId")
-  return createAppointmentAction(workspaceId, typeof hotelId === "string" ? hotelId : "", prev, formData)
+  const unitId = formData.get("unitId")
+  return createAppointmentAction(workspaceId, typeof unitId === "string" ? unitId : "", prev, formData)
 }
 
 // Visão do workspace: permite mover o atendimento para outra unidade. O atendimento
@@ -138,9 +138,9 @@ export async function updateWorkspaceAppointmentAction(
 ): Promise<AppointmentActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const hotelId = formData.get("hotelId")
-  const unit = await findManagedUnit(workspaceId, typeof hotelId === "string" ? hotelId : "", userId)
-  if (!unit) return { error: errorMessages.hotel_not_found }
+  const unitId = formData.get("unitId")
+  const unit = await findManagedUnit(workspaceId, typeof unitId === "string" ? unitId : "", userId)
+  if (!unit) return { error: errorMessages.unit_not_found }
 
   const result = await updateAppointment(
     appointmentInput(formData),
@@ -148,10 +148,10 @@ export async function updateWorkspaceAppointmentAction(
     {
       ...appointmentLookups(unit),
       update: async (id, fields) => {
-        const workspaceHotelIds = await Hotel.find({ workspaceId: unit.workspaceId }).distinct("_id")
+        const workspaceUnitIds = await Unit.find({ workspaceId: unit.workspaceId }).distinct("_id")
         const { matchedCount } = await Appointment.updateOne(
-          { _id: id, hotelId: { $in: workspaceHotelIds } },
-          { $set: { ...fields, hotelId: unit.hotelId } },
+          { _id: id, unitId: { $in: workspaceUnitIds } },
+          { $set: { ...fields, unitId: unit.unitId } },
         )
         return matchedCount > 0
       },
@@ -166,18 +166,18 @@ export async function updateWorkspaceAppointmentAction(
 
 export async function deleteAppointmentAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   appointmentId: string,
 ): Promise<AppointmentActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const unit = await findManagedUnit(workspaceId, hotelId, userId)
+  const unit = await findManagedUnit(workspaceId, unitId, userId)
 
-  // Só repassa o id quando a unidade é gerenciável; a exclusão ainda filtra por hotelId.
+  // Só repassa o id quando a unidade é gerenciável; a exclusão ainda filtra por unitId.
   const result = await deleteAppointment(
     unit && isObjectIdOrHexString(appointmentId) ? appointmentId : null,
     async (id) => {
-      const { deletedCount } = await Appointment.deleteOne({ _id: id, hotelId: unit!.hotelId })
+      const { deletedCount } = await Appointment.deleteOne({ _id: id, unitId: unit!.unitId })
       return deletedCount > 0
     },
   )

@@ -12,18 +12,18 @@ describe("createWorkspace", () => {
   it("cria o workspace do usuário e retorna o id", async () => {
     const insert = makeInsert();
 
-    const result = await createWorkspace({ name: "Hotel Central" }, USER_ID, insert);
+    const result = await createWorkspace({ name: "Spa Central" }, USER_ID, insert);
 
     expect(result).toEqual({ ok: true, workspaceId: WORKSPACE_ID });
-    expect(insert).toHaveBeenCalledWith({ name: "Hotel Central", userId: USER_ID });
+    expect(insert).toHaveBeenCalledWith({ name: "Spa Central", userId: USER_ID });
   });
 
   it("remove espaços das pontas do nome antes de salvar", async () => {
     const insert = makeInsert();
 
-    await createWorkspace({ name: "  Hotel Central  " }, USER_ID, insert);
+    await createWorkspace({ name: "  Spa Central  " }, USER_ID, insert);
 
-    expect(insert).toHaveBeenCalledWith({ name: "Hotel Central", userId: USER_ID });
+    expect(insert).toHaveBeenCalledWith({ name: "Spa Central", userId: USER_ID });
   });
 
   it("aceita nome com exatamente 80 caracteres", async () => {
@@ -56,7 +56,7 @@ describe("createWorkspace", () => {
     async (userId) => {
       const insert = makeInsert();
 
-      const result = await createWorkspace({ name: "Hotel Central" }, userId, insert);
+      const result = await createWorkspace({ name: "Spa Central" }, userId, insert);
 
       expect(result).toEqual({ ok: false, error: "unauthenticated" });
       expect(insert).not.toHaveBeenCalled();

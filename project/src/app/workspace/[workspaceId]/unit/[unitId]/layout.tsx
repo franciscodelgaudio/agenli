@@ -18,17 +18,17 @@ export default async function UnitLayout({
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
-  // Parte do workspace (e não de hotels) para que o acesso ao workspace seja garantido.
+  // Parte do workspace (e não de units) para que o acesso ao workspace seja garantido.
   const [workspace] = await Workspace.aggregate<{
-    hotel: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date } | null
+    unit: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date } | null
   }>([
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotel",
+        as: "unit",
         pipeline: [
           { $match: { _id: new Types.ObjectId(unitId) } },
           {
@@ -44,10 +44,10 @@ export default async function UnitLayout({
         ],
       },
     },
-    { $project: { _id: 0, hotel: { $ifNull: [{ $first: "$hotel" }, null] } } },
+    { $project: { _id: 0, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
-  const hotel = workspace?.hotel
-  if (!hotel) notFound()
+  const unit = workspace?.unit
+  if (!unit) notFound()
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -63,14 +63,14 @@ export default async function UnitLayout({
       </Button>
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-lg after:rounded-lg">
-          {hotel.avatarUrl && <AvatarImage src={hotel.avatarUrl} alt={hotel.name} className="rounded-lg" />}
-          <AvatarFallback className="rounded-lg text-lg">{hotel.name.charAt(0).toUpperCase()}</AvatarFallback>
+          {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />}
+          <AvatarFallback className="rounded-lg text-lg">{unit.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <div className="grid gap-1">
-          <h2 className="truncate text-2xl font-semibold tracking-tight">{hotel.name}</h2>
+          <h2 className="truncate text-2xl font-semibold tracking-tight">{unit.name}</h2>
           <p className="text-sm text-muted-foreground">
-            Criado em {dateTimeFormat.format(hotel.createdAt)} · Atualizado em{" "}
-            {dateTimeFormat.format(hotel.updatedAt)}
+            Criado em {dateTimeFormat.format(unit.createdAt)} · Atualizado em{" "}
+            {dateTimeFormat.format(unit.updatedAt)}
           </p>
         </div>
       </div>

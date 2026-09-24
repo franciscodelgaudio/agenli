@@ -8,7 +8,7 @@ type Props = {
   defaultValues?: { name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
 }
 
-export function HotelFields({ idPrefix, defaultValues }: Props) {
+export function UnitFields({ idPrefix, defaultValues }: Props) {
   return (
     <>
       <Field>

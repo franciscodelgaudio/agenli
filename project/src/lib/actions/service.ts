@@ -19,7 +19,7 @@ const errorMessages: Record<CreateServiceError | UpdateServiceError | "unauthent
   name_too_long: "O nome pode ter no máximo 80 caracteres.",
   invalid_price: "Informe um valor entre R$ 0,00 e R$ 1.000.000,00, com até 2 casas decimais.",
   invalid_duration: "Informe a duração em minutos, entre 1 e 1440.",
-  hotel_not_found: "Unidade não encontrada ou sem permissão.",
+  unit_not_found: "Unidade não encontrada ou sem permissão.",
   service_not_found: "Serviço não encontrado ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
@@ -27,10 +27,10 @@ const errorMessages: Record<CreateServiceError | UpdateServiceError | "unauthent
 export type ServiceActionState = { error: string | null }
 
 // id da unidade se o usuário puder gerenciá-la; senão undefined. null = sessão expirada.
-async function findManagedHotelId(workspaceId: string, hotelId: string) {
+async function findManagedUnitId(workspaceId: string, unitId: string) {
   const userId = await getSessionUserId()
   if (!userId) return null
-  return (await findManagedUnit(workspaceId, hotelId, userId))?.hotelId
+  return (await findManagedUnit(workspaceId, unitId, userId))?.unitId
 }
 
 function serviceInput(formData: FormData) {
@@ -41,17 +41,17 @@ function serviceInput(formData: FormData) {
   }
 }
 
-// workspaceId e hotelId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
+// workspaceId e unitId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
 export async function createServiceAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   _prev: ServiceActionState,
   formData: FormData,
 ): Promise<ServiceActionState> {
-  const ownedHotelId = await findManagedHotelId(workspaceId, hotelId)
-  if (ownedHotelId === null) return { error: errorMessages.unauthenticated }
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (ownedUnitId === null) return { error: errorMessages.unauthenticated }
 
-  const result = await createService(serviceInput(formData), ownedHotelId, async (data) => {
+  const result = await createService(serviceInput(formData), ownedUnitId, async (data) => {
     const service = await Service.create(data)
     return { id: service._id.toString() }
   })
@@ -63,26 +63,26 @@ export async function createServiceAction(
 }
 
 // Só repassa o serviceId quando a unidade é gerenciável; a escrita ainda filtra
-// por hotelId para que um serviço de outra unidade não seja encontrado.
+// por unitId para que um serviço de outra unidade não seja encontrado.
 // null = sessão expirada.
-async function resolveServiceTarget(workspaceId: string, hotelId: string, serviceId: string) {
-  const ownedHotelId = await findManagedHotelId(workspaceId, hotelId)
-  if (ownedHotelId === null) return null
-  return { ownedHotelId, serviceId: ownedHotelId && isObjectIdOrHexString(serviceId) ? serviceId : null }
+async function resolveServiceTarget(workspaceId: string, unitId: string, serviceId: string) {
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (ownedUnitId === null) return null
+  return { ownedUnitId, serviceId: ownedUnitId && isObjectIdOrHexString(serviceId) ? serviceId : null }
 }
 
 export async function updateServiceAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   serviceId: string,
   _prev: ServiceActionState,
   formData: FormData,
 ): Promise<ServiceActionState> {
-  const target = await resolveServiceTarget(workspaceId, hotelId, serviceId)
+  const target = await resolveServiceTarget(workspaceId, unitId, serviceId)
   if (!target) return { error: errorMessages.unauthenticated }
 
   const result = await updateService(serviceInput(formData), target.serviceId, async (id, data) => {
-    const { matchedCount } = await Service.updateOne({ _id: id, hotelId: target.ownedHotelId }, { $set: data })
+    const { matchedCount } = await Service.updateOne({ _id: id, unitId: target.ownedUnitId }, { $set: data })
     return matchedCount > 0
   })
 
@@ -94,14 +94,14 @@ export async function updateServiceAction(
 
 export async function deleteServiceAction(
   workspaceId: string,
-  hotelId: string,
+  unitId: string,
   serviceId: string,
 ): Promise<ServiceActionState> {
-  const target = await resolveServiceTarget(workspaceId, hotelId, serviceId)
+  const target = await resolveServiceTarget(workspaceId, unitId, serviceId)
   if (!target) return { error: errorMessages.unauthenticated }
 
   const result = await deleteService(target.serviceId, async (id) => {
-    const { deletedCount } = await Service.deleteOne({ _id: id, hotelId: target.ownedHotelId })
+    const { deletedCount } = await Service.deleteOne({ _id: id, unitId: target.ownedUnitId })
     return deletedCount > 0
   })
 

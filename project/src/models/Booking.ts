@@ -5,7 +5,7 @@ import { connectOnUse } from "@/lib/mongoose";
 // Os nomes da massagista e do serviço são cópias do momento do agendamento.
 const bookingSchema = new Schema(
   {
-    hotelId: { type: Schema.Types.ObjectId, ref: "Hotel", required: true },
+    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
     // Usuário que vai atender: o proprietário ou um membro com função de massagista.
     therapistId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     therapistName: { type: String, required: true },
@@ -32,7 +32,7 @@ const bookingSchema = new Schema(
 );
 
 // O calendário filtra por unidades e intervalo; a checagem de conflito, por massagista e intervalo.
-bookingSchema.index({ hotelId: 1, startsAt: 1 });
+bookingSchema.index({ unitId: 1, startsAt: 1 });
 bookingSchema.index({ therapistId: 1, startsAt: 1 });
 
 bookingSchema.plugin(connectOnUse);

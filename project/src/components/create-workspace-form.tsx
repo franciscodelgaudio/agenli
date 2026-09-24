@@ -37,7 +37,7 @@ export function CreateWorkspaceForm({
           <Input
             id="name"
             name="name"
-            placeholder="Hotel Central"
+            placeholder="Spa Central"
             maxLength={80}
             autoFocus
             required

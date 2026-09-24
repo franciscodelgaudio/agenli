@@ -2,11 +2,11 @@
 
 import { useActionState, useState } from "react"
 import { PlusIcon } from "lucide-react"
-import { createHotelAction, type CreateHotelState } from "@/lib/actions/hotel"
+import { createUnitAction, type CreateUnitState } from "@/lib/actions/unit"
 
 import { Button } from "@/components/ui/button"
 import { FieldError, FieldGroup } from "@/components/ui/field"
-import { HotelFields } from "@/components/hotel-fields"
+import { UnitFields } from "@/components/unit-fields"
 import {
   Sheet,
   SheetContent,
@@ -17,11 +17,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
-export function CreateHotelSheet({ workspaceId }: { workspaceId: string }) {
+export function CreateUnitSheet({ workspaceId }: { workspaceId: string }) {
   const [open, setOpen] = useState(false)
   const [state, formAction, pending] = useActionState(
-    async (prev: CreateHotelState, formData: FormData) => {
-      const next = await createHotelAction(workspaceId, prev, formData)
+    async (prev: CreateUnitState, formData: FormData) => {
+      const next = await createUnitAction(workspaceId, prev, formData)
       if (!next.error) setOpen(false)
       return next
     },
@@ -42,7 +42,7 @@ export function CreateHotelSheet({ workspaceId }: { workspaceId: string }) {
           </SheetHeader>
           <FieldGroup className="px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
-            <HotelFields idPrefix="create-hotel" />
+            <UnitFields idPrefix="create-unit" />
           </FieldGroup>
           <SheetFooter>
             <Button type="submit" disabled={pending}>

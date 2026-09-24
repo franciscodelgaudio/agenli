@@ -45,22 +45,22 @@ export default async function AppointmentsPage({
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     therapists: TherapistOption[]
-    hotel: { appointments: AppointmentRow[]; dayCount: number; services: ServiceOption[] } | null
+    unit: { appointments: AppointmentRow[]; dayCount: number; services: ServiceOption[] } | null
   }>([
     ...access,
     {
       $lookup: {
-        from: "hotels",
+        from: "units",
         localField: "_id",
         foreignField: "workspaceId",
-        as: "hotel",
+        as: "unit",
         pipeline: [
           { $match: { _id: new Types.ObjectId(unitId) } },
           {
             $lookup: {
               from: "appointments",
               localField: "_id",
-              foreignField: "hotelId",
+              foreignField: "unitId",
               as: "appointments",
               pipeline: appointmentListPipeline(query),
             },
@@ -69,7 +69,7 @@ export default async function AppointmentsPage({
             $lookup: {
               from: "appointments",
               localField: "_id",
-              foreignField: "hotelId",
+              foreignField: "unitId",
               as: "dayCount",
               pipeline: [appointmentListPipeline({ ...query, q: "" })[0], { $count: "n" }],
             },
@@ -78,7 +78,7 @@ export default async function AppointmentsPage({
             $lookup: {
               from: "services",
               localField: "_id",
-              foreignField: "hotelId",
+              foreignField: "unitId",
               as: "services",
               pipeline: [
                 { $sort: { name: 1, _id: 1 } },
@@ -103,12 +103,12 @@ export default async function AppointmentsPage({
         _id: 0,
         role: 1,
         therapists: 1,
-        hotel: { $ifNull: [{ $first: "$hotel" }, null] },
+        unit: { $ifNull: [{ $first: "$unit" }, null] },
       },
     },
   ])
-  if (!workspace?.hotel) notFound()
-  const { appointments, dayCount, services } = workspace.hotel
+  if (!workspace?.unit) notFound()
+  const { appointments, dayCount, services } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 

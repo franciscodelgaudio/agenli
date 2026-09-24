@@ -68,7 +68,7 @@ describe("bookingListPipeline", () => {
     $project: {
       _id: 0,
       id: { $toString: "$_id" },
-      hotelId: { $toString: "$hotelId" },
+      unitId: { $toString: "$unitId" },
       therapistId: { $toString: "$therapistId" },
       therapistName: 1,
       guest: 1,
@@ -82,6 +82,8 @@ describe("bookingListPipeline", () => {
           null,
         ],
       },
+      // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
+      appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
     },
   };
   const SORT = { $sort: { startsAt: 1, _id: 1 } };
@@ -95,7 +97,7 @@ describe("bookingListPipeline", () => {
       {
         $match: {
           ...OVERLAP,
-          hotelId: new Types.ObjectId(UNIT_ID),
+          unitId: new Types.ObjectId(UNIT_ID),
           therapistId: new Types.ObjectId(ANA_ID),
         },
       },

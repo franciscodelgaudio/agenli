@@ -14,7 +14,7 @@ import {
   type BookingError,
 } from "@/lib/booking"
 import { Booking } from "@/models/Booking"
-import { Hotel } from "@/models/Hotel"
+import { Unit } from "@/models/Unit"
 import { Service } from "@/models/Service"
 
 const errorMessages: Record<BookingError | "unauthenticated", string> = {
@@ -29,7 +29,7 @@ const errorMessages: Record<BookingError | "unauthenticated", string> = {
   service_not_found: "O serviço escolhido não é desta unidade. Recarregue a página.",
   therapist_not_found: "A massagista escolhida não pode atender neste workspace. Recarregue a página.",
   therapist_busy: "A massagista já tem um agendamento nesse horário.",
-  hotel_not_found: "Escolha uma unidade válida deste workspace.",
+  unit_not_found: "Escolha uma unidade válida deste workspace.",
   booking_not_found: "Agendamento não encontrado ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
@@ -48,14 +48,14 @@ function bookingInput(formData: FormData) {
 }
 
 // Unidades do workspace, se o usuário o gerencia (dono ou administrador); senão null.
-async function findManagedHotelIds(workspaceId: string, userId: string) {
+async function findManagedUnitIds(workspaceId: string, userId: string) {
   const access = await findWorkspaceAccess(workspaceId, userId)
   if (!access || !canManageMembers(access.role)) return null
-  return Hotel.find({ workspaceId: access.id }).distinct("_id")
+  return Unit.find({ workspaceId: access.id }).distinct("_id")
 }
 
 // Conflito da massagista em qualquer unidade do workspace.
-function conflictChecker(hotelIds: Types.ObjectId[]) {
+function conflictChecker(unitIds: Types.ObjectId[]) {
   return async ({
     therapistId,
     startsAt,
@@ -69,7 +69,7 @@ function conflictChecker(hotelIds: Types.ObjectId[]) {
   }) => {
     const conflict = await Booking.exists({
       therapistId,
-      hotelId: { $in: hotelIds },
+      unitId: { $in: unitIds },
       startsAt: { $lt: endsAt },
       endsAt: { $gt: startsAt },
       ...(excludeId && { _id: { $ne: excludeId } }),
@@ -79,19 +79,19 @@ function conflictChecker(hotelIds: Types.ObjectId[]) {
 }
 
 // Buscas usadas por createBooking/updateBooking, restritas à unidade e ao workspace.
-function bookingLookups(unit: { workspaceId: string; hotelId: string }, hotelIds: Types.ObjectId[]) {
+function bookingLookups(unit: { workspaceId: string; unitId: string }, unitIds: Types.ObjectId[]) {
   return {
     findService: async (id: string) => {
       if (!isObjectIdOrHexString(id)) return null
-      const service = await Service.findOne({ _id: id, hotelId: unit.hotelId }).select({ name: 1 }).lean()
+      const service = await Service.findOne({ _id: id, unitId: unit.unitId }).select({ name: 1 }).lean()
       return service && { id: service._id.toString(), name: service.name }
     },
     findTherapist: async (id: string) => (await findWorkspaceTherapists(unit.workspaceId, [id]))[0] ?? null,
-    hasConflict: conflictChecker(hotelIds),
+    hasConflict: conflictChecker(unitIds),
   }
 }
 
-// workspaceId vem via argumento e a unidade pelo formulário (campo hotelId); a posse é conferida aqui.
+// workspaceId vem via argumento e a unidade pelo formulário (campo unitId); a posse é conferida aqui.
 export async function createBookingAction(
   workspaceId: string,
   _prev: BookingActionState,
@@ -99,12 +99,12 @@ export async function createBookingAction(
 ): Promise<BookingActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const hotelId = formData.get("hotelId")
-  const unit = await findManagedUnit(workspaceId, typeof hotelId === "string" ? hotelId : "", userId)
-  const hotelIds = unit ? await Hotel.find({ workspaceId: unit.workspaceId }).distinct("_id") : []
+  const unitId = formData.get("unitId")
+  const unit = await findManagedUnit(workspaceId, typeof unitId === "string" ? unitId : "", userId)
+  const unitIds = unit ? await Unit.find({ workspaceId: unit.workspaceId }).distinct("_id") : []
 
-  const result = await createBooking(bookingInput(formData), unit?.hotelId, {
-    ...bookingLookups(unit!, hotelIds),
+  const result = await createBooking(bookingInput(formData), unit?.unitId, {
+    ...bookingLookups(unit!, unitIds),
     insert: async (data) => {
       const booking = await Booking.create({ ...data, createdBy: userId })
       return { id: booking._id.toString() }
@@ -124,17 +124,17 @@ export async function updateBookingAction(
 ): Promise<BookingActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const hotelId = formData.get("hotelId")
-  const unit = await findManagedUnit(workspaceId, typeof hotelId === "string" ? hotelId : "", userId)
-  if (!unit) return { error: errorMessages.hotel_not_found }
-  const hotelIds = await Hotel.find({ workspaceId: unit.workspaceId }).distinct("_id")
+  const unitId = formData.get("unitId")
+  const unit = await findManagedUnit(workspaceId, typeof unitId === "string" ? unitId : "", userId)
+  if (!unit) return { error: errorMessages.unit_not_found }
+  const unitIds = await Unit.find({ workspaceId: unit.workspaceId }).distinct("_id")
 
   const result = await updateBooking(bookingInput(formData), isObjectIdOrHexString(bookingId) ? bookingId : null, {
-    ...bookingLookups(unit, hotelIds),
+    ...bookingLookups(unit, unitIds),
     update: async (id, fields) => {
       const { matchedCount } = await Booking.updateOne(
-        { _id: id, hotelId: { $in: hotelIds } },
-        { $set: { ...fields, hotelId: unit.hotelId } },
+        { _id: id, unitId: { $in: unitIds } },
+        { $set: { ...fields, unitId: unit.unitId } },
       )
       return matchedCount > 0
     },
@@ -151,19 +151,19 @@ export async function rescheduleBookingAction(
 ): Promise<BookingActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const hotelIds = await findManagedHotelIds(workspaceId, userId)
+  const unitIds = await findManagedUnitIds(workspaceId, userId)
 
   // Só repassa o id quando o workspace é gerenciável; a escrita ainda filtra pelas unidades dele.
-  const result = await rescheduleBooking(times, hotelIds && isObjectIdOrHexString(bookingId) ? bookingId : null, {
+  const result = await rescheduleBooking(times, unitIds && isObjectIdOrHexString(bookingId) ? bookingId : null, {
     findBooking: async (id) => {
-      const booking = await Booking.findOne({ _id: id, hotelId: { $in: hotelIds! } })
+      const booking = await Booking.findOne({ _id: id, unitId: { $in: unitIds! } })
         .select({ therapistId: 1 })
         .lean()
       return booking && { therapistId: booking.therapistId.toString() }
     },
-    hasConflict: conflictChecker(hotelIds ?? []),
+    hasConflict: conflictChecker(unitIds ?? []),
     update: async (id, fields) => {
-      const { matchedCount } = await Booking.updateOne({ _id: id, hotelId: { $in: hotelIds! } }, { $set: fields })
+      const { matchedCount } = await Booking.updateOne({ _id: id, unitId: { $in: unitIds! } }, { $set: fields })
       return matchedCount > 0
     },
   })
@@ -174,10 +174,10 @@ export async function rescheduleBookingAction(
 export async function deleteBookingAction(workspaceId: string, bookingId: string): Promise<BookingActionState> {
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
-  const hotelIds = await findManagedHotelIds(workspaceId, userId)
+  const unitIds = await findManagedUnitIds(workspaceId, userId)
 
-  const result = await deleteBooking(hotelIds && isObjectIdOrHexString(bookingId) ? bookingId : null, async (id) => {
-    const { deletedCount } = await Booking.deleteOne({ _id: id, hotelId: { $in: hotelIds! } })
+  const result = await deleteBooking(unitIds && isObjectIdOrHexString(bookingId) ? bookingId : null, async (id) => {
+    const { deletedCount } = await Booking.deleteOne({ _id: id, unitId: { $in: unitIds! } })
     return deletedCount > 0
   })
 

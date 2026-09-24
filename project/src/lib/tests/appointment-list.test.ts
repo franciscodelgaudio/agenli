@@ -49,7 +49,7 @@ describe("parseAppointmentListQuery", () => {
   });
 
   it.each([
-    ["campo fora da lista", { sort: "hotelId" }],
+    ["campo fora da lista", { sort: "unitId" }],
     ["caminho do banco em vez da chave", { sort: "guest.name" }],
     ["campo com operador", { sort: "$where" }],
   ])("volta para horário quando o sort é %s", (_label, params) => {
@@ -85,12 +85,12 @@ describe("appointmentListPipeline", () => {
   };
   // O total é calculado antes da ordenação para que seja possível ordenar por ele.
   const SET_TOTAL = { $set: { totalCents: { $sum: "$items.priceCents" } } };
-  // hotelId, serviceId e therapistId vão junto para a coluna de unidade e o formulário de edição.
+  // unitId, serviceId e therapistId vão junto para a coluna de unidade e o formulário de edição.
   const PROJECT = {
     $project: {
       _id: 0,
       id: { $toString: "$_id" },
-      hotelId: { $toString: "$hotelId" },
+      unitId: { $toString: "$unitId" },
       performedAt: 1,
       guest: 1,
       items: {
@@ -205,7 +205,7 @@ describe("workspaceAppointmentListPipeline", () => {
 
   it("com unidade, filtra por ela antes das demais etapas", () => {
     expect(workspaceAppointmentListPipeline({ ...BASE, unit: UNIT_ID, q: "joão" })).toEqual([
-      { $match: { hotelId: new Types.ObjectId(UNIT_ID) } },
+      { $match: { unitId: new Types.ObjectId(UNIT_ID) } },
       ...appointmentListPipeline({ ...BASE, q: "joão" }),
     ]);
   });

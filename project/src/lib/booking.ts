@@ -18,7 +18,7 @@ export type BookingError =
   | "service_not_found"
   | "therapist_not_found"
   | "therapist_busy"
-  | "hotel_not_found"
+  | "unit_not_found"
   | "booking_not_found";
 
 // Dados editáveis de um agendamento (tudo menos a unidade). Os nomes da massagista e do
@@ -32,7 +32,7 @@ export type BookingFields = {
   service: { serviceId: string; serviceName: string } | null;
 };
 
-export type BookingData = BookingFields & { hotelId: string };
+export type BookingData = BookingFields & { unitId: string };
 
 type Interval = { therapistId: string; startsAt: Date; endsAt: Date; excludeId?: string };
 
@@ -44,7 +44,7 @@ type Lookups = {
   hasConflict: (interval: Interval) => Promise<boolean>;
 };
 
-type FieldsError = Exclude<BookingError, "hotel_not_found" | "booking_not_found">;
+type FieldsError = Exclude<BookingError, "unit_not_found" | "booking_not_found">;
 
 function isDurationValid(minutes: number) {
   return minutes >= MIN_DURATION_MINUTES && minutes <= MAX_DURATION_MINUTES;
@@ -119,15 +119,15 @@ export type CreateBookingResult = { ok: true; bookingId: string } | { ok: false;
 
 export async function createBooking(
   input: unknown,
-  hotelId: string | null | undefined,
+  unitId: string | null | undefined,
   { insert, ...lookups }: Lookups & { insert: (data: BookingData) => Promise<{ id: string }> },
 ): Promise<CreateBookingResult> {
-  if (!hotelId) return { ok: false, error: "hotel_not_found" };
+  if (!unitId) return { ok: false, error: "unit_not_found" };
 
   const resolved = await resolveBookingFields(input, lookups);
   if (!resolved.ok) return resolved;
 
-  const booking = await insert({ hotelId, ...resolved.fields });
+  const booking = await insert({ unitId, ...resolved.fields });
   return { ok: true, bookingId: booking.id };
 }
 

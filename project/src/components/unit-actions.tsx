@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react"
 import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
-import { deleteHotelAction, updateHotelAction, type UpdateHotelState } from "@/lib/actions/hotel"
+import { deleteUnitAction, updateUnitAction, type UpdateUnitState } from "@/lib/actions/unit"
 import type { RevenueShare } from "@/lib/revenue-share"
 
 import {
@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { FieldError, FieldGroup } from "@/components/ui/field"
-import { HotelFields } from "@/components/hotel-fields"
+import { UnitFields } from "@/components/unit-fields"
 import {
   Sheet,
   SheetContent,
@@ -33,9 +33,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-type Hotel = { id: string; name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
+type Unit = { id: string; name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
 
-export function HotelActions({ workspaceId, hotel }: { workspaceId: string; hotel: Hotel }) {
+export function UnitActions({ workspaceId, unit }: { workspaceId: string; unit: Unit }) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   // Muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
@@ -45,7 +45,7 @@ export function HotelActions({ workspaceId, hotel }: { workspaceId: string; hote
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon-sm" aria-label={`Ações de ${hotel.name}`} />}
+          render={<Button variant="ghost" size="icon-sm" aria-label={`Ações de ${unit.name}`} />}
         >
           <EllipsisIcon />
         </DropdownMenuTrigger>
@@ -69,18 +69,18 @@ export function HotelActions({ workspaceId, hotel }: { workspaceId: string; hote
 
       <Sheet open={editOpen} onOpenChange={setEditOpen}>
         <SheetContent>
-          <EditHotelForm
+          <EditUnitForm
             key={editKey}
             workspaceId={workspaceId}
-            hotel={hotel}
+            unit={unit}
             onDone={() => setEditOpen(false)}
           />
         </SheetContent>
       </Sheet>
 
-      <DeleteHotelDialog
+      <DeleteUnitDialog
         workspaceId={workspaceId}
-        hotel={hotel}
+        unit={unit}
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
       />
@@ -88,18 +88,18 @@ export function HotelActions({ workspaceId, hotel }: { workspaceId: string; hote
   )
 }
 
-function EditHotelForm({
+function EditUnitForm({
   workspaceId,
-  hotel,
+  unit,
   onDone,
 }: {
   workspaceId: string
-  hotel: Hotel
+  unit: Unit
   onDone: () => void
 }) {
   const [state, formAction, pending] = useActionState(
-    async (prev: UpdateHotelState, formData: FormData) => {
-      const next = await updateHotelAction(workspaceId, hotel.id, prev, formData)
+    async (prev: UpdateUnitState, formData: FormData) => {
+      const next = await updateUnitAction(workspaceId, unit.id, prev, formData)
       if (!next.error) onDone()
       return next
     },
@@ -114,7 +114,7 @@ function EditHotelForm({
       </SheetHeader>
       <FieldGroup className="px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
-        <HotelFields idPrefix={`edit-hotel-${hotel.id}`} defaultValues={hotel} />
+        <UnitFields idPrefix={`edit-unit-${unit.id}`} defaultValues={unit} />
       </FieldGroup>
       <SheetFooter>
         <Button type="submit" disabled={pending}>
@@ -125,14 +125,14 @@ function EditHotelForm({
   )
 }
 
-function DeleteHotelDialog({
+function DeleteUnitDialog({
   workspaceId,
-  hotel,
+  unit,
   open,
   onOpenChange,
 }: {
   workspaceId: string
-  hotel: Hotel
+  unit: Unit
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -141,7 +141,7 @@ function DeleteHotelDialog({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteHotelAction(workspaceId, hotel.id)
+      const result = await deleteUnitAction(workspaceId, unit.id)
       setError(result.error)
       if (!result.error) onOpenChange(false)
     })
@@ -159,7 +159,7 @@ function DeleteHotelDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Excluir unidade?</AlertDialogTitle>
           <AlertDialogDescription>
-            A unidade <strong>{hotel.name}</strong> será excluída permanentemente. Essa ação não pode ser desfeita.
+            A unidade <strong>{unit.name}</strong> será excluída permanentemente. Essa ação não pode ser desfeita.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <FieldError>{error}</FieldError>}

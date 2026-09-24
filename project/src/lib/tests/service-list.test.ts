@@ -29,7 +29,7 @@ describe("parseServiceListQuery", () => {
   });
 
   it.each([
-    ["campo fora da lista", { sort: "hotelId" }],
+    ["campo fora da lista", { sort: "unitId" }],
     ["campo de unidade (não existe em serviço)", { sort: "avatarUrl" }],
     ["campo com operador", { sort: "$where" }],
   ])("volta para nome quando o sort é %s", (_label, params) => {

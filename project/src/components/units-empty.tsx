@@ -1,5 +1,5 @@
 import { Building2Icon } from "lucide-react"
-import { CreateHotelSheet } from "@/components/create-hotel-sheet"
+import { CreateUnitSheet } from "@/components/create-unit-sheet"
 import {
   Empty,
   EmptyContent,
@@ -9,7 +9,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-export function HotelsEmpty({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
+export function UnitsEmpty({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -25,7 +25,7 @@ export function HotelsEmpty({ workspaceId, canManage }: { workspaceId: string; c
       </EmptyHeader>
       {canManage && (
         <EmptyContent>
-          <CreateHotelSheet workspaceId={workspaceId} />
+          <CreateUnitSheet workspaceId={workspaceId} />
         </EmptyContent>
       )}
     </Empty>

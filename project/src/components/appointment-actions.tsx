@@ -32,7 +32,7 @@ import { AppointmentForm, type AppointmentOptions } from "@/components/appointme
 
 type Appointment = {
   id: string
-  hotelId: string
+  unitId: string
   performedAt: Date
   guest: { name: string; room: string }
   items: { serviceId: string; therapistId: string }[]
@@ -87,7 +87,7 @@ export function AppointmentActions({ workspaceId, appointment, ...options }: Pro
             {...options}
             mode="edit"
             defaultValues={{
-              hotelId: appointment.hotelId,
+              unitId: appointment.unitId,
               guestName: appointment.guest.name,
               room: appointment.guest.room,
               performedAt: toFormDateTime(appointment.performedAt),
@@ -96,7 +96,7 @@ export function AppointmentActions({ workspaceId, appointment, ...options }: Pro
             action={(prev, formData) =>
               options.units
                 ? updateWorkspaceAppointmentAction(workspaceId, appointment.id, prev, formData)
-                : updateAppointmentAction(workspaceId, appointment.hotelId, appointment.id, prev, formData)
+                : updateAppointmentAction(workspaceId, appointment.unitId, appointment.id, prev, formData)
             }
             onDone={() => setEditOpen(false)}
           />
@@ -129,7 +129,7 @@ function DeleteAppointmentDialog({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteAppointmentAction(workspaceId, appointment.hotelId, appointment.id)
+      const result = await deleteAppointmentAction(workspaceId, appointment.unitId, appointment.id)
       setError(result.error)
       if (!result.error) onOpenChange(false)
     })

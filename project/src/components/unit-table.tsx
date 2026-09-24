@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Building2Icon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
-import { HotelActions } from "@/components/hotel-actions"
+import { UnitActions } from "@/components/unit-actions"
 import { SortableHead } from "@/components/sortable-head"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -11,12 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { HotelListQuery } from "@/lib/hotel-list"
+import type { UnitListQuery } from "@/lib/unit-list"
 import type { RevenueShare } from "@/lib/revenue-share"
 import { dateTimeFormat } from "@/lib/utils"
 
 type Props = {
-  hotels: {
+  units: {
     id: string
     name: string
     avatarUrl: string | null
@@ -24,14 +24,14 @@ type Props = {
     createdAt: Date
     updatedAt: Date
   }[]
-  query: HotelListQuery
+  query: UnitListQuery
   pathname: string
   workspaceId: string
   // Sem permissão, a coluna de ações (editar/excluir) não aparece.
   canManage: boolean
 }
 
-export function HotelTable({ hotels, query, pathname, workspaceId, canManage }: Props) {
+export function UnitTable({ units, query, pathname, workspaceId, canManage }: Props) {
   return (
     <div className="border">
       <Table>
@@ -51,39 +51,39 @@ export function HotelTable({ hotels, query, pathname, workspaceId, canManage }: 
           </TableRow>
         </TableHeader>
         <TableBody>
-          {hotels.length === 0 ? (
+          {units.length === 0 ? (
             <TableRow>
               <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhuma unidade encontrada.
               </TableCell>
             </TableRow>
           ) : (
-            hotels.map((hotel) => (
-              <TableRow key={hotel.id} className="relative cursor-pointer">
+            units.map((unit) => (
+              <TableRow key={unit.id} className="relative cursor-pointer">
                 <TableCell className="px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8 rounded-lg after:rounded-lg">
-                      {hotel.avatarUrl && (
-                        <AvatarImage src={hotel.avatarUrl} alt={hotel.name} className="rounded-lg" />
+                      {unit.avatarUrl && (
+                        <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />
                       )}
                       <AvatarFallback className="rounded-lg">
-                        {hotel.name.charAt(0).toUpperCase()}
+                        {unit.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     {/* O ::after estica o link sobre a linha inteira; a célula de ações fica por cima. */}
                     <Link
-                      href={`${pathname}/${hotel.id}`}
+                      href={`${pathname}/${unit.id}`}
                       className="truncate font-medium after:absolute after:inset-0 hover:underline"
                     >
-                      {hotel.name}
+                      {unit.name}
                     </Link>
                   </div>
                 </TableCell>
-                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(hotel.createdAt)}</TableCell>
-                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(hotel.updatedAt)}</TableCell>
+                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(unit.createdAt)}</TableCell>
+                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(unit.updatedAt)}</TableCell>
                 {canManage && (
                   <TableCell className="relative z-10 px-4 text-right">
-                    <HotelActions workspaceId={workspaceId} hotel={hotel} />
+                    <UnitActions workspaceId={workspaceId} unit={unit} />
                   </TableCell>
                 )}
               </TableRow>

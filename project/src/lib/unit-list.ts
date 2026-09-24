@@ -1,10 +1,10 @@
 import type { PipelineStage } from "mongoose";
 
-export const HOTEL_SORT_FIELDS = ["name", "createdAt", "updatedAt"] as const;
+export const UNIT_SORT_FIELDS = ["name", "createdAt", "updatedAt"] as const;
 
-export type HotelSortField = (typeof HOTEL_SORT_FIELDS)[number];
+export type UnitSortField = (typeof UNIT_SORT_FIELDS)[number];
 export type SortDir = "asc" | "desc";
-export type HotelListQuery = { q: string; sort: HotelSortField; dir: SortDir };
+export type UnitListQuery = { q: string; sort: UnitSortField; dir: SortDir };
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -12,11 +12,11 @@ export function first(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isSortField(value: string | undefined): value is HotelSortField {
-  return HOTEL_SORT_FIELDS.includes(value as HotelSortField);
+function isSortField(value: string | undefined): value is UnitSortField {
+  return UNIT_SORT_FIELDS.includes(value as UnitSortField);
 }
 
-export function parseHotelListQuery(params: SearchParams): HotelListQuery {
+export function parseUnitListQuery(params: SearchParams): UnitListQuery {
   const sort = first(params.sort);
   return {
     q: first(params.q)?.trim() ?? "",
@@ -29,8 +29,8 @@ export function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Etapas para a pipeline do $lookup de hotels do workspace.
-export function hotelListPipeline({ q, sort, dir }: HotelListQuery) {
+// Etapas para a pipeline do $lookup de units do workspace.
+export function unitListPipeline({ q, sort, dir }: UnitListQuery) {
   const stages: PipelineStage.FacetPipelineStage[] = [];
   if (q) stages.push({ $match: { name: { $regex: escapeRegex(q), $options: "i" } } });
   stages.push(

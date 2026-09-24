@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createBooking, deleteBooking, rescheduleBooking, updateBooking } from "@/lib/booking";
 
-const HOTEL_ID = "64b7f0c2a1b2c3d4e5f60720";
+const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 const BOOKING_ID = "64b7f0c2a1b2c3d4e5f60740";
 const CANDLE_ID = "64b7f0c2a1b2c3d4e5f60731";
 const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
@@ -38,11 +38,11 @@ describe("createBooking", () => {
   it("cria o agendamento com início/fim em UTC, massagista e cópia do nome do serviço", async () => {
     const deps = makeDeps();
 
-    const result = await createBooking(validInput, HOTEL_ID, deps);
+    const result = await createBooking(validInput, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: true, bookingId: BOOKING_ID });
     expect(deps.insert).toHaveBeenCalledWith({
-      hotelId: HOTEL_ID,
+      unitId: UNIT_ID,
       therapistId: ANA_ID,
       therapistName: "Ana",
       guest: { name: "João Silva", room: "204" },
@@ -55,7 +55,7 @@ describe("createBooking", () => {
   it("verifica conflito da massagista no intervalo do agendamento", async () => {
     const deps = makeDeps();
 
-    await createBooking(validInput, HOTEL_ID, deps);
+    await createBooking(validInput, UNIT_ID, deps);
 
     expect(deps.hasConflict).toHaveBeenCalledWith({
       therapistId: ANA_ID,
@@ -71,7 +71,7 @@ describe("createBooking", () => {
   ])("aceita serviço %s: agenda sem serviço e não busca serviço", async (_label, serviceId) => {
     const deps = makeDeps();
 
-    const result = await createBooking({ ...validInput, serviceId }, HOTEL_ID, deps);
+    const result = await createBooking({ ...validInput, serviceId }, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: true, bookingId: BOOKING_ID });
     expect(deps.findService).not.toHaveBeenCalled();
@@ -90,7 +90,7 @@ describe("createBooking", () => {
         durationMinutes: " 60 ",
         serviceId: ` ${CANDLE_ID} `,
       },
-      HOTEL_ID,
+      UNIT_ID,
       deps,
     );
 
@@ -108,7 +108,7 @@ describe("createBooking", () => {
   it("converte de Brasília para UTC e permite terminar no dia seguinte", async () => {
     const deps = makeDeps();
 
-    await createBooking({ ...validInput, startsAt: "2026-12-31T22:15", durationMinutes: "90" }, HOTEL_ID, deps);
+    await createBooking({ ...validInput, startsAt: "2026-12-31T22:15", durationMinutes: "90" }, UNIT_ID, deps);
 
     expect(deps.insert.mock.calls[0][0]).toEqual(
       expect.objectContaining({
@@ -119,7 +119,7 @@ describe("createBooking", () => {
   });
 
   it.each(["5", "720"])("aceita duração de %s minutos (limites)", async (durationMinutes) => {
-    const result = await createBooking({ ...validInput, durationMinutes }, HOTEL_ID, makeDeps());
+    const result = await createBooking({ ...validInput, durationMinutes }, UNIT_ID, makeDeps());
 
     expect(result).toEqual({ ok: true, bookingId: BOOKING_ID });
   });
@@ -127,7 +127,7 @@ describe("createBooking", () => {
   it("aceita nome do hóspede com 80 caracteres e quarto com 20 (limites)", async () => {
     const result = await createBooking(
       { ...validInput, guestName: "a".repeat(80), room: "1".repeat(20) },
-      HOTEL_ID,
+      UNIT_ID,
       makeDeps(),
     );
 
@@ -160,7 +160,7 @@ describe("createBooking", () => {
   ])("retorna erro sem buscar nem salvar quando %s", async (_label, input, error) => {
     const deps = makeDeps();
 
-    const result = await createBooking(input, HOTEL_ID, deps);
+    const result = await createBooking(input, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: false, error });
     expect(deps.findService).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe("createBooking", () => {
   it("retorna service_not_found sem salvar quando o serviço não é da unidade", async () => {
     const deps = makeDeps({ service: null });
 
-    const result = await createBooking(validInput, HOTEL_ID, deps);
+    const result = await createBooking(validInput, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: false, error: "service_not_found" });
     expect(deps.insert).not.toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe("createBooking", () => {
   it("retorna therapist_not_found sem checar conflito nem salvar quando a massagista não pode atender", async () => {
     const deps = makeDeps({ therapist: null });
 
-    const result = await createBooking(validInput, HOTEL_ID, deps);
+    const result = await createBooking(validInput, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: false, error: "therapist_not_found" });
     expect(deps.hasConflict).not.toHaveBeenCalled();
@@ -191,20 +191,20 @@ describe("createBooking", () => {
   it("retorna therapist_busy sem salvar quando a massagista já tem agendamento no horário", async () => {
     const deps = makeDeps({ busy: true });
 
-    const result = await createBooking(validInput, HOTEL_ID, deps);
+    const result = await createBooking(validInput, UNIT_ID, deps);
 
     expect(result).toEqual({ ok: false, error: "therapist_busy" });
     expect(deps.insert).not.toHaveBeenCalled();
   });
 
   it.each([undefined, null, ""])(
-    "retorna hotel_not_found sem buscar nem salvar quando não há hotelId (%j)",
-    async (hotelId) => {
+    "retorna unit_not_found sem buscar nem salvar quando não há unitId (%j)",
+    async (unitId) => {
       const deps = makeDeps();
 
-      const result = await createBooking(validInput, hotelId, deps);
+      const result = await createBooking(validInput, unitId, deps);
 
-      expect(result).toEqual({ ok: false, error: "hotel_not_found" });
+      expect(result).toEqual({ ok: false, error: "unit_not_found" });
       expect(deps.findTherapist).not.toHaveBeenCalled();
       expect(deps.insert).not.toHaveBeenCalled();
     },

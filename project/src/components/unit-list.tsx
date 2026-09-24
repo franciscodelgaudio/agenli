@@ -1,23 +1,23 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 type Props = {
-  hotels: { id: string; name: string; avatarUrl: string | null }[]
+  units: { id: string; name: string; avatarUrl: string | null }[]
 }
 
-export function HotelList({ hotels }: Props) {
+export function UnitList({ units }: Props) {
   return (
     <ul className="divide-y rounded-xl border">
-      {hotels.map((hotel) => (
-        <li key={hotel.id} className="flex items-center gap-3 p-4">
+      {units.map((unit) => (
+        <li key={unit.id} className="flex items-center gap-3 p-4">
           <Avatar className="size-10 rounded-lg after:rounded-lg">
-            {hotel.avatarUrl && (
-              <AvatarImage src={hotel.avatarUrl} alt={hotel.name} className="rounded-lg" />
+            {unit.avatarUrl && (
+              <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />
             )}
             <AvatarFallback className="rounded-lg">
-              {hotel.name.charAt(0).toUpperCase()}
+              {unit.name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <span className="truncate font-medium">{hotel.name}</span>
+          <span className="truncate font-medium">{unit.name}</span>
         </li>
       ))}
     </ul>

@@ -129,7 +129,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
     openSheet({
       mode: "create",
       values: {
-        hotelId: unit || (units.length === 1 ? units[0].id : null),
+        unitId: unit || (units.length === 1 ? units[0].id : null),
         therapistId: therapist || null,
         guestName: "",
         room: "",
@@ -194,7 +194,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-          {filterSelect("Filtrar por hotel", "Todos os hotéis", unit, setUnit, units)}
+          {filterSelect("Filtrar por unit", "Todos os hotéis", unit, setUnit, units)}
           {filterSelect("Filtrar por massagista", "Todas as massagistas", therapist, setTherapist, therapists)}
         </div>
         {canCreate && (
@@ -219,7 +219,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
       {canManage && !canCreate && (
         <p className="text-sm text-muted-foreground">
           {!units.length
-            ? "Cadastre um hotel antes de criar agendamentos."
+            ? "Cadastre uma unidade antes de criar agendamentos."
             : "Convide massagistas para o workspace (em Usuários) antes de criar agendamentos."}
         </p>
       )}
@@ -275,7 +275,7 @@ export function BookingCalendar({ workspaceId, canManage, units, therapists, ser
               mode: "edit",
               booking,
               values: {
-                hotelId: booking.hotelId,
+                unitId: booking.unitId,
                 therapistId: booking.therapistId,
                 guestName: booking.guest.name,
                 room: booking.guest.room,

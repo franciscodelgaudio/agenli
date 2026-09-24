@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, type LucideIcon } from "lucide-react"
 import { TableHead } from "@/components/ui/table"
-import type { SortDir } from "@/lib/hotel-list"
+import type { SortDir } from "@/lib/unit-list"
 
 type Props<F extends string> = {
   field: F

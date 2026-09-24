@@ -1,5 +1,5 @@
 import { Types, type PipelineStage } from "mongoose";
-import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/hotel-list";
+import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/unit-list";
 import { BRT_OFFSET_HOURS } from "@/lib/timezone";
 
 export { BRT_OFFSET_HOURS };
@@ -67,7 +67,7 @@ export function appointmentListPipeline({ date, q, sort, dir }: AppointmentListQ
       $project: {
         _id: 0,
         id: { $toString: "$_id" },
-        hotelId: { $toString: "$hotelId" },
+        unitId: { $toString: "$unitId" },
         performedAt: 1,
         guest: 1,
         items: {
@@ -109,5 +109,5 @@ export function parseWorkspaceAppointmentListQuery(
 // unidade só estreita o resultado, a restrição ao workspace vem do $lookup.
 export function workspaceAppointmentListPipeline({ unit, ...query }: WorkspaceAppointmentListQuery) {
   const stages = appointmentListPipeline(query);
-  return unit ? [{ $match: { hotelId: new Types.ObjectId(unit) } }, ...stages] : stages;
+  return unit ? [{ $match: { unitId: new Types.ObjectId(unit) } }, ...stages] : stages;
 }

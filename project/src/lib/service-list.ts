@@ -1,5 +1,5 @@
 import type { PipelineStage } from "mongoose";
-import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/hotel-list";
+import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/unit-list";
 
 export const SERVICE_SORT_FIELDS = ["name", "priceCents", "durationMinutes"] as const;
 

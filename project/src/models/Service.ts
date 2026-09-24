@@ -7,7 +7,7 @@ const serviceSchema = new Schema(
     name: { type: String, required: true, trim: true },
     priceCents: { type: Number, required: true, min: 0 },
     durationMinutes: { type: Number, required: true, min: 1 },
-    hotelId: { type: Schema.Types.ObjectId, ref: "Hotel", required: true, index: true },
+    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true, index: true },
   },
   { collection: "services", timestamps: true },
 );
