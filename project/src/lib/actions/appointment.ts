@@ -7,6 +7,8 @@ import { findManagedUnit } from "@/lib/unit-access"
 import { createAppointment, deleteAppointment, type CreateAppointmentError } from "@/lib/appointment"
 import { Appointment } from "@/models/Appointment"
 import { Service } from "@/models/Service"
+import { User } from "@/models/User"
+import { Workspace } from "@/models/Workspace"
 import { WorkspaceMember } from "@/models/WorkspaceMember"
 
 const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "unauthenticated", string> = {
@@ -20,7 +22,7 @@ const errorMessages: Record<CreateAppointmentError | "appointment_not_found" | "
   too_many_items: "Um atendimento pode ter no máximo 20 serviços.",
   invalid_item: "Escolha o serviço e a massagista de cada linha.",
   service_not_found: "Algum serviço não foi encontrado nesta unidade. Recarregue a página.",
-  therapist_not_found: "Alguma massagista não foi encontrada neste workspace. Recarregue a página.",
+  therapist_not_found: "Algum profissional escolhido não pode atender neste workspace. Recarregue a página.",
   hotel_not_found: "Unidade não encontrada ou sem permissão.",
   appointment_not_found: "Atendimento não encontrado ou sem permissão.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
@@ -65,21 +67,20 @@ export async function createAppointmentAction(
           durationMinutes,
         }))
       },
-      // Só membros que aceitaram o convite e têm função de massagista.
-      findTherapists: (ids) =>
-        WorkspaceMember.aggregate<{ id: string; name: string }>([
-          {
-            $match: {
-              _id: { $in: objectIds(ids) },
-              workspaceId: new Types.ObjectId(unit!.workspaceId),
-              role: "massage_therapist",
-              userId: { $ne: null },
-            },
-          },
-          { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
-          { $set: { user: { $first: "$user" } } },
-          { $project: { _id: 0, id: { $toString: "$_id" }, name: { $ifNull: ["$user.name", "$user.email"] } } },
-        ]),
+      // Quem pode atender: o proprietário e os membros com função de massagista que aceitaram o convite.
+      findTherapists: async (ids) => {
+        const userIds = objectIds(ids)
+        const [workspace, members] = await Promise.all([
+          Workspace.findById(unit!.workspaceId).select({ userId: 1 }).lean(),
+          WorkspaceMember.find({ workspaceId: unit!.workspaceId, role: "massage_therapist", userId: { $in: userIds } })
+            .select({ userId: 1 })
+            .lean(),
+        ])
+        const allowed = members.map((member) => member.userId!)
+        if (workspace && userIds.some((id) => id.equals(workspace.userId))) allowed.push(workspace.userId)
+        const users = await User.find({ _id: { $in: allowed } }).select({ name: 1, email: 1 }).lean()
+        return users.map((user) => ({ id: user._id.toString(), name: user.name ?? user.email }))
+      },
       insert: async (data) => {
         const appointment = await Appointment.create({ ...data, createdBy: userId })
         return { id: appointment._id.toString() }

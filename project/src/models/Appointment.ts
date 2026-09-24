@@ -9,8 +9,8 @@ const appointmentItemSchema = new Schema(
     serviceName: { type: String, required: true },
     priceCents: { type: Number, required: true, min: 0 },
     durationMinutes: { type: Number, required: true, min: 1 },
-    // _id do WorkspaceMember com função de massagista.
-    therapistId: { type: Schema.Types.ObjectId, ref: "WorkspaceMember", required: true },
+    // Usuário que fez o serviço: o proprietário ou um membro com função de massagista.
+    therapistId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     therapistName: { type: String, required: true },
   },
   { _id: false },

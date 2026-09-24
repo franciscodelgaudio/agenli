@@ -50,7 +50,7 @@ export default async function AppointmentsPage({
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
   // Parte do workspace -> unidade -> atendimentos para que o acesso seja garantido em cada nível.
-  // Serviços da unidade e massagistas do workspace alimentam o formulário; o total do dia
+  // Serviços da unidade e quem pode atender alimentam o formulário; o total do dia
   // sem busca separa "dia sem atendimentos" de "busca sem resultado".
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
@@ -107,6 +107,17 @@ export default async function AppointmentsPage({
         ],
       },
     },
+    // Quem pode atender: o proprietário (primeiro da lista) e os membros com função de
+    // massagista que aceitaram o convite. O id é o do usuário nos dois casos.
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "owner",
+        pipeline: [{ $project: { _id: 0, id: { $toString: "$_id" }, name: { $ifNull: ["$name", "$email"] } } }],
+      },
+    },
     {
       $lookup: {
         from: "workspace_members",
@@ -117,12 +128,19 @@ export default async function AppointmentsPage({
           { $match: { role: "massage_therapist", userId: { $ne: null } } },
           { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
           { $set: { user: { $first: "$user" } } },
-          { $project: { _id: 0, id: { $toString: "$_id" }, name: { $ifNull: ["$user.name", "$user.email"] } } },
+          { $project: { _id: 0, id: { $toString: "$userId" }, name: { $ifNull: ["$user.name", "$user.email"] } } },
           { $sort: { name: 1 } },
         ],
       },
     },
-    { $project: { _id: 0, role: 1, therapists: 1, hotel: { $ifNull: [{ $first: "$hotel" }, null] } } },
+    {
+      $project: {
+        _id: 0,
+        role: 1,
+        therapists: { $concatArrays: ["$owner", "$therapists"] },
+        hotel: { $ifNull: [{ $first: "$hotel" }, null] },
+      },
+    },
   ])
   if (!workspace?.hotel) notFound()
   const { appointments, dayCount, services } = workspace.hotel
