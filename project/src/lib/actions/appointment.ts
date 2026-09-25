@@ -4,6 +4,7 @@ import { refresh } from "next/cache"
 import { isObjectIdOrHexString } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
 import { findWorkspaceTherapists, objectIds } from "@/lib/therapist-lookup"
+import { findUnitProducts } from "@/lib/product-lookup"
 import { findManagedUnit } from "@/lib/unit-access"
 import {
   createAppointment,
@@ -33,6 +34,8 @@ const errorMessages: Record<
   service_not_found: "Algum serviço não foi encontrado nesta unidade. Recarregue a página.",
   therapist_not_found: "Algum profissional escolhido não pode atender neste workspace. Recarregue a página.",
   unit_not_found: "Escolha uma unidade válida deste workspace.",
+  too_many_products: "Escolha no máximo 20 produtos.",
+  product_not_found: "Algum produto não foi encontrado nesta unidade. Recarregue a página.",
   appointment_not_found: "Atendimento não encontrado ou sem permissão.",
   booking_not_found: "Agendamento não encontrado ou sem permissão.",
   booking_already_converted: "Este agendamento já foi registrado como atendimento.",
@@ -48,6 +51,7 @@ function appointmentInput(formData: FormData) {
     performedAt: formData.get("performedAt"),
     serviceIds: formData.getAll("serviceId"),
     therapistIds: formData.getAll("therapistId"),
+    productIds: formData.getAll("productId"),
   }
 }
 
@@ -66,6 +70,7 @@ function appointmentLookups(unit: { workspaceId: string; unitId: string }) {
       }))
     },
     findTherapists: (ids: string[]) => findWorkspaceTherapists(unit.workspaceId, ids),
+    findProducts: (ids: string[]) => findUnitProducts(unit.unitId, ids),
   }
 }
 

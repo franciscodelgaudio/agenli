@@ -4,6 +4,7 @@ import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers } from "@/lib/member"
 import { getSessionUserId } from "@/lib/session"
 import { findWorkspaceTherapists } from "@/lib/therapist-lookup"
+import { findUnitProducts } from "@/lib/product-lookup"
 import { findManagedUnit } from "@/lib/unit-access"
 import { findWorkspaceAccess } from "@/lib/workspace-access"
 import {
@@ -32,6 +33,8 @@ const errorMessages: Record<BookingError | "unauthenticated", string> = {
   therapist_busy: "A massagista já tem um agendamento nesse horário.",
   unit_not_found: "Escolha uma unidade válida deste workspace.",
   booking_not_found: "Agendamento não encontrado ou sem permissão.",
+  too_many_products: "Escolha no máximo 20 produtos.",
+  product_not_found: "Algum produto não foi encontrado nesta unidade. Recarregue a página.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
 
@@ -45,6 +48,7 @@ function bookingInput(formData: FormData) {
     startsAt: formData.get("startsAt"),
     durationMinutes: formData.get("durationMinutes"),
     serviceId: formData.get("serviceId"),
+    productIds: formData.getAll("productId"),
   }
 }
 
@@ -89,6 +93,7 @@ function bookingLookups(unit: { workspaceId: string; unitId: string }, unitIds: 
     },
     findTherapist: async (id: string) => (await findWorkspaceTherapists(unit.workspaceId, [id]))[0] ?? null,
     hasConflict: conflictChecker(unitIds),
+    findProducts: (ids: string[]) => findUnitProducts(unit.unitId, ids),
   }
 }
 

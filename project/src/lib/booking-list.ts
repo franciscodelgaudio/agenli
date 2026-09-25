@@ -1,5 +1,5 @@
 import { Types, type PipelineStage } from "mongoose";
-import { parseAppointmentListQuery, parseDay } from "@/lib/appointment-list";
+import { parseDay } from "@/lib/appointment-list";
 import { escapeRegex, first, type SearchParams, type SortDir } from "@/lib/unit-list";
 import { BRT_OFFSET_HOURS } from "@/lib/timezone";
 
@@ -87,51 +87,88 @@ export function bookingListPipeline({ start, end, unit, therapist }: BookingRang
   return stages;
 }
 
-// Lista do dia: chaves aceitas na URL e o campo correspondente no banco.
+// Lista: chaves aceitas na URL e o campo correspondente no banco.
 const SORT_PATHS = { startsAt: "startsAt", guestName: "guest.name", therapistName: "therapistName" } as const;
+export const BOOKING_PAGE_SIZE = 20;
+// pending: ainda não virou atendimento; done: já virou. Vazio = todos.
+const STATUSES = ["pending", "done"] as const;
 
 export type BookingSortField = keyof typeof SORT_PATHS;
+export type BookingStatus = (typeof STATUSES)[number];
+// from/to: dias de Brasília, ambos incluídos; vazios = sem limite.
 export type BookingListQuery = {
-  date: string;
   q: string;
   sort: BookingSortField;
   dir: SortDir;
   unit: string;
   therapist: string;
+  status: BookingStatus | "";
+  from: string;
+  to: string;
+  page: number;
 };
+
+// Uma página da lista e o total que passou pela busca e pelos filtros.
+export type BookingPage = { rows: BookingRow[]; total: number };
 
 function isSortField(value: string | undefined): value is BookingSortField {
   return value !== undefined && Object.hasOwn(SORT_PATHS, value);
 }
 
-export function parseBookingListQuery(params: SearchParams, now = new Date()): BookingListQuery {
-  // Data, busca e direção seguem as mesmas regras da lista de atendimentos.
-  const { date, q, dir } = parseAppointmentListQuery(params, now);
+function dayOrEmpty(value: string | undefined) {
+  return value && parseDay(value) ? value : "";
+}
+
+export function parseBookingListQuery(params: SearchParams): BookingListQuery {
   const sort = first(params.sort);
+  const status = first(params.status);
+  const page = first(params.page);
   return {
-    date,
-    q,
+    q: first(params.q)?.trim() ?? "",
     sort: isSortField(sort) ? sort : "startsAt",
-    dir,
+    dir: first(params.dir) === "asc" ? "asc" : "desc",
     unit: objectIdOrEmpty(first(params.unit)),
     therapist: objectIdOrEmpty(first(params.therapist)),
+    status: STATUSES.includes(status as BookingStatus) ? (status as BookingStatus) : "",
+    from: dayOrEmpty(first(params.from)),
+    to: dayOrEmpty(first(params.to)),
+    page: page && /^[1-9]\d*$/.test(page) ? Number(page) : 1,
   };
 }
 
-// Etapas para o $lookup de bookings a partir das unidades do workspace: os que começam no dia.
-export function bookingDayListPipeline({ date, q, sort, dir, unit, therapist }: BookingListQuery) {
-  const start = dayStart(date)!;
-  const match: Record<string, unknown> = { startsAt: { $gte: start, $lt: new Date(start.getTime() + DAY_MS) } };
+// Etapas para o $lookup de bookings a partir das unidades do workspace: todos, com busca e filtros,
+// terminando num único documento BookingPage.
+export function bookingSearchPipeline({ q, sort, dir, unit, therapist, status, from, to, page }: BookingListQuery) {
+  const match: Record<string, unknown> = {};
+  if (from || to) {
+    const startsAt: Record<string, Date> = {};
+    if (from) startsAt.$gte = dayStart(from)!;
+    if (to) startsAt.$lt = new Date(dayStart(to)!.getTime() + DAY_MS);
+    match.startsAt = startsAt;
+  }
   if (unit) match.unitId = new Types.ObjectId(unit);
   if (therapist) match.therapistId = new Types.ObjectId(therapist);
-  const stages: PipelineStage.FacetPipelineStage[] = [{ $match: match }];
+  // null também pega os antigos sem o campo.
+  if (status) match.appointmentId = status === "done" ? { $ne: null } : null;
+  const stages: Exclude<PipelineStage, PipelineStage.Merge | PipelineStage.Out>[] = [];
+  if (Object.keys(match).length) stages.push({ $match: match });
   if (q) {
     const regex = { $regex: escapeRegex(q), $options: "i" };
-    stages.push({ $match: { $or: [{ "guest.name": regex }, { "guest.room": regex }] } });
+    stages.push({
+      $match: {
+        $or: [{ "guest.name": regex }, { "guest.room": regex }, { therapistName: regex }, { "service.serviceName": regex }],
+      },
+    });
   }
   stages.push(
     { $sort: { [SORT_PATHS[sort]]: dir === "desc" ? -1 : 1, _id: 1 } },
-    BOOKING_PROJECT,
+    {
+      $facet: {
+        rows: [{ $skip: (page - 1) * BOOKING_PAGE_SIZE }, { $limit: BOOKING_PAGE_SIZE }, BOOKING_PROJECT],
+        total: [{ $count: "n" }],
+      },
+    },
+    { $project: { rows: 1, total: { $ifNull: [{ $first: "$total.n" }, 0] } } },
   );
   return stages;
 }

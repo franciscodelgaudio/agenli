@@ -1,3 +1,5 @@
+import { resolveProducts, type FindProducts, type ProductSelectionError } from "@/lib/product-selection";
+
 const MAX_NAME_LENGTH = 80;
 const MAX_PRICE_CENTS = 100_000_000; // R$ 1.000.000,00
 const MAX_DURATION_MINUTES = 1440; // 24h
@@ -7,12 +9,14 @@ export type ServiceInputError =
   | "invalid_name"
   | "name_too_long"
   | "invalid_price"
-  | "invalid_duration";
+  | "invalid_duration"
+  | ProductSelectionError;
 
-export type ServiceData = { name: string; priceCents: number; durationMinutes: number };
+// productIds: produtos que o serviço costuma usar, pré-marcados em agendamentos e atendimentos.
+export type ServiceData = { name: string; priceCents: number; durationMinutes: number; productIds: string[] };
 
 // "350.5" -> 35050. Feito sobre a string para não depender de arredondamento de float.
-function parsePriceCents(value: string) {
+export function parsePriceCents(value: string) {
   const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
   if (!match) return null;
   const cents = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
@@ -26,10 +30,11 @@ function parseDurationMinutes(value: string) {
 }
 
 // Valida e normaliza os campos como chegam do FormData (strings).
-function parseServiceInput(
+async function parseServiceInput(
   input: unknown,
-): ({ ok: true } & ServiceData) | { ok: false; error: ServiceInputError } {
-  const { name, price, durationMinutes } = (input ?? {}) as Record<string, unknown>;
+  findProducts: FindProducts,
+): Promise<({ ok: true } & ServiceData) | { ok: false; error: ServiceInputError }> {
+  const { name, price, durationMinutes, productIds } = (input ?? {}) as Record<string, unknown>;
   if (typeof name !== "string" || typeof price !== "string" || typeof durationMinutes !== "string") {
     return { ok: false, error: "invalid_input" };
   }
@@ -44,7 +49,16 @@ function parseServiceInput(
   const minutes = parseDurationMinutes(durationMinutes.trim());
   if (minutes === null) return { ok: false, error: "invalid_duration" };
 
-  return { ok: true, name: normalizedName, priceCents, durationMinutes: minutes };
+  const selection = await resolveProducts(productIds, findProducts);
+  if (!selection.ok) return selection;
+
+  return {
+    ok: true,
+    name: normalizedName,
+    priceCents,
+    durationMinutes: minutes,
+    productIds: selection.products.map((product) => product.productId),
+  };
 }
 
 export type CreateServiceError = ServiceInputError | "unit_not_found";
@@ -56,15 +70,18 @@ export type CreateServiceResult =
 export async function createService(
   input: unknown,
   unitId: string | null | undefined,
-  insert: (data: ServiceData & { unitId: string }) => Promise<{ id: string }>,
+  {
+    insert,
+    findProducts,
+  }: { insert: (data: ServiceData & { unitId: string }) => Promise<{ id: string }>; findProducts: FindProducts },
 ): Promise<CreateServiceResult> {
   if (!unitId) return { ok: false, error: "unit_not_found" };
 
-  const parsed = parseServiceInput(input);
+  const parsed = await parseServiceInput(input, findProducts);
   if (!parsed.ok) return parsed;
 
-  const { name, priceCents, durationMinutes } = parsed;
-  const service = await insert({ name, priceCents, durationMinutes, unitId });
+  const { name, priceCents, durationMinutes, productIds } = parsed;
+  const service = await insert({ name, priceCents, durationMinutes, productIds, unitId });
   return { ok: true, serviceId: service.id };
 }
 
@@ -76,15 +93,18 @@ export type UpdateServiceResult = { ok: true } | { ok: false; error: UpdateServi
 export async function updateService(
   input: unknown,
   serviceId: string | null | undefined,
-  update: (serviceId: string, data: ServiceData) => Promise<boolean>,
+  {
+    update,
+    findProducts,
+  }: { update: (serviceId: string, data: ServiceData) => Promise<boolean>; findProducts: FindProducts },
 ): Promise<UpdateServiceResult> {
   if (!serviceId) return { ok: false, error: "service_not_found" };
 
-  const parsed = parseServiceInput(input);
+  const parsed = await parseServiceInput(input, findProducts);
   if (!parsed.ok) return parsed;
 
-  const { name, priceCents, durationMinutes } = parsed;
-  const found = await update(serviceId, { name, priceCents, durationMinutes });
+  const { name, priceCents, durationMinutes, productIds } = parsed;
+  const found = await update(serviceId, { name, priceCents, durationMinutes, productIds });
   return found ? { ok: true } : { ok: false, error: "service_not_found" };
 }
 

@@ -3,6 +3,19 @@ import { createService, deleteService, updateService } from "@/lib/service";
 
 const UNIT_ID = "64b7f0c2a1b2c3d4e5f60720";
 const SERVICE_ID = "64b7f0c2a1b2c3d4e5f60730";
+const OIL_ID = "64b7f0c2a1b2c3d4e5f60761";
+const TOWEL_ID = "64b7f0c2a1b2c3d4e5f60762";
+const OTHER_UNIT_PRODUCT_ID = "64b7f0c2a1b2c3d4e5f60769";
+
+const PRODUCTS = [
+  { id: OIL_ID, name: "Óleo de amêndoas" },
+  { id: TOWEL_ID, name: "Toalha" },
+];
+
+// Devolve só os produtos que existem na unidade.
+function makeFindProducts() {
+  return vi.fn(async (ids: string[]) => PRODUCTS.filter((p) => ids.includes(p.id)));
+}
 
 // Como chega do FormData: o input de preço é type="number", que sempre envia ponto decimal.
 const validInput = { name: "Massagem Candle", price: "350", durationMinutes: "60" };
@@ -15,13 +28,14 @@ describe("createService", () => {
   it("cria o serviço na unidade com o preço em centavos e retorna o id", async () => {
     const insert = makeInsert();
 
-    const result = await createService(validInput, UNIT_ID, insert);
+    const result = await createService(validInput, UNIT_ID, { insert, findProducts: makeFindProducts() });
 
     expect(result).toEqual({ ok: true, serviceId: SERVICE_ID });
     expect(insert).toHaveBeenCalledWith({
       name: "Massagem Candle",
       priceCents: 35000,
       durationMinutes: 60,
+      productIds: [],
       unitId: UNIT_ID,
     });
   });
@@ -32,13 +46,14 @@ describe("createService", () => {
     await createService(
       { name: "  Massagem Candle  ", price: " 350 ", durationMinutes: " 90 " },
       UNIT_ID,
-      insert,
+      { insert, findProducts: makeFindProducts() },
     );
 
     expect(insert).toHaveBeenCalledWith({
       name: "Massagem Candle",
       priceCents: 35000,
       durationMinutes: 90,
+      productIds: [],
       unitId: UNIT_ID,
     });
   });
@@ -53,7 +68,7 @@ describe("createService", () => {
   ])("converte o preço %j em %d centavos", async (price, priceCents) => {
     const insert = makeInsert();
 
-    await createService({ ...validInput, price }, UNIT_ID, insert);
+    await createService({ ...validInput, price }, UNIT_ID, { insert, findProducts: makeFindProducts() });
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ priceCents }));
   });
@@ -64,13 +79,13 @@ describe("createService", () => {
   ])("aceita duração de %s minuto(s) (limites)", async (durationMinutes, expected) => {
     const insert = makeInsert();
 
-    await createService({ ...validInput, durationMinutes }, UNIT_ID, insert);
+    await createService({ ...validInput, durationMinutes }, UNIT_ID, { insert, findProducts: makeFindProducts() });
 
     expect(insert).toHaveBeenCalledWith(expect.objectContaining({ durationMinutes: expected }));
   });
 
   it("aceita nome com exatamente 80 caracteres", async () => {
-    const result = await createService({ ...validInput, name: "a".repeat(80) }, UNIT_ID, makeInsert());
+    const result = await createService({ ...validInput, name: "a".repeat(80) }, UNIT_ID, { insert: makeInsert(), findProducts: makeFindProducts() });
 
     expect(result).toEqual({ ok: true, serviceId: SERVICE_ID });
   });
@@ -99,7 +114,7 @@ describe("createService", () => {
   ])("retorna erro sem salvar quando %s", async (_label, input, error) => {
     const insert = makeInsert();
 
-    const result = await createService(input, UNIT_ID, insert);
+    const result = await createService(input, UNIT_ID, { insert, findProducts: makeFindProducts() });
 
     expect(result).toEqual({ ok: false, error });
     expect(insert).not.toHaveBeenCalled();
@@ -110,12 +125,42 @@ describe("createService", () => {
     async (unitId) => {
       const insert = makeInsert();
 
-      const result = await createService(validInput, unitId, insert);
+      const result = await createService(validInput, unitId, { insert, findProducts: makeFindProducts() });
 
       expect(result).toEqual({ ok: false, error: "unit_not_found" });
       expect(insert).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("createService com produtos padrão", () => {
+  it("salva os ids dos produtos padrão da unidade, sem repetição e na ordem escolhida", async () => {
+    const insert = vi.fn().mockResolvedValue({ id: SERVICE_ID });
+    const findProducts = makeFindProducts();
+
+    const result = await createService(
+      { ...validInput, productIds: [TOWEL_ID, OIL_ID, TOWEL_ID] },
+      UNIT_ID,
+      { insert, findProducts },
+    );
+
+    expect(result).toEqual({ ok: true, serviceId: SERVICE_ID });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ productIds: [TOWEL_ID, OIL_ID] }));
+    expect(findProducts).toHaveBeenCalledWith([TOWEL_ID, OIL_ID]);
+  });
+
+  it.each([
+    ["seleção que não é lista", { ...validInput, productIds: OIL_ID }, "invalid_input"],
+    ["mais de 20 produtos", { ...validInput, productIds: Array.from({ length: 21 }, (_, i) => `id-${i}`) }, "too_many_products"],
+    ["produto de outra unidade", { ...validInput, productIds: [OIL_ID, OTHER_UNIT_PRODUCT_ID] }, "product_not_found"],
+  ])("retorna erro sem salvar quando há %s", async (_label, input, error) => {
+    const insert = vi.fn().mockResolvedValue({ id: SERVICE_ID });
+
+    const result = await createService(input, UNIT_ID, { insert, findProducts: makeFindProducts() });
+
+    expect(result).toEqual({ ok: false, error });
+    expect(insert).not.toHaveBeenCalled();
+  });
 });
 
 describe("updateService", () => {
@@ -129,7 +174,7 @@ describe("updateService", () => {
     const result = await updateService(
       { name: "  Massagem Candle  ", price: "380.90", durationMinutes: "75" },
       SERVICE_ID,
-      update,
+      { update, findProducts: makeFindProducts() },
     );
 
     expect(result).toEqual({ ok: true });
@@ -137,7 +182,20 @@ describe("updateService", () => {
       name: "Massagem Candle",
       priceCents: 38090,
       durationMinutes: 75,
+      productIds: [],
     });
+  });
+
+  // Enviar a lista vazia apaga os produtos padrão salvos.
+  it("troca os produtos padrão pelos escolhidos", async () => {
+    const update = makeUpdate();
+
+    await updateService({ ...validInput, productIds: [OIL_ID] }, SERVICE_ID, {
+      update,
+      findProducts: makeFindProducts(),
+    });
+
+    expect(update).toHaveBeenCalledWith(SERVICE_ID, expect.objectContaining({ productIds: [OIL_ID] }));
   });
 
   it.each([
@@ -146,10 +204,11 @@ describe("updateService", () => {
     ["nome com mais de 80 caracteres", { ...validInput, name: "a".repeat(81) }, "name_too_long"],
     ["preço negativo", { ...validInput, price: "-10" }, "invalid_price"],
     ["duração zero", { ...validInput, durationMinutes: "0" }, "invalid_duration"],
+    ["produto de outra unidade", { ...validInput, productIds: [OTHER_UNIT_PRODUCT_ID] }, "product_not_found"],
   ])("retorna erro sem salvar quando %s", async (_label, input, error) => {
     const update = makeUpdate();
 
-    const result = await updateService(input, SERVICE_ID, update);
+    const result = await updateService(input, SERVICE_ID, { update, findProducts: makeFindProducts() });
 
     expect(result).toEqual({ ok: false, error });
     expect(update).not.toHaveBeenCalled();
@@ -160,7 +219,7 @@ describe("updateService", () => {
     async (serviceId) => {
       const update = makeUpdate();
 
-      const result = await updateService(validInput, serviceId, update);
+      const result = await updateService(validInput, serviceId, { update, findProducts: makeFindProducts() });
 
       expect(result).toEqual({ ok: false, error: "service_not_found" });
       expect(update).not.toHaveBeenCalled();
@@ -168,7 +227,7 @@ describe("updateService", () => {
   );
 
   it("retorna service_not_found quando o serviço não existe (ou não é da unidade)", async () => {
-    const result = await updateService(validInput, SERVICE_ID, makeUpdate(false));
+    const result = await updateService(validInput, SERVICE_ID, { update: makeUpdate(false), findProducts: makeFindProducts() });
 
     expect(result).toEqual({ ok: false, error: "service_not_found" });
   });

@@ -10,6 +10,8 @@ import {
   serviceBookingForecastPipeline,
   summarizeCashFlow,
   summarizeServices,
+  summarizeTherapists,
+  type CommissionRates,
   type DayTotal,
   type ServiceTotal,
 } from "@/lib/cash-flow"
@@ -18,9 +20,11 @@ import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Appointment } from "@/models/Appointment"
 import { Booking } from "@/models/Booking"
 import { Workspace } from "@/models/Workspace"
+import { WorkspaceMember } from "@/models/WorkspaceMember"
 import { CashFlowNav } from "@/components/cash-flow-nav"
 import { CashFlowServicesTable } from "@/components/cash-flow-services-table"
 import { CashFlowTable } from "@/components/cash-flow-table"
+import { CashFlowTherapistsTable } from "@/components/cash-flow-therapists-table"
 import { periodLabels } from "@/components/revenue-share-labels"
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
@@ -36,7 +40,7 @@ export default async function CashFlowPage({
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
   // Parte do workspace para garantir o acesso; a regra de repasse define quantos dias buscar.
-  const [workspace] = await Workspace.aggregate<{ unit: { revenueShare: RevenueShare | null } | null }>([
+  const [workspace] = await Workspace.aggregate<{ id: string; unit: { revenueShare: RevenueShare | null } | null }>([
     ...access,
     {
       $lookup: {
@@ -50,7 +54,7 @@ export default async function CashFlowPage({
         ],
       },
     },
-    { $project: { _id: 0, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
+    { $project: { _id: 0, id: { $toString: "$_id" }, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
   if (!workspace?.unit) notFound()
   const { revenueShare } = workspace.unit
@@ -59,14 +63,30 @@ export default async function CashFlowPage({
   const shown = { from: buckets[0].from, to: buckets.at(-1)!.to }
   const range = cashFlowFetchRange(buckets, revenueShare?.period ?? null)
   const unitMatch = { $match: { unitId: new Types.ObjectId(unitId) } }
-  const [appointments, bookings, serviceAppointments, serviceBookings] = await Promise.all([
+  const [appointments, bookings, serviceAppointments, serviceBookings, therapists] = await Promise.all([
     Appointment.aggregate<DayTotal>([unitMatch, ...dailyAppointmentTotalsPipeline(range)]),
     Booking.aggregate<DayTotal>([unitMatch, ...dailyBookingForecastPipeline(range, now)]),
     Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(shown)]),
     Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(shown, now)]),
+    // Comissão das massagistas vinculadas a esta unidade (o proprietário não tem).
+    WorkspaceMember.find({
+      workspaceId: workspace.id,
+      role: "massage_therapist",
+      userId: { $ne: null },
+      units: { $elemMatch: { unitId, commissionPercent: { $ne: null } } },
+    })
+      .select({ userId: 1, units: 1 })
+      .lean(),
   ])
-  const summary = summarizeCashFlow(buckets, appointments, bookings, revenueShare)
+  const commissionRates: CommissionRates = {}
+  for (const member of therapists) {
+    const link = member.units.find((unit) => unit.unitId.equals(unitId))
+    if (link?.commissionPercent != null) commissionRates[member.userId!.toString()] = link.commissionPercent
+  }
+  const summary = summarizeCashFlow(buckets, appointments, bookings, revenueShare, commissionRates)
   const services = summarizeServices(serviceAppointments, serviceBookings)
+  const therapistRows = summarizeTherapists(shown, appointments, bookings, commissionRates)
+  const hasCommission = Object.keys(commissionRates).length > 0
 
   const today = parseCashFlowQuery({}, now).date
   const pathname = `/workspace/${workspaceId}/unit/${unitId}/cash-flow`
@@ -81,18 +101,32 @@ export default async function CashFlowPage({
         today={today}
         pathname={pathname}
       />
-      <CashFlowTable view={query.view} summary={summary} hasPartnerShare={!!revenueShare} today={today} />
+      <CashFlowTable
+        view={query.view}
+        summary={summary}
+        hasPartnerShare={!!revenueShare}
+        hasCommission={hasCommission}
+        today={today}
+      />
       <p className="text-sm text-muted-foreground">
         Real soma os atendimentos registrados. Previsto soma também os agendamentos de agora em diante, pelo
         preço atual do serviço.{" "}
         {revenueShare
           ? `O repasse ao estabelecimento é calculado sobre o faturamento ${periodLabels[revenueShare.period].toLowerCase()} e distribuído proporcionalmente entre os períodos.`
-          : "Unidade em espaço próprio: sem repasse, o lucro líquido é igual ao bruto."}
+          : "Unidade em espaço próprio: sem repasse."}{" "}
+        {hasCommission
+          ? "A comissão de cada massagista é calculada sobre o valor dos serviços que ela fez, e sai do líquido junto com o repasse."
+          : "Nenhuma massagista com comissão nesta unidade (defina em Equipe)."}
       </p>
       <h4 className="mt-4 font-semibold tracking-tight">Por serviço</h4>
       <CashFlowServicesTable services={services} />
       <p className="text-sm text-muted-foreground">
         Valores brutos de cada serviço no período, com a quantidade realizada e agendada.
+      </p>
+      <h4 className="mt-4 font-semibold tracking-tight">Por massagista</h4>
+      <CashFlowTherapistsTable therapists={therapistRows} />
+      <p className="text-sm text-muted-foreground">
+        Serviços de cada massagista no período e a comissão pelo percentual definido em Equipe.
       </p>
     </div>
   )

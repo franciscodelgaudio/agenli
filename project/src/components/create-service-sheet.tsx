@@ -7,6 +7,7 @@ import { createServiceAction, type ServiceActionState } from "@/lib/actions/serv
 import { Button } from "@/components/ui/button"
 import { FieldError, FieldGroup } from "@/components/ui/field"
 import { ServiceFields } from "@/components/service-fields"
+import type { ProductOption } from "@/components/product-picker"
 import {
   Sheet,
   SheetContent,
@@ -17,7 +18,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 
-export function CreateServiceSheet({ workspaceId, unitId }: { workspaceId: string; unitId: string }) {
+type Props = { workspaceId: string; unitId: string; products: ProductOption[] }
+
+export function CreateServiceSheet({ workspaceId, unitId, products }: Props) {
   const [open, setOpen] = useState(false)
   const [state, formAction, pending] = useActionState(
     async (prev: ServiceActionState, formData: FormData) => {
@@ -43,7 +46,7 @@ export function CreateServiceSheet({ workspaceId, unitId }: { workspaceId: strin
           {/* Só os campos rolam; título e botões ficam fixos. */}
           <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
-            <ServiceFields idPrefix="create-service" />
+            <ServiceFields idPrefix="create-service" products={products} />
           </FieldGroup>
           <SheetFooter>
             <Button type="submit" disabled={pending}>

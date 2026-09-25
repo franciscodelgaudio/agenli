@@ -17,13 +17,27 @@ import {
 
 type Props = {
   bookings: BookingRow[]
-  query: BookingListQuery
+  // Sem a página: ordenar volta para a primeira.
+  query: Omit<BookingListQuery, "page">
   pathname: string
   workspaceId: string
   // Opções do formulário de edição; com units (visão do workspace), aparece a coluna Unidade.
   options: BookingFormOptions
   // Sem permissão, a coluna de ações não aparece.
   canManage: boolean
+}
+
+// As datas já vêm no horário de Brasília, então são formatadas em UTC para não deslocar.
+const dayFormat = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+})
+
+function formatDay(dateTime: string) {
+  return dayFormat.format(new Date(`${dateTime.slice(0, 10)}T00:00:00Z`))
 }
 
 function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) {
@@ -75,7 +89,8 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
               return (
                 <TableRow key={booking.id} className="align-top">
                   <TableCell className="px-4">
-                    <div className="tabular-nums">
+                    <div className="font-medium">{formatDay(booking.startsAt)}</div>
+                    <div className="text-muted-foreground tabular-nums">
                       {booking.startsAt.slice(11)}–{booking.endsAt.slice(11)}
                     </div>
                     {booking.appointmentId && (

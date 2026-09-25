@@ -1,0 +1,26 @@
+diff --git a/node_modules/@fullcalendar/react/chunks/9631f043.js b/node_modules/@fullcalendar/react/chunks/9631f043.js
+index b50726d..ede8a3c 100644
+--- a/node_modules/@fullcalendar/react/chunks/9631f043.js
++++ b/node_modules/@fullcalendar/react/chunks/9631f043.js
+@@ -2767,7 +2767,7 @@ class DayGridRows extends DateComponent {
+                         // refs
+                         heightRef: rowHeightRefMap.createRef(cells[0].key) }, firstCellKey + ':' + cells[0].key))) }), needsMoreLinkProbe && (jsx(MoreLinkTrigger, { num: 1, display: 'row', isNarrow: props.cellIsNarrow, isMicro: props.cellIsMicro, elRef: this.handleMoreLinkEl, className: classNames.offscreen, attrs: {
+                         'aria-hidden': true,
+-                        inert: '',
++                        inert: true,
+                     } }))] }));
+     }
+     componentDidMount() {
+diff --git a/node_modules/@fullcalendar/react/chunks/fcbe493e.js b/node_modules/@fullcalendar/react/chunks/fcbe493e.js
+index efca54c..4db6d5c 100644
+--- a/node_modules/@fullcalendar/react/chunks/fcbe493e.js
++++ b/node_modules/@fullcalendar/react/chunks/fcbe493e.js
+@@ -375,7 +375,7 @@ class TimeGridAllDayLane extends DateComponent {
+                     /* BAD: these overwrite the props! caller might want to pass them */
+                     rootElRef: this.handleRootEl, heightRef: this.heightRef }), needsMoreLinkProbe && (jsx(MoreLinkTrigger, { num: 1, display: 'row', isNarrow: props.cellIsNarrow, isMicro: props.cellIsMicro, elRef: this.handleMoreLinkEl, className: classNames.offscreen, attrs: {
+                         'aria-hidden': true,
+-                        inert: '',
++                        inert: true,
+                     } }))] }));
+     }
+     componentDidMount() {

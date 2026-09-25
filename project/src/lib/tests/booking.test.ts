@@ -8,6 +8,13 @@ const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
 
 const CANDLE = { id: CANDLE_ID, name: "Massagem Candle" };
 const ANA = { id: ANA_ID, name: "Ana" };
+const OIL_ID = "64b7f0c2a1b2c3d4e5f60761";
+const TOWEL_ID = "64b7f0c2a1b2c3d4e5f60762";
+const OTHER_UNIT_PRODUCT_ID = "64b7f0c2a1b2c3d4e5f60769";
+const PRODUCTS = [
+  { id: OIL_ID, name: "Óleo de amêndoas" },
+  { id: TOWEL_ID, name: "Toalha" },
+];
 
 // Como chega do FormData: início no horário de Brasília e duração em minutos (texto).
 const validInput = {
@@ -26,6 +33,8 @@ function makeLookups({ service = CANDLE as typeof CANDLE | null, therapist = ANA
     findTherapist: vi.fn(async (id: string) => (therapist?.id === id ? therapist : null)),
     // true quando a massagista já tem outro agendamento que se sobrepõe ao intervalo.
     hasConflict: vi.fn(async () => busy),
+    // Devolve só os produtos que existem na unidade.
+    findProducts: vi.fn(async (ids: string[]) => PRODUCTS.filter((p) => ids.includes(p.id))),
   };
 }
 
@@ -48,6 +57,7 @@ describe("createBooking", () => {
       startsAt: new Date("2026-09-24T17:30:00.000Z"),
       endsAt: new Date("2026-09-24T18:30:00.000Z"),
       service: { serviceId: CANDLE_ID, serviceName: "Massagem Candle" },
+      products: [],
     });
   });
 
@@ -185,6 +195,31 @@ describe("createBooking", () => {
     expect(deps.insert).not.toHaveBeenCalled();
   });
 
+  it("salva os produtos escolhidos com cópia do nome, sem repetição", async () => {
+    const deps = makeDeps();
+
+    await createBooking({ ...validInput, productIds: [TOWEL_ID, OIL_ID, TOWEL_ID] }, UNIT_ID, deps);
+
+    expect(deps.findProducts).toHaveBeenCalledWith([TOWEL_ID, OIL_ID]);
+    expect(deps.insert.mock.calls[0][0].products).toEqual([
+      { productId: TOWEL_ID, productName: "Toalha" },
+      { productId: OIL_ID, productName: "Óleo de amêndoas" },
+    ]);
+  });
+
+  it.each([
+    ["seleção de produtos que não é lista", { ...validInput, productIds: OIL_ID }, "invalid_input"],
+    ["mais de 20 produtos", { ...validInput, productIds: Array.from({ length: 21 }, (_, i) => `id-${i}`) }, "too_many_products"],
+    ["produto de outra unidade", { ...validInput, productIds: [OTHER_UNIT_PRODUCT_ID] }, "product_not_found"],
+  ])("retorna erro sem salvar quando há %s", async (_label, input, error) => {
+    const deps = makeDeps();
+
+    const result = await createBooking(input, UNIT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error });
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
   it.each([undefined, null, ""])(
     "retorna unit_not_found sem buscar nem salvar quando não há unitId (%j)",
     async (unitId) => {
@@ -228,7 +263,26 @@ describe("updateBooking", () => {
       startsAt: new Date("2026-09-24T19:00:00.000Z"),
       endsAt: new Date("2026-09-24T19:45:00.000Z"),
       service: { serviceId: CANDLE_ID, serviceName: "Massagem Candle" },
+      products: [],
     });
+  });
+
+  // Enviar a lista vazia apaga os produtos salvos.
+  it("troca os produtos pelos escolhidos", async () => {
+    const deps = makeDeps();
+
+    await updateBooking({ ...validInput, productIds: [OIL_ID] }, BOOKING_ID, deps);
+
+    expect(deps.update.mock.calls[0][1].products).toEqual([{ productId: OIL_ID, productName: "Óleo de amêndoas" }]);
+  });
+
+  it("retorna product_not_found sem salvar quando algum produto não é da unidade", async () => {
+    const deps = makeDeps();
+
+    const result = await updateBooking({ ...validInput, productIds: [OTHER_UNIT_PRODUCT_ID] }, BOOKING_ID, deps);
+
+    expect(result).toEqual({ ok: false, error: "product_not_found" });
+    expect(deps.update).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -3,6 +3,7 @@
 import { refresh } from "next/cache"
 import { isObjectIdOrHexString } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
+import { findUnitProducts } from "@/lib/product-lookup"
 import { findManagedUnit } from "@/lib/unit-access"
 import {
   createService,
@@ -15,6 +16,8 @@ import { Service } from "@/models/Service"
 
 const errorMessages: Record<CreateServiceError | UpdateServiceError | "unauthenticated", string> = {
   invalid_input: "Preencha nome, valor e duração.",
+  too_many_products: "Escolha no máximo 20 produtos.",
+  product_not_found: "Algum produto não foi encontrado nesta unidade. Recarregue a página.",
   invalid_name: "Informe o nome do serviço.",
   name_too_long: "O nome pode ter no máximo 80 caracteres.",
   invalid_price: "Informe um valor entre R$ 0,00 e R$ 1.000.000,00, com até 2 casas decimais.",
@@ -38,6 +41,7 @@ function serviceInput(formData: FormData) {
     name: formData.get("name"),
     price: formData.get("price"),
     durationMinutes: formData.get("durationMinutes"),
+    productIds: formData.getAll("productId"),
   }
 }
 
@@ -51,9 +55,12 @@ export async function createServiceAction(
   const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
   if (ownedUnitId === null) return { error: errorMessages.unauthenticated }
 
-  const result = await createService(serviceInput(formData), ownedUnitId, async (data) => {
-    const service = await Service.create(data)
-    return { id: service._id.toString() }
+  const result = await createService(serviceInput(formData), ownedUnitId, {
+    insert: async (data) => {
+      const service = await Service.create(data)
+      return { id: service._id.toString() }
+    },
+    findProducts: (ids) => findUnitProducts(ownedUnitId!, ids),
   })
 
   if (!result.ok) return { error: errorMessages[result.error] }
@@ -81,9 +88,12 @@ export async function updateServiceAction(
   const target = await resolveServiceTarget(workspaceId, unitId, serviceId)
   if (!target) return { error: errorMessages.unauthenticated }
 
-  const result = await updateService(serviceInput(formData), target.serviceId, async (id, data) => {
-    const { matchedCount } = await Service.updateOne({ _id: id, unitId: target.ownedUnitId }, { $set: data })
-    return matchedCount > 0
+  const result = await updateService(serviceInput(formData), target.serviceId, {
+    update: async (id, data) => {
+      const { matchedCount } = await Service.updateOne({ _id: id, unitId: target.ownedUnitId }, { $set: data })
+      return matchedCount > 0
+    },
+    findProducts: (ids) => findUnitProducts(target.ownedUnitId!, ids),
   })
 
   if (!result.ok) return { error: errorMessages[result.error] }

@@ -1,21 +1,24 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { ClipboardListIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
-  appointmentListPipeline,
+  APPOINTMENT_PAGE_SIZE,
+  appointmentSearchPipeline,
   BRT_OFFSET_HOURS,
-  parseWorkspaceAppointmentListQuery,
-  workspaceAppointmentListPipeline,
+  parseAppointmentListQuery,
+  type AppointmentPage,
 } from "@/lib/appointment-list"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
 import { AppointmentTable, type AppointmentRow } from "@/components/appointment-table"
 import type { AppointmentOptions } from "@/components/appointment-form"
 import { CreateAppointmentSheet } from "@/components/create-appointment-sheet"
-import { DayNav } from "@/components/day-nav"
+import { ListPagination } from "@/components/list-pagination"
 import { ListSearch } from "@/components/list-search"
+import { PeriodFilter } from "@/components/period-filter"
 import { currencyFormat } from "@/components/service-format"
+import { TherapistFilter } from "@/components/therapist-filter"
 import { UnitFilter } from "@/components/unit-filter"
 import {
   Empty,
@@ -28,26 +31,25 @@ import {
 
 type Units = NonNullable<AppointmentOptions["units"]>
 
-// Atendimentos de todas as unidades do workspace.
+// Todos os atendimentos das unidades do workspace, em lista, com busca e filtros.
 export default async function WorkspaceAppointmentsPage({
   params,
   searchParams,
 }: PageProps<"/workspace/[workspaceId]/appointments">) {
   const { workspaceId } = await params
   const now = new Date()
-  const query = parseWorkspaceAppointmentListQuery(await searchParams, now)
+  const query = parseAppointmentListQuery(await searchParams)
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 
   // Parte do workspace -> unidades -> atendimentos/serviços, então só entram unidades do
-  // workspace (localField com a lista de ids das unidades). O total do dia sem busca nem
-  // filtro de unidade separa "dia sem atendimentos" de "filtro sem resultado".
+  // workspace. O total sem busca nem filtros separa "sem atendimentos" de "filtro sem resultado".
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     units: Units
-    appointments: AppointmentRow[]
-    dayCount: number
+    appointments: AppointmentPage<AppointmentRow>
+    total: number
     services: AppointmentOptions["services"]
     therapists: AppointmentOptions["therapists"]
   }>([
@@ -67,7 +69,7 @@ export default async function WorkspaceAppointmentsPage({
         localField: "units._id",
         foreignField: "unitId",
         as: "appointments",
-        pipeline: workspaceAppointmentListPipeline(query),
+        pipeline: appointmentSearchPipeline(query),
       },
     },
     {
@@ -75,8 +77,27 @@ export default async function WorkspaceAppointmentsPage({
         from: "appointments",
         localField: "units._id",
         foreignField: "unitId",
-        as: "dayCount",
-        pipeline: [appointmentListPipeline({ ...query, q: "" })[0], { $count: "n" }],
+        as: "total",
+        pipeline: [{ $count: "n" }],
+      },
+    },
+    {
+      $lookup: {
+        from: "products",
+        localField: "units._id",
+        foreignField: "unitId",
+        as: "products",
+        pipeline: [
+          { $sort: { name: 1, _id: 1 } },
+          {
+            $project: {
+              _id: 0,
+              id: { $toString: "$_id" },
+              unitId: { $toString: "$unitId" },
+              name: 1,
+            },
+          },
+        ],
       },
     },
     {
@@ -95,6 +116,7 @@ export default async function WorkspaceAppointmentsPage({
               name: 1,
               priceCents: 1,
               durationMinutes: 1,
+              productIds: { $map: { input: "$productIds", as: "id", in: { $toString: "$$id" } } },
             },
           },
         ],
@@ -106,25 +128,29 @@ export default async function WorkspaceAppointmentsPage({
         _id: 0,
         role: 1,
         units: { $map: { input: "$units", as: "unit", in: { id: { $toString: "$$unit._id" }, name: "$$unit.name" } } },
-        appointments: 1,
-        dayCount: { $ifNull: [{ $first: "$dayCount.n" }, 0] },
+        appointments: { $first: "$appointments" },
+        total: { $ifNull: [{ $first: "$total.n" }, 0] },
         services: 1,
+        products: 1,
         therapists: 1,
       },
     },
   ])
   if (!workspace) notFound()
-  const { units, appointments, dayCount, services, therapists } = workspace
+  const { units, appointments: result, total, services, therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 
-  const today = parseWorkspaceAppointmentListQuery({}, now).date
   const pathname = `/workspace/${workspaceId}/appointments`
-  // Hoje: hora atual de Brasília; outro dia: meio-dia daquele dia.
-  const defaultPerformedAt =
-    query.date === today
-      ? new Date(now.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 16)
-      : `${query.date}T12:00`
-  const totalCents = appointments.reduce((sum, appointment) => sum + appointment.totalCents, 0)
+  // Filtros mudam sem levar a página junto, então a lista volta para a primeira.
+  const { page, ...filters } = query
+  // Página além da última (ex.: depois de excluir o último atendimento dela) vai para a última.
+  const pages = Math.ceil(result.total / APPOINTMENT_PAGE_SIZE)
+  if (pages > 0 && page > pages) {
+    const params = new URLSearchParams(Object.entries({ ...filters, page: pages > 1 ? String(pages) : "" }).filter(([, v]) => v))
+    redirect(`${pathname}?${params}`)
+  }
+  // Hora atual de Brasília.
+  const defaultPerformedAt = new Date(now.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 16)
   const options = { services, therapists, units }
 
   // O proprietário sempre está entre quem pode atender, então basta haver serviço.
@@ -136,18 +162,15 @@ export default async function WorkspaceAppointmentsPage({
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">Atendimentos</h2>
-        {dayCount > 0 && createButton}
       </div>
 
-      <DayNav query={query} today={today} pathname={pathname} />
-
-      {dayCount === 0 ? (
+      {total === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <ClipboardListIcon />
             </EmptyMedia>
-            <EmptyTitle>Nenhum atendimento neste dia</EmptyTitle>
+            <EmptyTitle>Nenhum atendimento</EmptyTitle>
             <EmptyDescription>
               {!canManage
                 ? "Os atendimentos registrados nas unidades aparecerão aqui."
@@ -155,7 +178,7 @@ export default async function WorkspaceAppointmentsPage({
                   ? "Cadastre uma unidade antes de registrar atendimentos."
                   : !services.length
                     ? "Cadastre os serviços de uma unidade (na aba Serviços da unidade) antes de registrar atendimentos."
-                    : "Registre os atendimentos do dia escolhendo a unidade, o hóspede, os serviços e as massagistas."}
+                    : "Registre os atendimentos escolhendo a unidade, o hóspede, os serviços e as massagistas."}
             </EmptyDescription>
           </EmptyHeader>
           {createButton && <EmptyContent>{createButton}</EmptyContent>}
@@ -163,22 +186,37 @@ export default async function WorkspaceAppointmentsPage({
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-              <ListSearch query={query} placeholder="Buscar hóspede ou quarto..." />
-              <UnitFilter query={query} units={units} />
+            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+              <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
+              <UnitFilter query={filters} units={units} />
+              <TherapistFilter query={filters} therapists={therapists} />
+              <PeriodFilter query={filters} />
             </div>
-            <p className="text-sm text-muted-foreground">
-              {appointments.length} {appointments.length === 1 ? "atendimento" : "atendimentos"} ·{" "}
-              <span className="font-medium text-foreground tabular-nums">{currencyFormat.format(totalCents / 100)}</span>
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                {result.total} {result.total === 1 ? "atendimento" : "atendimentos"} ·{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {currencyFormat.format(result.totalCents / 100)}
+                </span>
+              </p>
+              {createButton}
+            </div>
           </div>
           <AppointmentTable
-            appointments={appointments}
-            query={query}
+            appointments={result.rows}
+            query={filters}
             pathname={pathname}
             workspaceId={workspaceId}
             options={options}
             canManage={canManage}
+          />
+          <ListPagination
+            query={filters}
+            page={page}
+            pageSize={APPOINTMENT_PAGE_SIZE}
+            total={result.total}
+            pathname={pathname}
+            itemLabel="atendimentos"
           />
         </>
       )}

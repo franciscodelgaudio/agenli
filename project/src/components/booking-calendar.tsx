@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState, useTransition } from "react"
+import { useCallback, useMemo, useRef, useState, useTransition } from "react"
 import FullCalendar, {
   type CalendarRef,
   type EventChangeInfo,
@@ -16,7 +16,7 @@ import "@fullcalendar/react/skeleton.css"
 import "@fullcalendar/react/themes/classic/theme.css"
 import "@fullcalendar/react/themes/classic/palette.css"
 import Link from "next/link"
-import { CheckIcon, PlusIcon } from "lucide-react"
+import { CheckIcon, PlusIcon, XIcon } from "lucide-react"
 import { convertBookingAction } from "@/lib/actions/appointment"
 import {
   createBookingAction,
@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
+import { Popover, PopoverClose, PopoverContent } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { AppointmentForm } from "@/components/appointment-form"
@@ -73,13 +74,21 @@ function brtNow() {
 
 // convert: formulário de atendimento pré-preenchido; done: resumo do agendamento já atendido.
 type SheetInput =
-  | { mode: "create"; values: BookingFormValues }
   | { mode: "edit"; values: BookingFormValues; booking: BookingRow }
   | { mode: "convert"; booking: BookingRow }
   | { mode: "done"; booking: BookingRow }
 
 // key muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
 type SheetState = SheetInput & { key: number }
+
+// Agendamento novo: um rascunho fosco no calendário com o formulário num balão ao lado.
+// fallbackAnchor: onde o balão abre enquanto o rascunho não aparece no calendário
+// (o botão "Novo agendamento", quando o horário sugerido fica fora da faixa visível).
+type Draft = { values: BookingFormValues; key: number; fallbackAnchor: Element | null }
+
+// Quem pode ser clicado sem fechar o balão: o calendário (uma nova seleção troca o
+// rascunho) e o botão de novo agendamento.
+const KEEPS_DRAFT = "data-keeps-draft"
 
 export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services }: Props) {
   const calendarRef = useRef<CalendarRef>(null)
@@ -88,6 +97,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [error, setError] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetState | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [draftEl, setDraftEl] = useState<HTMLElement | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
@@ -138,9 +149,10 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
     setSheetOpen(true)
   }
 
-  function openCreate(startsAt: string, durationMinutes: number) {
-    openSheet({
-      mode: "create",
+  function openCreate(startsAt: string, durationMinutes: number, fallbackAnchor: Element | null = null) {
+    setDraft({
+      key: (draft?.key ?? 0) + 1,
+      fallbackAnchor,
       values: {
         unitId: unit || (units.length === 1 ? units[0].id : null),
         therapistId: therapist || null,
@@ -152,6 +164,27 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       },
     })
   }
+
+  // O rascunho entra como uma segunda fonte de eventos; a busca dos agendamentos não se repete.
+  const draftEvents = useMemo<EventInput[]>(() => {
+    if (!draft) return []
+    const start = new Date(`${draft.values.startsAt}:00Z`)
+    return [
+      {
+        id: "draft",
+        start,
+        end: new Date(start.getTime() + draft.values.durationMinutes * 60000),
+        display: "block",
+        editable: false,
+        color: "color-mix(in oklch, var(--primary) 30%, transparent)",
+        contrastColor: "var(--foreground)",
+        className: "shadow-lg ring-1 ring-primary/40 backdrop-blur-sm",
+        extendedProps: { draft: true },
+      },
+    ]
+  }, [draft])
+  const eventSources = useMemo(() => [fetchEvents, draftEvents], [fetchEvents, draftEvents])
+  const draftAnchor = draftEl ?? draft?.fallbackAnchor ?? null
 
   async function handleChange({ event, revert }: EventChangeInfo) {
     setError(null)
@@ -222,7 +255,15 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           {filterSelect("Filtrar por massagista", "Todas as massagistas", therapist, setTherapist, therapists, true)}
         </div>
         {canCreate && (
-          <Button onClick={() => openCreate(toWallTime(new Date(Math.ceil(brtNow().getTime() / HOUR_MS) * HOUR_MS)), 60)}>
+          <Button
+            {...{ [KEEPS_DRAFT]: "" }}
+            onClick={(e) => {
+              const start = new Date(Math.ceil(brtNow().getTime() / HOUR_MS) * HOUR_MS)
+              // Leva o calendário até o horário sugerido para o rascunho aparecer.
+              calendarRef.current?.getApi().gotoDate(start)
+              openCreate(toWallTime(start), 60, e.currentTarget)
+            }}
+          >
             <PlusIcon />
             Novo agendamento
           </Button>
@@ -250,7 +291,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       )}
       {error && <FieldError>{error}</FieldError>}
 
-      <div className="booking-calendar">
+      <div className="booking-calendar" {...{ [KEEPS_DRAFT]: "" }}>
         <FullCalendar
           ref={calendarRef}
           plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -268,13 +309,34 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           slotMinHeight={32}
           nowIndicator
           dayMaxEvents
-          events={fetchEvents}
+          eventSources={eventSources}
+          eventDidMount={({ event, el }) => {
+            if (event.extendedProps.draft) setDraftEl(el)
+          }}
+          eventWillUnmount={({ event, el }) => {
+            if (event.extendedProps.draft) setDraftEl((current) => (current === el ? null : current))
+          }}
+          // Mudou o período à vista: o rascunho só fica se ainda estiver nele.
+          datesSet={({ start, end }) =>
+            setDraft((current) =>
+              current && current.values.startsAt >= toWallTime(start) && current.values.startsAt < toWallTime(end)
+                ? current
+                : null,
+            )
+          }
           // Altura definida no miolo do evento, para o conteúdo esconder as linhas que não cabem inteiras.
           columnEventInnerClass={({ isShort }) => (isShort ? undefined : "h-full")}
           eventContent={({ event, timeText, view, isShort }) => {
             // O evento-espelho da seleção (selectMirror) não tem agendamento associado.
             const booking = event.extendedProps.booking as BookingRow | undefined
-            if (!booking) return <div className="overflow-hidden px-1 text-xs font-medium">{timeText}</div>
+            if (!booking) {
+              return (
+                <div className="overflow-hidden px-1.5 py-1 text-xs leading-snug">
+                  {event.extendedProps.draft && <div className="truncate font-semibold">Novo agendamento</div>}
+                  <div className="truncate tabular-nums">{timeText}</div>
+                </div>
+              )
+            }
             const guestName = (
               <span className="flex min-w-0 items-center gap-1 font-semibold">
                 {booking.appointmentId && <CheckIcon className="size-3 shrink-0" aria-label="Atendido" />}
@@ -321,7 +383,9 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           eventResize={handleChange}
           eventClick={({ event }) => {
             if (!canManage) return
-            const booking = event.extendedProps.booking as BookingRow
+            const booking = event.extendedProps.booking as BookingRow | undefined
+            if (!booking) return
+            setDraft(null)
             setDeleteError(null)
             if (booking.appointmentId) return openSheet({ mode: "done", booking })
             openSheet({
@@ -341,25 +405,61 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
         />
       </div>
 
+      {/* Sem fundo: o calendário continua à vista, com o rascunho ao lado do balão. */}
+      <Popover
+        open={!!draft && !!draftAnchor}
+        onOpenChange={(open, { reason, event }) => {
+          if (open) return
+          // O clique que cria outra seleção chega depois dela; quem troca o rascunho é o select.
+          const target = event?.target
+          if (reason === "outside-press" && target instanceof Element && target.closest(`[${KEEPS_DRAFT}]`)) return
+          setDraft(null)
+        }}
+      >
+        <PopoverContent
+          anchor={draftAnchor}
+          side="right"
+          align="start"
+          sideOffset={8}
+          collisionPadding={16}
+          className="max-h-(--available-height) w-[min(26rem,calc(100vw-2rem))] gap-0 p-0"
+        >
+          {draft && (
+            <BookingForm
+              key={draft.key}
+              {...options}
+              mode="create"
+              variant="popover"
+              defaultValues={draft.values}
+              action={(prev, formData) => createBookingAction(workspaceId, prev, formData)}
+              onDone={() => {
+                setDraft(null)
+                refetch()
+              }}
+            />
+          )}
+          <PopoverClose render={<Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" />}>
+            <XIcon />
+            <span className="sr-only">Fechar</span>
+          </PopoverClose>
+        </PopoverContent>
+      </Popover>
+
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent>
-          {(sheet?.mode === "create" || sheet?.mode === "edit") && (
+          {sheet?.mode === "edit" && (
             <BookingForm
               key={sheet.key}
               {...options}
-              mode={sheet.mode}
+              mode="edit"
               defaultValues={sheet.values}
-              action={(prev, formData) =>
-                sheet.mode === "edit"
-                  ? updateBookingAction(workspaceId, sheet.booking.id, prev, formData)
-                  : createBookingAction(workspaceId, prev, formData)
-              }
+              action={(prev, formData) => updateBookingAction(workspaceId, sheet.booking.id, prev, formData)}
               onDone={() => {
                 setSheetOpen(false)
                 refetch()
               }}
-              onConvert={sheet.mode === "edit" ? () => openSheet({ mode: "convert", booking: sheet.booking }) : undefined}
-              onDelete={sheet.mode === "edit" ? () => setDeleteOpen(true) : undefined}
+              onConvert={() => openSheet({ mode: "convert", booking: sheet.booking })}
+              onDelete={() => setDeleteOpen(true)}
             />
           )}
           {sheet?.mode === "convert" && (
@@ -425,7 +525,7 @@ const doneDateFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 })
 
-// Agendamento que já virou atendimento: só leitura, com atalho para o dia em Atendimentos
+// Agendamento que já virou atendimento: só leitura, com atalho para Atendimentos filtrado pelo dia
 // (o da unidade, quando o calendário é de uma unidade).
 function DoneSummary({ workspaceId, booking, inUnit }: { workspaceId: string; booking: BookingRow; inUnit: boolean }) {
   const date = booking.startsAt.slice(0, 10)
@@ -459,8 +559,8 @@ function DoneSummary({ workspaceId, booking, inUnit }: { workspaceId: string; bo
             <Link
               href={
                 inUnit
-                  ? `/workspace/${workspaceId}/unit/${booking.unitId}/appointments?${new URLSearchParams({ date })}`
-                  : `/workspace/${workspaceId}/appointments?${new URLSearchParams({ date, unit: booking.unitId })}`
+                  ? `/workspace/${workspaceId}/unit/${booking.unitId}/appointments?${new URLSearchParams({ from: date, to: date })}`
+                  : `/workspace/${workspaceId}/appointments?${new URLSearchParams({ unit: booking.unitId, from: date, to: date })}`
               }
             />
           }

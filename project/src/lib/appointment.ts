@@ -1,4 +1,10 @@
 import { BRT_OFFSET_HOURS, parseDay } from "@/lib/appointment-list";
+import {
+  resolveProducts,
+  type FindProducts,
+  type ProductSelectionError,
+  type SelectedProduct,
+} from "@/lib/product-selection";
 
 const MAX_GUEST_NAME_LENGTH = 80;
 const MAX_ROOM_LENGTH = 20;
@@ -16,7 +22,8 @@ export type CreateAppointmentError =
   | "invalid_item"
   | "service_not_found"
   | "therapist_not_found"
-  | "unit_not_found";
+  | "unit_not_found"
+  | ProductSelectionError;
 
 export type CreateAppointmentResult =
   | { ok: true; appointmentId: string }
@@ -36,6 +43,7 @@ export type AppointmentFields = {
   performedAt: Date;
   guest: { name: string; room: string };
   items: AppointmentItem[];
+  products: SelectedProduct[];
 };
 
 export type AppointmentData = AppointmentFields & { unitId: string };
@@ -44,6 +52,7 @@ type Lookups = {
   // Devolvem só os que existem: serviços da unidade e quem pode atender no workspace.
   findServices: (ids: string[]) => Promise<{ id: string; name: string; priceCents: number; durationMinutes: number }[]>;
   findTherapists: (ids: string[]) => Promise<{ id: string; name: string }[]>;
+  findProducts: FindProducts;
 };
 
 type FieldsError = Exclude<CreateAppointmentError, "unit_not_found">;
@@ -68,9 +77,12 @@ export function parsePerformedAt(value: string) {
 // duração para que mudanças futuras no serviço não alterem o histórico.
 async function resolveAppointmentFields(
   input: unknown,
-  { findServices, findTherapists }: Lookups,
+  { findServices, findTherapists, findProducts }: Lookups,
 ): Promise<{ ok: true; fields: AppointmentFields } | { ok: false; error: FieldsError }> {
-  const { guestName, room, performedAt, serviceIds, therapistIds } = (input ?? {}) as Record<string, unknown>;
+  const { guestName, room, performedAt, serviceIds, therapistIds, productIds } = (input ?? {}) as Record<
+    string,
+    unknown
+  >;
   if (
     typeof guestName !== "string" ||
     typeof room !== "string" ||
@@ -99,14 +111,16 @@ async function resolveAppointmentFields(
   const pairs = serviceIds.map((serviceId, i) => ({ serviceId: serviceId.trim(), therapistId: therapistIds[i].trim() }));
   if (pairs.some((pair) => !pair.serviceId || !pair.therapistId)) return { ok: false, error: "invalid_item" };
 
-  const [services, therapists] = await Promise.all([
+  const [services, therapists, selection] = await Promise.all([
     findServices([...new Set(pairs.map((pair) => pair.serviceId))]),
     findTherapists([...new Set(pairs.map((pair) => pair.therapistId))]),
+    resolveProducts(productIds, findProducts),
   ]);
   const servicesById = new Map(services.map((service) => [service.id, service]));
   const therapistsById = new Map(therapists.map((therapist) => [therapist.id, therapist]));
   if (pairs.some((pair) => !servicesById.has(pair.serviceId))) return { ok: false, error: "service_not_found" };
   if (pairs.some((pair) => !therapistsById.has(pair.therapistId))) return { ok: false, error: "therapist_not_found" };
+  if (!selection.ok) return selection;
 
   return {
     ok: true,
@@ -124,6 +138,7 @@ async function resolveAppointmentFields(
           therapistName: therapistsById.get(therapistId)!.name,
         };
       }),
+      products: selection.products,
     },
   };
 }

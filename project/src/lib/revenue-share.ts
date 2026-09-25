@@ -32,7 +32,7 @@ function parseLimitCents(value: string) {
 }
 
 // "40.25" -> 40.25, entre 0 e 100 com até 2 casas.
-function parsePercent(value: string) {
+export function parsePercent(value: string) {
   const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(value);
   if (!match) return null;
   const hundredths = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));

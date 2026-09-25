@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
+import { ProductPicker, withServiceProducts, type ProductOption } from "@/components/product-picker"
 import { currencyFormat, formatDuration } from "@/components/service-format"
 import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
@@ -25,12 +26,23 @@ export type AppointmentFormValues = {
   performedAt: string
   // null = ainda não escolhido (ex.: vindo de um agendamento sem serviço).
   items: { serviceId: string | null; therapistId: string | null }[]
+  productIds?: string[]
 }
 
 export type AppointmentOptions = {
   // Na visão do workspace, cada serviço traz a unidade e units lista as unidades;
   // na unidade, units fica ausente e todos os serviços são dela.
-  services: { id: string; unitId?: string; name: string; priceCents: number; durationMinutes: number }[]
+  // productIds: produtos padrão do serviço, pré-marcados ao escolhê-lo.
+  services: {
+    id: string
+    unitId?: string
+    name: string
+    priceCents: number
+    durationMinutes: number
+    productIds: string[]
+  }[]
+  // Como os serviços: com a unidade na visão do workspace.
+  products: ProductOption[]
   therapists: TherapistOption[]
   units?: { id: string; name: string }[]
 }
@@ -58,9 +70,20 @@ const copy = {
   },
 }
 
-export function AppointmentForm({ services: allServices, therapists, units, mode, defaultValues, action, onDone }: Props) {
+export function AppointmentForm({
+  services: allServices,
+  products: allProducts,
+  therapists,
+  units,
+  mode,
+  defaultValues,
+  action,
+  onDone,
+}: Props) {
   const [unitId, setUnitId] = useState<string | null>(defaultValues.unitId ?? null)
   const services = units ? allServices.filter((service) => service.unitId === unitId) : allServices
+  const products = units ? allProducts.filter((product) => product.unitId === unitId) : allProducts
+  const [productIds, setProductIds] = useState(defaultValues.productIds ?? [])
   const [rows, setRows] = useState<Row[]>(() =>
     defaultValues.items?.length
       ? defaultValues.items.map((item, key) => ({ key, ...item }))
@@ -103,8 +126,9 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
               value={unitId}
               onValueChange={(value) => {
                 setUnitId(value as string | null)
-                // Os serviços são de cada unidade, então trocar a unidade limpa os escolhidos.
+                // Serviços e produtos são de cada unidade, então trocar a unidade limpa os escolhidos.
                 setRows((current) => current.map((row) => ({ ...row, serviceId: null })))
+                setProductIds([])
               }}
               required
             >
@@ -171,7 +195,10 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
                 name="serviceId"
                 items={serviceItems}
                 value={row.serviceId}
-                onValueChange={(value) => updateRow(row.key, { serviceId: value as string | null })}
+                onValueChange={(value) => {
+                  updateRow(row.key, { serviceId: value as string | null })
+                  setProductIds((current) => withServiceProducts(current, servicesById.get(value as string)))
+                }}
                 disabled={units && !unitId}
                 required
               >
@@ -237,6 +264,16 @@ export function AppointmentForm({ services: allServices, therapists, units, mode
             Adicionar serviço
           </Button>
         )}
+
+        <FieldSeparator>Produtos</FieldSeparator>
+        <ProductPicker
+          products={products}
+          value={productIds}
+          onChange={setProductIds}
+          emptyMessage={
+            units && !unitId ? "Escolha a unidade primeiro." : "Nenhum produto no estoque desta unidade."
+          }
+        />
 
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Total</span>

@@ -1,4 +1,10 @@
 import { parsePerformedAt } from "@/lib/appointment";
+import {
+  resolveProducts,
+  type FindProducts,
+  type ProductSelectionError,
+  type SelectedProduct,
+} from "@/lib/product-selection";
 
 const MAX_GUEST_NAME_LENGTH = 80;
 const MAX_ROOM_LENGTH = 20;
@@ -20,7 +26,8 @@ export type BookingError =
   | "therapist_not_found"
   | "therapist_busy"
   | "unit_not_found"
-  | "booking_not_found";
+  | "booking_not_found"
+  | ProductSelectionError;
 
 // Dados editáveis de um agendamento (tudo menos a unidade). Os nomes da massagista e do
 // serviço são cópias do momento do agendamento.
@@ -31,6 +38,7 @@ export type BookingFields = {
   startsAt: Date;
   endsAt: Date;
   service: { serviceId: string; serviceName: string };
+  products: SelectedProduct[];
 };
 
 export type BookingData = BookingFields & { unitId: string };
@@ -43,6 +51,7 @@ type Lookups = {
   findTherapist: (id: string) => Promise<{ id: string; name: string } | null>;
   // true quando a massagista já tem outro agendamento que se sobrepõe ao intervalo.
   hasConflict: (interval: Interval) => Promise<boolean>;
+  findProducts: FindProducts;
 };
 
 type FieldsError = Exclude<BookingError, "unit_not_found" | "booking_not_found">;
@@ -55,10 +64,10 @@ function isDurationValid(minutes: number) {
 // de horário da massagista, ignorando o próprio agendamento na edição.
 async function resolveBookingFields(
   input: unknown,
-  { findService, findTherapist, hasConflict }: Lookups,
+  { findService, findTherapist, hasConflict, findProducts }: Lookups,
   excludeId?: string,
 ): Promise<{ ok: true; fields: BookingFields } | { ok: false; error: FieldsError }> {
-  const { therapistId, guestName, room, startsAt, durationMinutes, serviceId } = (input ?? {}) as Record<
+  const { therapistId, guestName, room, startsAt, durationMinutes, serviceId, productIds } = (input ?? {}) as Record<
     string,
     unknown
   >;
@@ -94,12 +103,14 @@ async function resolveBookingFields(
   if (!/^\d+$/.test(duration) || !isDurationValid(Number(duration))) return { ok: false, error: "invalid_duration" };
   const end = new Date(start.getTime() + Number(duration) * MINUTE_MS);
 
-  const [service, therapist] = await Promise.all([
+  const [service, therapist, selection] = await Promise.all([
     findService(normalizedServiceId),
     findTherapist(normalizedTherapistId),
+    resolveProducts(productIds, findProducts),
   ]);
   if (!service) return { ok: false, error: "service_not_found" };
   if (!therapist) return { ok: false, error: "therapist_not_found" };
+  if (!selection.ok) return selection;
 
   const interval: Interval = { therapistId: normalizedTherapistId, startsAt: start, endsAt: end };
   if (excludeId) interval.excludeId = excludeId;
@@ -114,6 +125,7 @@ async function resolveBookingFields(
       startsAt: start,
       endsAt: end,
       service: { serviceId: normalizedServiceId, serviceName: service.name },
+      products: selection.products,
     },
   };
 }

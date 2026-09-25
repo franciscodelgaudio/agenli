@@ -10,6 +10,7 @@ import {
   shiftCashFlowDate,
   summarizeCashFlow,
   summarizeServices,
+  summarizeTherapists,
 } from "@/lib/cash-flow";
 import type { RevenueShare } from "@/lib/revenue-share";
 
@@ -145,18 +146,36 @@ describe("cashFlowFetchRange", () => {
 
 // O dia em Brasília vai de 03:00 UTC até 03:00 UTC do dia seguinte.
 const dayKey = (field: string) => ({ $dateToString: { format: "%Y-%m-%d", date: field, timezone: "-03:00" } });
-const PROJECT = { $project: { _id: 0, date: "$_id", cents: 1 } };
+const PROJECT = {
+  $project: {
+    _id: 0,
+    date: "$_id.date",
+    therapistId: { $toString: "$_id.therapistId" },
+    therapistName: 1,
+    count: 1,
+    cents: 1,
+  },
+};
 const RANGE = { from: "2026-09-21", to: "2026-09-27" };
 
 describe("dailyAppointmentTotalsPipeline", () => {
-  it("filtra o intervalo em Brasília e soma os serviços por dia", () => {
+  it("filtra o intervalo em Brasília e soma os serviços por dia e massagista, com o nome mais recente", () => {
     expect(dailyAppointmentTotalsPipeline(RANGE)).toEqual([
       {
         $match: {
           performedAt: { $gte: new Date("2026-09-21T03:00:00.000Z"), $lt: new Date("2026-09-28T03:00:00.000Z") },
         },
       },
-      { $group: { _id: dayKey("$performedAt"), cents: { $sum: { $sum: "$items.priceCents" } } } },
+      { $sort: { performedAt: 1 } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: { date: dayKey("$performedAt"), therapistId: "$items.therapistId" },
+          therapistName: { $last: "$items.therapistName" },
+          count: { $sum: 1 },
+          cents: { $sum: "$items.priceCents" },
+        },
+      },
       PROJECT,
     ]);
   });
@@ -164,6 +183,7 @@ describe("dailyAppointmentTotalsPipeline", () => {
 
 describe("dailyBookingForecastPipeline", () => {
   const stagesAfterMatch = [
+    { $sort: { startsAt: 1 } },
     {
       $lookup: {
         from: "services",
@@ -176,14 +196,16 @@ describe("dailyBookingForecastPipeline", () => {
     // Agendamento sem serviço (ou com serviço excluído) conta como zero.
     {
       $group: {
-        _id: dayKey("$startsAt"),
+        _id: { date: dayKey("$startsAt"), therapistId: "$therapistId" },
+        therapistName: { $last: "$therapistName" },
+        count: { $sum: 1 },
         cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
       },
     },
     PROJECT,
   ];
 
-  it("só conta agendamentos a partir de agora, com o preço atual do serviço", () => {
+  it("só conta agendamentos a partir de agora, com o preço atual do serviço, por dia e massagista", () => {
     expect(dailyBookingForecastPipeline(RANGE, NOW)).toEqual([
       { $match: { startsAt: { $gte: NOW, $lt: new Date("2026-09-28T03:00:00.000Z") } } },
       ...stagesAfterMatch,
@@ -201,11 +223,19 @@ describe("dailyBookingForecastPipeline", () => {
   });
 });
 
-const zero = { grossCents: 0, partnerShareCents: 0, netCents: 0 };
+// Total de um dia de uma massagista, como vem das pipelines diárias.
+const total = (date: string, cents: number, therapistId = "ana", count = 1) => ({
+  date,
+  therapistId,
+  therapistName: therapistId === "ana" ? "Ana" : "Bia",
+  count,
+  cents,
+});
+const zero = { grossCents: 0, partnerShareCents: 0, commissionCents: 0, netCents: 0 };
 
 describe("summarizeCashFlow", () => {
   it("sem movimento, tudo zerado", () => {
-    expect(summarizeCashFlow([day("2026-09-21")], [], [], null)).toEqual({
+    expect(summarizeCashFlow([day("2026-09-21")], [], [], null, {})).toEqual({
       buckets: [{ ...day("2026-09-21"), real: zero, forecast: zero }],
       total: { real: zero, forecast: zero },
     });
@@ -214,12 +244,10 @@ describe("summarizeCashFlow", () => {
   it("espaço próprio: real soma atendimentos, previsto soma atendimentos e agendamentos, sem repasse", () => {
     const result = summarizeCashFlow(
       [{ from: "2026-09-21", to: "2026-09-22" }, day("2026-09-23")],
-      [
-        { date: "2026-09-21", cents: 10_000 },
-        { date: "2026-09-22", cents: 5_000 },
-      ],
-      [{ date: "2026-09-23", cents: 7_000 }],
+      [total("2026-09-21", 10_000), total("2026-09-22", 5_000)],
+      [total("2026-09-23", 7_000)],
       null,
+      {},
     );
 
     expect(result).toEqual({
@@ -227,20 +255,32 @@ describe("summarizeCashFlow", () => {
         {
           from: "2026-09-21",
           to: "2026-09-22",
-          real: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
-          forecast: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
+          real: { grossCents: 15_000, partnerShareCents: 0, commissionCents: 0, netCents: 15_000 },
+          forecast: { grossCents: 15_000, partnerShareCents: 0, commissionCents: 0, netCents: 15_000 },
         },
         {
           ...day("2026-09-23"),
           real: zero,
-          forecast: { grossCents: 7_000, partnerShareCents: 0, netCents: 7_000 },
+          forecast: { grossCents: 7_000, partnerShareCents: 0, commissionCents: 0, netCents: 7_000 },
         },
       ],
       total: {
-        real: { grossCents: 15_000, partnerShareCents: 0, netCents: 15_000 },
-        forecast: { grossCents: 22_000, partnerShareCents: 0, netCents: 22_000 },
+        real: { grossCents: 15_000, partnerShareCents: 0, commissionCents: 0, netCents: 15_000 },
+        forecast: { grossCents: 22_000, partnerShareCents: 0, commissionCents: 0, netCents: 22_000 },
       },
     });
+  });
+
+  it("massagistas do mesmo dia somam no bruto", () => {
+    const result = summarizeCashFlow(
+      [day("2026-09-21")],
+      [total("2026-09-21", 10_000, "ana"), total("2026-09-21", 6_000, "bia")],
+      [],
+      null,
+      {},
+    );
+
+    expect(result.total.real).toEqual({ grossCents: 16_000, partnerShareCents: 0, commissionCents: 0, netCents: 16_000 });
   });
 
   it("dias buscados fora dos intervalos só entram no cálculo do repasse, não nos totais", () => {
@@ -248,20 +288,17 @@ describe("summarizeCashFlow", () => {
 
     const result = summarizeCashFlow(
       [day("2026-09-21"), day("2026-09-22")],
-      [
-        { date: "2026-09-20", cents: 99_000 },
-        { date: "2026-09-21", cents: 10_000 },
-        { date: "2026-09-22", cents: 30_000 },
-      ],
+      [total("2026-09-20", 99_000), total("2026-09-21", 10_000), total("2026-09-22", 30_000)],
       [],
       share,
+      {},
     );
 
     expect(result.buckets.map((bucket) => bucket.real)).toEqual([
-      { grossCents: 10_000, partnerShareCents: 2_000, netCents: 8_000 },
-      { grossCents: 30_000, partnerShareCents: 6_000, netCents: 24_000 },
+      { grossCents: 10_000, partnerShareCents: 2_000, commissionCents: 0, netCents: 8_000 },
+      { grossCents: 30_000, partnerShareCents: 6_000, commissionCents: 0, netCents: 24_000 },
     ]);
-    expect(result.total.real).toEqual({ grossCents: 40_000, partnerShareCents: 8_000, netCents: 32_000 });
+    expect(result.total.real).toEqual({ grossCents: 40_000, partnerShareCents: 8_000, commissionCents: 0, netCents: 32_000 });
   });
 
   it("repasse mensal por faixa numa semana: calcula sobre o mês e rateia pelo faturamento de cada dia", () => {
@@ -276,13 +313,10 @@ describe("summarizeCashFlow", () => {
 
     const result = summarizeCashFlow(
       [day("2026-09-21"), day("2026-09-22"), day("2026-09-25")],
-      [
-        { date: "2026-09-02", cents: 80_000 },
-        { date: "2026-09-21", cents: 20_000 },
-        { date: "2026-09-22", cents: 20_000 },
-      ],
-      [{ date: "2026-09-25", cents: 60_000 }],
+      [total("2026-09-02", 80_000), total("2026-09-21", 20_000), total("2026-09-22", 20_000)],
+      [total("2026-09-25", 60_000)],
       share,
+      {},
     );
 
     // Real: mês = R$ 1.200 -> 20% = R$ 240, rateado 20.000/120.000 para cada dia.
@@ -290,23 +324,23 @@ describe("summarizeCashFlow", () => {
     expect(result.buckets).toEqual([
       {
         ...day("2026-09-21"),
-        real: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
-        forecast: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
+        real: { grossCents: 20_000, partnerShareCents: 4_000, commissionCents: 0, netCents: 16_000 },
+        forecast: { grossCents: 20_000, partnerShareCents: 4_000, commissionCents: 0, netCents: 16_000 },
       },
       {
         ...day("2026-09-22"),
-        real: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
-        forecast: { grossCents: 20_000, partnerShareCents: 4_000, netCents: 16_000 },
+        real: { grossCents: 20_000, partnerShareCents: 4_000, commissionCents: 0, netCents: 16_000 },
+        forecast: { grossCents: 20_000, partnerShareCents: 4_000, commissionCents: 0, netCents: 16_000 },
       },
       {
         ...day("2026-09-25"),
         real: zero,
-        forecast: { grossCents: 60_000, partnerShareCents: 12_000, netCents: 48_000 },
+        forecast: { grossCents: 60_000, partnerShareCents: 12_000, commissionCents: 0, netCents: 48_000 },
       },
     ]);
     expect(result.total).toEqual({
-      real: { grossCents: 40_000, partnerShareCents: 8_000, netCents: 32_000 },
-      forecast: { grossCents: 100_000, partnerShareCents: 20_000, netCents: 80_000 },
+      real: { grossCents: 40_000, partnerShareCents: 8_000, commissionCents: 0, netCents: 32_000 },
+      forecast: { grossCents: 100_000, partnerShareCents: 20_000, commissionCents: 0, netCents: 80_000 },
     });
   });
 
@@ -322,18 +356,143 @@ describe("summarizeCashFlow", () => {
 
     const result = summarizeCashFlow(
       [{ from: "2026-09-14", to: "2026-09-20" }],
-      [
-        { date: "2026-09-03", cents: 60_000 },
-        { date: "2026-09-14", cents: 10_000 },
-        { date: "2026-09-18", cents: 10_000 },
-      ],
+      [total("2026-09-03", 60_000), total("2026-09-14", 10_000), total("2026-09-18", 10_000)],
       [],
       share,
+      {},
     );
 
     // 1ª quinzena: R$ 700 -> 20% = R$ 140, dia 14 fica com 10.000/70.000 = R$ 20.
     // 2ª quinzena: R$ 100 -> 10% = R$ 10, todo do dia 18.
-    expect(result.buckets[0].real).toEqual({ grossCents: 20_000, partnerShareCents: 3_000, netCents: 17_000 });
+    expect(result.buckets[0].real).toEqual({ grossCents: 20_000, partnerShareCents: 3_000, commissionCents: 0, netCents: 17_000 });
+  });
+
+  it("comissão: percentual de cada massagista sobre o que ela fez, descontado do líquido", () => {
+    const result = summarizeCashFlow(
+      [day("2026-09-21"), day("2026-09-25")],
+      [total("2026-09-21", 10_000, "ana"), total("2026-09-21", 20_000, "bia")],
+      [total("2026-09-25", 5_000, "ana")],
+      null,
+      { ana: 40, bia: 25 },
+    );
+
+    // Dia 21: Ana 40% de R$ 100 = R$ 40; Bia 25% de R$ 200 = R$ 50.
+    // Dia 25 (previsto): Ana 40% de R$ 50 = R$ 20.
+    expect(result.buckets).toEqual([
+      {
+        ...day("2026-09-21"),
+        real: { grossCents: 30_000, partnerShareCents: 0, commissionCents: 9_000, netCents: 21_000 },
+        forecast: { grossCents: 30_000, partnerShareCents: 0, commissionCents: 9_000, netCents: 21_000 },
+      },
+      {
+        ...day("2026-09-25"),
+        real: zero,
+        forecast: { grossCents: 5_000, partnerShareCents: 0, commissionCents: 2_000, netCents: 3_000 },
+      },
+    ]);
+    expect(result.total).toEqual({
+      real: { grossCents: 30_000, partnerShareCents: 0, commissionCents: 9_000, netCents: 21_000 },
+      forecast: { grossCents: 35_000, partnerShareCents: 0, commissionCents: 11_000, netCents: 24_000 },
+    });
+  });
+
+  it("massagista sem comissão definida (ou o proprietário) não gera comissão", () => {
+    const result = summarizeCashFlow(
+      [day("2026-09-21")],
+      [total("2026-09-21", 10_000, "ana"), total("2026-09-21", 20_000, "dono")],
+      [],
+      null,
+      { ana: 10 },
+    );
+
+    expect(result.total.real).toEqual({ grossCents: 30_000, partnerShareCents: 0, commissionCents: 1_000, netCents: 29_000 });
+  });
+
+  it("repasse e comissão são calculados sobre o bruto e ambos saem do líquido", () => {
+    const share: RevenueShare = { period: "weekly", tiers: [{ upToCents: null, percent: 20 }] };
+
+    const result = summarizeCashFlow([day("2026-09-21")], [total("2026-09-21", 10_000, "ana")], [], share, { ana: 30 });
+
+    expect(result.total.real).toEqual({ grossCents: 10_000, partnerShareCents: 2_000, commissionCents: 3_000, netCents: 5_000 });
+  });
+
+  it("comissão arredonda por intervalo; o total soma os intervalos arredondados", () => {
+    // 33,33% de R$ 1,00 = 33,33 centavos por dia.
+    const result = summarizeCashFlow(
+      [{ from: "2026-09-21", to: "2026-09-22" }, day("2026-09-23")],
+      [total("2026-09-21", 100), total("2026-09-22", 100), total("2026-09-23", 100)],
+      [],
+      null,
+      { ana: 33.33 },
+    );
+
+    expect(result.buckets.map((bucket) => bucket.real.commissionCents)).toEqual([67, 33]);
+    expect(result.total.real.commissionCents).toBe(100);
+  });
+});
+
+describe("summarizeTherapists", () => {
+  it("sem movimento, lista vazia", () => {
+    expect(summarizeTherapists(RANGE, [], [], {})).toEqual([]);
+  });
+
+  it("real soma atendimentos; previsto soma atendimentos e agendamentos; comissão pelo percentual; ordena pelo previsto", () => {
+    const result = summarizeTherapists(
+      RANGE,
+      [total("2026-09-21", 10_000, "ana", 1), total("2026-09-22", 30_000, "bia", 2), total("2026-09-23", 5_000, "ana", 1)],
+      [total("2026-09-26", 20_000, "ana", 2)],
+      { ana: 40 },
+    );
+
+    expect(result).toEqual([
+      {
+        therapistId: "ana",
+        therapistName: "Ana",
+        commissionPercent: 40,
+        real: { count: 2, cents: 15_000, commissionCents: 6_000 },
+        forecast: { count: 4, cents: 35_000, commissionCents: 14_000 },
+      },
+      {
+        therapistId: "bia",
+        therapistName: "Bia",
+        commissionPercent: null,
+        real: { count: 2, cents: 30_000, commissionCents: 0 },
+        forecast: { count: 2, cents: 30_000, commissionCents: 0 },
+      },
+    ]);
+  });
+
+  it("ignora dias fora do intervalo exibido", () => {
+    const result = summarizeTherapists(
+      RANGE,
+      [total("2026-09-20", 99_000, "ana"), total("2026-09-21", 10_000, "ana")],
+      [total("2026-09-28", 99_000, "ana")],
+      {},
+    );
+
+    expect(result.map((row) => row.forecast)).toEqual([{ count: 1, cents: 10_000, commissionCents: 0 }]);
+  });
+
+  it("usa o nome mais recente, vindo dos agendamentos", () => {
+    const [row] = summarizeTherapists(
+      RANGE,
+      [{ ...total("2026-09-21", 10_000, "ana"), therapistName: "Ana" }],
+      [{ ...total("2026-09-26", 10_000, "ana"), therapistName: "Ana Souza" }],
+      {},
+    );
+
+    expect(row.therapistName).toBe("Ana Souza");
+  });
+
+  it("empate no previsto desempata pelo nome", () => {
+    const result = summarizeTherapists(
+      RANGE,
+      [total("2026-09-21", 10_000, "bia"), total("2026-09-21", 10_000, "ana")],
+      [],
+      {},
+    );
+
+    expect(result.map((row) => row.therapistName)).toEqual(["Ana", "Bia"]);
   });
 });
 

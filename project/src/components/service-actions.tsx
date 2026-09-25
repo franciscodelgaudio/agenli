@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldError, FieldGroup } from "@/components/ui/field"
 import { ServiceFields } from "@/components/service-fields"
+import type { ProductOption } from "@/components/product-picker"
 import {
   Sheet,
   SheetContent,
@@ -32,11 +33,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-type Service = { id: string; name: string; priceCents: number; durationMinutes: number }
+type Service = { id: string; name: string; priceCents: number; durationMinutes: number; productIds: string[] }
 
-type Props = { workspaceId: string; unitId: string; service: Service }
+type Props = { workspaceId: string; unitId: string; service: Service; products: ProductOption[] }
 
-export function ServiceActions({ workspaceId, unitId, service }: Props) {
+export function ServiceActions({ workspaceId, unitId, service, products }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   // Muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
@@ -75,6 +76,7 @@ export function ServiceActions({ workspaceId, unitId, service }: Props) {
             workspaceId={workspaceId}
             unitId={unitId}
             service={service}
+            products={products}
             onDone={() => setEditOpen(false)}
           />
         </SheetContent>
@@ -91,7 +93,7 @@ export function ServiceActions({ workspaceId, unitId, service }: Props) {
   )
 }
 
-function EditServiceForm({ workspaceId, unitId, service, onDone }: Props & { onDone: () => void }) {
+function EditServiceForm({ workspaceId, unitId, service, products, onDone }: Props & { onDone: () => void }) {
   const [state, formAction, pending] = useActionState(
     async (prev: ServiceActionState, formData: FormData) => {
       const next = await updateServiceAction(workspaceId, unitId, service.id, prev, formData)
@@ -110,7 +112,7 @@ function EditServiceForm({ workspaceId, unitId, service, onDone }: Props & { onD
       {/* Só os campos rolam; título e botões ficam fixos. */}
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
-        <ServiceFields idPrefix={`edit-service-${service.id}`} defaultValues={service} />
+        <ServiceFields idPrefix={`edit-service-${service.id}`} defaultValues={service} products={products} />
       </FieldGroup>
       <SheetFooter>
         <Button type="submit" disabled={pending}>
@@ -127,7 +129,7 @@ function DeleteServiceDialog({
   service,
   open,
   onOpenChange,
-}: Props & { open: boolean; onOpenChange: (open: boolean) => void }) {
+}: Omit<Props, "products"> & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 

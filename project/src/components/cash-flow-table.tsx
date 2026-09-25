@@ -36,35 +36,45 @@ function money(cents: number) {
 type Props = {
   view: CashFlowView
   summary: CashFlowSummary
-  // Sem repasse (espaço próprio), bruto e líquido são iguais e as colunas de repasse somem.
+  // Sem repasse (espaço próprio) nem comissão, bruto e líquido são iguais e só o bruto aparece.
   hasPartnerShare: boolean
+  hasCommission: boolean
   today: string
 }
 
-function AmountCells({ amounts, hasPartnerShare }: { amounts: CashFlowAmounts; hasPartnerShare: boolean }) {
+type Columns = { partnerShare: boolean; commission: boolean }
+
+function Deduction({ cents }: { cents: number }) {
+  return (
+    <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
+      {cents ? `−${money(cents)}` : money(0)}
+    </TableCell>
+  )
+}
+
+function AmountCells({ amounts, columns }: { amounts: CashFlowAmounts; columns: Columns }) {
+  const detailed = columns.partnerShare || columns.commission
   return (
     <>
       <TableCell className="px-4 text-right tabular-nums">{money(amounts.grossCents)}</TableCell>
-      {hasPartnerShare && (
-        <>
-          <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
-            {amounts.partnerShareCents ? `−${money(amounts.partnerShareCents)}` : money(0)}
-          </TableCell>
-          <TableCell className="px-4 text-right font-medium tabular-nums">{money(amounts.netCents)}</TableCell>
-        </>
-      )}
+      {columns.partnerShare && <Deduction cents={amounts.partnerShareCents} />}
+      {columns.commission && <Deduction cents={amounts.commissionCents} />}
+      {detailed && <TableCell className="px-4 text-right font-medium tabular-nums">{money(amounts.netCents)}</TableCell>}
     </>
   )
 }
 
 // Real: atendimentos registrados. Previsto: real mais os agendamentos futuros.
-export function CashFlowTable({ view, summary, hasPartnerShare, today }: Props) {
-  const groupSpan = hasPartnerShare ? 3 : 1
+export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, today }: Props) {
+  const columns = { partnerShare: hasPartnerShare, commission: hasCommission }
+  const detailed = hasPartnerShare || hasCommission
+  const groupSpan = 2 + Number(hasPartnerShare) + Number(hasCommission)
   const amountHeads = (group: string) =>
-    hasPartnerShare ? (
+    detailed ? (
       <>
         <TableHead className="px-4 text-right">Bruto</TableHead>
-        <TableHead className="px-4 text-right">Repasse</TableHead>
+        {hasPartnerShare && <TableHead className="px-4 text-right">Repasse</TableHead>}
+        {hasCommission && <TableHead className="px-4 text-right">Comissão</TableHead>}
         <TableHead className="px-4 text-right">Líquido</TableHead>
       </>
     ) : (
@@ -75,7 +85,7 @@ export function CashFlowTable({ view, summary, hasPartnerShare, today }: Props) 
     <div className="border">
       <Table>
         <TableHeader>
-          {hasPartnerShare && (
+          {detailed && (
             <TableRow>
               <TableHead className="px-4" />
               <TableHead colSpan={groupSpan} className="border-l px-4 text-center">
@@ -101,8 +111,8 @@ export function CashFlowTable({ view, summary, hasPartnerShare, today }: Props) 
                   {bucketLabel(view, bucket)}
                   {isCurrent && <span className="ml-2 text-xs text-muted-foreground">(atual)</span>}
                 </TableCell>
-                <AmountCells amounts={bucket.real} hasPartnerShare={hasPartnerShare} />
-                <AmountCells amounts={bucket.forecast} hasPartnerShare={hasPartnerShare} />
+                <AmountCells amounts={bucket.real} columns={columns} />
+                <AmountCells amounts={bucket.forecast} columns={columns} />
               </TableRow>
             )
           })}
@@ -110,8 +120,8 @@ export function CashFlowTable({ view, summary, hasPartnerShare, today }: Props) 
         <TableFooter>
           <TableRow>
             <TableCell className="px-4 font-semibold">Total</TableCell>
-            <AmountCells amounts={summary.total.real} hasPartnerShare={hasPartnerShare} />
-            <AmountCells amounts={summary.total.forecast} hasPartnerShare={hasPartnerShare} />
+            <AmountCells amounts={summary.total.real} columns={columns} />
+            <AmountCells amounts={summary.total.forecast} columns={columns} />
           </TableRow>
         </TableFooter>
       </Table>

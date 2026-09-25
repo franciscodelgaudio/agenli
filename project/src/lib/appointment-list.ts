@@ -8,9 +8,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // Chaves aceitas na URL e o campo correspondente no banco.
 const SORT_PATHS = { performedAt: "performedAt", guestName: "guest.name", totalCents: "totalCents" } as const;
+export const APPOINTMENT_PAGE_SIZE = 20;
 
 export type AppointmentSortField = keyof typeof SORT_PATHS;
-export type AppointmentListQuery = { date: string; q: string; sort: AppointmentSortField; dir: SortDir };
+// from/to: dias de Brasília, ambos incluídos; vazios = sem limite. unit/therapist vazios = todos.
+export type AppointmentListQuery = {
+  q: string;
+  sort: AppointmentSortField;
+  dir: SortDir;
+  unit: string;
+  therapist: string;
+  from: string;
+  to: string;
+  page: number;
+};
 
 function isSortField(value: string | undefined): value is AppointmentSortField {
   return value !== undefined && Object.hasOwn(SORT_PATHS, value);
@@ -26,88 +37,110 @@ export function parseDay(value: string) {
   return [year, month, day] as const;
 }
 
-function toDay(date: Date) {
-  return date.toISOString().slice(0, 10);
+function dayOrEmpty(value: string | undefined) {
+  return value && parseDay(value) ? value : "";
 }
 
-export function parseAppointmentListQuery(params: SearchParams, now = new Date()): AppointmentListQuery {
-  const date = first(params.date);
+function objectIdOrEmpty(value: string | undefined) {
+  return value && /^[0-9a-f]{24}$/i.test(value) ? value : "";
+}
+
+// Início do dia de Brasília em UTC; espera um dia já validado.
+function dayStart(value: string) {
+  const [year, month, day] = parseDay(value)!;
+  return new Date(Date.UTC(year, month - 1, day, BRT_OFFSET_HOURS));
+}
+
+export function parseAppointmentListQuery(params: SearchParams): AppointmentListQuery {
   const sort = first(params.sort);
-  const today = toDay(new Date(now.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000));
+  const page = first(params.page);
   return {
-    date: date && parseDay(date) ? date : today,
     q: first(params.q)?.trim() ?? "",
     sort: isSortField(sort) ? sort : "performedAt",
-    dir: first(params.dir) === "desc" ? "desc" : "asc",
+    dir: first(params.dir) === "asc" ? "asc" : "desc",
+    unit: objectIdOrEmpty(first(params.unit)),
+    therapist: objectIdOrEmpty(first(params.therapist)),
+    from: dayOrEmpty(first(params.from)),
+    to: dayOrEmpty(first(params.to)),
+    page: page && /^[1-9]\d*$/.test(page) ? Number(page) : 1,
   };
 }
 
-// Espera uma data já validada por parseAppointmentListQuery.
-export function shiftDay(date: string, days: number) {
-  const [year, month, day] = parseDay(date)!;
-  return toDay(new Date(Date.UTC(year, month - 1, day + days)));
-}
+// Uma página da lista, a quantidade e a soma dos valores de tudo que passou pela busca e pelos filtros.
+export type AppointmentPage<Row> = { rows: Row[]; total: number; totalCents: number };
 
-// Etapas para a pipeline do $lookup de appointments da unidade.
-export function appointmentListPipeline({ date, q, sort, dir }: AppointmentListQuery) {
-  const [year, month, day] = parseDay(date)!;
-  const start = new Date(Date.UTC(year, month - 1, day, BRT_OFFSET_HOURS));
-  const stages: PipelineStage.FacetPipelineStage[] = [
-    { $match: { performedAt: { $gte: start, $lt: new Date(start.getTime() + DAY_MS) } } },
-  ];
+// Etapas para o $lookup de appointments a partir das unidades; os filtros só estreitam o
+// resultado, a restrição ao workspace/unidade vem do $lookup. Termina num único AppointmentPage.
+export function appointmentSearchPipeline({ q, sort, dir, unit, therapist, from, to, page }: AppointmentListQuery) {
+  const match: Record<string, unknown> = {};
+  if (from || to) {
+    const performedAt: Record<string, Date> = {};
+    if (from) performedAt.$gte = dayStart(from);
+    if (to) performedAt.$lt = new Date(dayStart(to).getTime() + DAY_MS);
+    match.performedAt = performedAt;
+  }
+  if (unit) match.unitId = new Types.ObjectId(unit);
+  // Qualquer um dos serviços feito pela massagista.
+  if (therapist) match["items.therapistId"] = new Types.ObjectId(therapist);
+  const stages: Exclude<PipelineStage, PipelineStage.Merge | PipelineStage.Out>[] = [];
+  if (Object.keys(match).length) stages.push({ $match: match });
   if (q) {
     const regex = { $regex: escapeRegex(q), $options: "i" };
-    stages.push({ $match: { $or: [{ "guest.name": regex }, { "guest.room": regex }] } });
+    stages.push({
+      $match: {
+        $or: [
+          { "guest.name": regex },
+          { "guest.room": regex },
+          { "items.therapistName": regex },
+          { "items.serviceName": regex },
+        ],
+      },
+    });
   }
   stages.push(
     // O total vem antes da ordenação para que seja possível ordenar por ele.
     { $set: { totalCents: { $sum: "$items.priceCents" } } },
     { $sort: { [SORT_PATHS[sort]]: dir === "desc" ? -1 : 1, _id: 1 } },
     {
-      $project: {
-        _id: 0,
-        id: { $toString: "$_id" },
-        unitId: { $toString: "$unitId" },
-        performedAt: 1,
-        guest: 1,
-        items: {
-          $map: {
-            input: "$items",
-            as: "item",
-            in: {
-              serviceId: { $toString: "$$item.serviceId" },
-              serviceName: "$$item.serviceName",
-              priceCents: "$$item.priceCents",
-              durationMinutes: "$$item.durationMinutes",
-              therapistId: { $toString: "$$item.therapistId" },
-              therapistName: "$$item.therapistName",
+      $facet: {
+        rows: [
+          { $skip: (page - 1) * APPOINTMENT_PAGE_SIZE },
+          { $limit: APPOINTMENT_PAGE_SIZE },
+          {
+            $project: {
+              _id: 0,
+              id: { $toString: "$_id" },
+              unitId: { $toString: "$unitId" },
+              performedAt: 1,
+              guest: 1,
+              items: {
+                $map: {
+                  input: "$items",
+                  as: "item",
+                  in: {
+                    serviceId: { $toString: "$$item.serviceId" },
+                    serviceName: "$$item.serviceName",
+                    priceCents: "$$item.priceCents",
+                    durationMinutes: "$$item.durationMinutes",
+                    therapistId: { $toString: "$$item.therapistId" },
+                    therapistName: "$$item.therapistName",
+                  },
+                },
+              },
+              totalCents: 1,
             },
           },
-        },
-        totalCents: 1,
+        ],
+        summary: [{ $group: { _id: null, n: { $sum: 1 }, totalCents: { $sum: "$totalCents" } } }],
+      },
+    },
+    {
+      $project: {
+        rows: 1,
+        total: { $ifNull: [{ $first: "$summary.n" }, 0] },
+        totalCents: { $ifNull: [{ $first: "$summary.totalCents" }, 0] },
       },
     },
   );
   return stages;
-}
-
-// Visão do workspace: os mesmos parâmetros da unidade mais o filtro de unidade ("" = todas).
-export type WorkspaceAppointmentListQuery = AppointmentListQuery & { unit: string };
-
-export function parseWorkspaceAppointmentListQuery(
-  params: SearchParams,
-  now = new Date(),
-): WorkspaceAppointmentListQuery {
-  const unit = first(params.unit);
-  return {
-    ...parseAppointmentListQuery(params, now),
-    unit: unit && /^[0-9a-f]{24}$/i.test(unit) ? unit : "",
-  };
-}
-
-// Etapas para o $lookup de appointments a partir das unidades do workspace; o filtro de
-// unidade só estreita o resultado, a restrição ao workspace vem do $lookup.
-export function workspaceAppointmentListPipeline({ unit, ...query }: WorkspaceAppointmentListQuery) {
-  const stages = appointmentListPipeline(query);
-  return unit ? [{ $match: { unitId: new Types.ObjectId(unit) } }, ...stages] : stages;
 }

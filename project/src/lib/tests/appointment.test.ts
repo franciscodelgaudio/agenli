@@ -16,6 +16,13 @@ const THERAPISTS = [
   { id: ANA_ID, name: "Ana" },
   { id: BIA_ID, name: "Bia" },
 ];
+const OIL_ID = "64b7f0c2a1b2c3d4e5f60761";
+const TOWEL_ID = "64b7f0c2a1b2c3d4e5f60762";
+const OTHER_UNIT_PRODUCT_ID = "64b7f0c2a1b2c3d4e5f60769";
+const PRODUCTS = [
+  { id: OIL_ID, name: "Óleo de amêndoas" },
+  { id: TOWEL_ID, name: "Toalha" },
+];
 
 // Como chega do FormData: datetime-local (horário de Brasília) e os pares
 // serviço/massagista via getAll, na mesma ordem.
@@ -32,6 +39,8 @@ function makeDeps({ services = SERVICES, therapists = THERAPISTS } = {}) {
     // Devolvem só os que existem (serviços da unidade; massagistas do workspace).
     findServices: vi.fn(async (ids: string[]) => services.filter((s) => ids.includes(s.id))),
     findTherapists: vi.fn(async (ids: string[]) => therapists.filter((t) => ids.includes(t.id))),
+    // Devolve só os produtos que existem na unidade.
+    findProducts: vi.fn(async (ids: string[]) => PRODUCTS.filter((p) => ids.includes(p.id))),
     insert: vi.fn().mockResolvedValue({ id: APPOINTMENT_ID }),
   };
 }
@@ -57,6 +66,7 @@ describe("createAppointment", () => {
           therapistName: "Ana",
         },
       ],
+      products: [],
     });
   });
 
@@ -201,6 +211,31 @@ describe("createAppointment", () => {
     expect(deps.insert).not.toHaveBeenCalled();
   });
 
+  it("salva os produtos escolhidos com cópia do nome, sem repetição", async () => {
+    const deps = makeDeps();
+
+    await createAppointment({ ...validInput, productIds: [TOWEL_ID, OIL_ID, TOWEL_ID] }, UNIT_ID, deps);
+
+    expect(deps.findProducts).toHaveBeenCalledWith([TOWEL_ID, OIL_ID]);
+    expect(deps.insert.mock.calls[0][0].products).toEqual([
+      { productId: TOWEL_ID, productName: "Toalha" },
+      { productId: OIL_ID, productName: "Óleo de amêndoas" },
+    ]);
+  });
+
+  it.each([
+    ["seleção de produtos que não é lista", { ...validInput, productIds: OIL_ID }, "invalid_input"],
+    ["mais de 20 produtos", { ...validInput, productIds: Array.from({ length: 21 }, (_, i) => `id-${i}`) }, "too_many_products"],
+    ["produto de outra unidade", { ...validInput, productIds: [OTHER_UNIT_PRODUCT_ID] }, "product_not_found"],
+  ])("retorna erro sem salvar quando há %s", async (_label, input, error) => {
+    const deps = makeDeps();
+
+    const result = await createAppointment(input, UNIT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error });
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
   it.each([undefined, null, ""])(
     "retorna unit_not_found sem buscar nem salvar quando não há unitId (%j)",
     async (unitId) => {
@@ -220,6 +255,7 @@ describe("updateAppointment", () => {
     return {
       findServices: vi.fn(async (ids: string[]) => services.filter((s) => ids.includes(s.id))),
       findTherapists: vi.fn(async (ids: string[]) => therapists.filter((t) => ids.includes(t.id))),
+      findProducts: vi.fn(async (ids: string[]) => PRODUCTS.filter((p) => ids.includes(p.id))),
       // Devolve false quando o atendimento não existe (ou não é da unidade).
       update: vi.fn().mockResolvedValue(found),
     };
@@ -262,7 +298,30 @@ describe("updateAppointment", () => {
           therapistName: "Ana",
         },
       ],
+      products: [],
     });
+  });
+
+  // Enviar a lista vazia apaga os produtos salvos.
+  it("troca os produtos pelos escolhidos", async () => {
+    const deps = makeUpdateDeps();
+
+    await updateAppointment({ ...validInput, productIds: [OIL_ID] }, APPOINTMENT_ID, deps);
+
+    expect(deps.update.mock.calls[0][1].products).toEqual([{ productId: OIL_ID, productName: "Óleo de amêndoas" }]);
+  });
+
+  it("retorna product_not_found sem salvar quando algum produto não é da unidade", async () => {
+    const deps = makeUpdateDeps();
+
+    const result = await updateAppointment(
+      { ...validInput, productIds: [OTHER_UNIT_PRODUCT_ID] },
+      APPOINTMENT_ID,
+      deps,
+    );
+
+    expect(result).toEqual({ ok: false, error: "product_not_found" });
+    expect(deps.update).not.toHaveBeenCalled();
   });
 
   it.each([

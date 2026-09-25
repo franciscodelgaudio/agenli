@@ -1,6 +1,15 @@
 import { Schema, model, models, type InferSchemaType, type Model } from "mongoose";
 import { connectOnUse } from "@/lib/mongoose";
 
+// Produto usado, com cópia do nome do momento da escolha. Não mexe na quantidade em estoque.
+const selectedProductSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    productName: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 // Agendamento de um hóspede com uma massagista numa unidade, exibido no calendário.
 // Os nomes da massagista e do serviço são cópias do momento do agendamento.
 const bookingSchema = new Schema(
@@ -25,6 +34,7 @@ const bookingSchema = new Schema(
       ),
       required: true,
     },
+    products: { type: [selectedProductSchema], default: [] },
     // Atendimento registrado a partir deste agendamento; enquanto null, ainda pode ser editado.
     appointmentId: { type: Schema.Types.ObjectId, ref: "Appointment", default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -35,6 +45,8 @@ const bookingSchema = new Schema(
 // O calendário filtra por unidades e intervalo; a checagem de conflito, por massagista e intervalo.
 bookingSchema.index({ unitId: 1, startsAt: 1 });
 bookingSchema.index({ therapistId: 1, startsAt: 1 });
+// O uso de cada produto no estoque.
+bookingSchema.index({ "products.productId": 1 });
 
 bookingSchema.plugin(connectOnUse);
 

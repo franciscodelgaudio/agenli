@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDaysIcon, ClipboardListIcon, LayoutDashboardIcon, SparklesIcon, WalletIcon, type LucideIcon } from "lucide-react"
+import { CalendarDaysIcon, ClipboardListIcon, LayoutDashboardIcon, PackageIcon, SparklesIcon, UsersIcon, WalletIcon, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type NavItem = { title: string; href: string; icon: LucideIcon }
@@ -15,6 +15,8 @@ export function UnitNav({ workspaceId, unitId }: { workspaceId: string; unitId: 
     { title: "Calendário", href: `${base}/calendar`, icon: CalendarDaysIcon },
     { title: "Atendimentos", href: `${base}/appointments`, icon: ClipboardListIcon },
     { title: "Serviços", href: `${base}/services`, icon: SparklesIcon },
+    { title: "Estoque", href: `${base}/stock`, icon: PackageIcon },
+    { title: "Equipe", href: `${base}/team`, icon: UsersIcon },
     { title: "Caixa", href: `${base}/cash-flow`, icon: WalletIcon },
   ]
 

@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { PopoverDescription, PopoverTitle } from "@/components/ui/popover"
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
+import { ProductPicker, withServiceProducts, type ProductOption } from "@/components/product-picker"
 import { formatDuration } from "@/components/service-format"
 import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
@@ -22,6 +24,7 @@ export type BookingFormValues = {
   startsAt: string
   durationMinutes: number
   serviceId: string | null
+  productIds: string[]
 }
 
 export type BookingFormOptions = {
@@ -30,11 +33,23 @@ export type BookingFormOptions = {
   therapists: TherapistOption[]
   // Cada serviço traz a unidade; o formulário só oferece os da unidade escolhida.
   // O preço só aparece quando o agendamento vira atendimento.
-  services: { id: string; unitId: string; name: string; priceCents: number; durationMinutes: number }[]
+  // productIds: produtos padrão do serviço, pré-marcados ao escolhê-lo.
+  services: {
+    id: string
+    unitId: string
+    name: string
+    priceCents: number
+    durationMinutes: number
+    productIds: string[]
+  }[]
+  // Cada produto traz a unidade, como os serviços.
+  products: ProductOption[]
 }
 
 type Props = BookingFormOptions & {
   mode: "create" | "edit"
+  // popover: dentro do balão do calendário, que usa o título e a descrição do Popover.
+  variant?: "sheet" | "popover"
   defaultValues: BookingFormValues
   action: (prev: BookingActionState, formData: FormData) => Promise<BookingActionState>
   onDone: () => void
@@ -62,7 +77,9 @@ export function BookingForm({
   units,
   therapists,
   services: allServices,
+  products: allProducts,
   mode,
+  variant = "sheet",
   defaultValues,
   action,
   onDone,
@@ -73,6 +90,7 @@ export function BookingForm({
   const [therapistId, setTherapistId] = useState(defaultValues.therapistId)
   const [serviceId, setServiceId] = useState(defaultValues.serviceId)
   const [duration, setDuration] = useState(String(defaultValues.durationMinutes))
+  const [productIds, setProductIds] = useState(defaultValues.productIds)
   const [state, formAction, pending] = useActionState(
     async (prev: BookingActionState, formData: FormData) => {
       const next = await action(prev, formData)
@@ -82,14 +100,17 @@ export function BookingForm({
     { error: null },
   )
 
+  const Title = variant === "popover" ? PopoverTitle : SheetTitle
+  const Description = variant === "popover" ? PopoverDescription : SheetDescription
   const services = allServices.filter((service) => service.unitId === unitId)
   const serviceItems = services.map((service) => ({ value: service.id, label: service.name }))
+  const products = allProducts.filter((product) => product.unitId === unitId)
 
   return (
     <form action={formAction} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
-        <SheetTitle>{copy[mode].title}</SheetTitle>
-        <SheetDescription>{copy[mode].description}</SheetDescription>
+        <Title className="font-heading font-medium text-foreground">{copy[mode].title}</Title>
+        <Description>{copy[mode].description}</Description>
       </SheetHeader>
       {/* Só os campos rolam; título e botões ficam fixos. */}
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
@@ -124,8 +145,9 @@ export function BookingForm({
               value={unitId}
               onValueChange={(value) => {
                 setUnitId(value as string | null)
-                // Os serviços são de cada unidade, então trocar a unidade limpa o escolhido.
+                // Serviços e produtos são de cada unidade, então trocar a unidade limpa os escolhidos.
                 setServiceId(null)
+                setProductIds([])
               }}
               required
             >
@@ -179,6 +201,7 @@ export function BookingForm({
               // A duração do serviço vira a sugestão, e ainda pode ser ajustada.
               const service = services.find((option) => option.id === next)
               if (service) setDuration(String(service.durationMinutes))
+              setProductIds((current) => withServiceProducts(current, service))
             }}
             disabled={!unitId}
             required
@@ -212,6 +235,15 @@ export function BookingForm({
           {Number(duration) >= 5 && Number(duration) <= 720 && (
             <FieldDescription>{formatDuration(Number(duration))}</FieldDescription>
           )}
+        </Field>
+        <Field>
+          <FieldLabel>Produtos (opcional)</FieldLabel>
+          <ProductPicker
+            products={products}
+            value={productIds}
+            onChange={setProductIds}
+            emptyMessage={unitId ? "Nenhum produto no estoque desta unidade." : "Escolha a unidade primeiro."}
+          />
         </Field>
       </FieldGroup>
       <SheetFooter>

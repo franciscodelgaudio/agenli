@@ -43,7 +43,15 @@ describe("parseServiceListQuery", () => {
 
 describe("serviceListPipeline", () => {
   const PROJECT = {
-    $project: { _id: 0, id: { $toString: "$_id" }, name: 1, priceCents: 1, durationMinutes: 1 },
+    $project: {
+      _id: 0,
+      id: { $toString: "$_id" },
+      name: 1,
+      priceCents: 1,
+      durationMinutes: 1,
+      // Produtos padrão, para pré-marcar na edição.
+      productIds: { $map: { input: "$productIds", as: "id", in: { $toString: "$$id" } } },
+    },
   };
 
   it("sem busca, só ordena (com _id de desempate) e projeta", () => {

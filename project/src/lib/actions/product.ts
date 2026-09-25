@@ -1,0 +1,144 @@
+"use server"
+
+import { refresh } from "next/cache"
+import { isObjectIdOrHexString } from "mongoose"
+import { getSessionUserId } from "@/lib/session"
+import { findManagedUnit } from "@/lib/unit-access"
+import {
+  createProduct,
+  deleteProduct,
+  depleteProduct,
+  updateProduct,
+  type CreateProductError,
+  type UpdateProductError,
+} from "@/lib/product"
+import { Product } from "@/models/Product"
+
+const errorMessages: Record<CreateProductError | UpdateProductError | "out_of_stock" | "unauthenticated", string> = {
+  invalid_input: "Preencha nome, quantidade e preço de custo.",
+  invalid_name: "Informe o nome do produto.",
+  name_too_long: "O nome pode ter no máximo 80 caracteres.",
+  invalid_quantity: "Informe a quantidade como número inteiro, entre 0 e 1.000.000.",
+  invalid_cost: "Informe um preço de custo entre R$ 0,00 e R$ 1.000.000,00, com até 2 casas decimais.",
+  notes_too_long: "As observações podem ter no máximo 500 caracteres.",
+  invalid_rating: "A avaliação deve ser de 1 a 5 estrelas.",
+  unit_not_found: "Unidade não encontrada ou sem permissão.",
+  product_not_found: "Produto não encontrado ou sem permissão.",
+  out_of_stock: "A quantidade deste produto já é zero. Atualize o estoque antes de marcar que acabou.",
+  unauthenticated: "Sua sessão expirou. Entre novamente.",
+}
+
+export type ProductActionState = { error: string | null }
+
+// id da unidade se o usuário puder gerenciá-la; senão undefined. null = sessão expirada.
+async function findManagedUnitId(workspaceId: string, unitId: string) {
+  const userId = await getSessionUserId()
+  if (!userId) return null
+  return (await findManagedUnit(workspaceId, unitId, userId))?.unitId
+}
+
+function productInput(formData: FormData) {
+  return {
+    name: formData.get("name"),
+    quantity: formData.get("quantity"),
+    cost: formData.get("cost"),
+    notes: formData.get("notes"),
+    rating: formData.get("rating"),
+    avatarUrl: formData.get("avatarUrl"),
+  }
+}
+
+// workspaceId e unitId vêm via argumento do cliente; a posse é conferida aqui, no servidor.
+export async function createProductAction(
+  workspaceId: string,
+  unitId: string,
+  _prev: ProductActionState,
+  formData: FormData,
+): Promise<ProductActionState> {
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (ownedUnitId === null) return { error: errorMessages.unauthenticated }
+
+  const result = await createProduct(productInput(formData), ownedUnitId, async (data) => {
+    const product = await Product.create(data)
+    return { id: product._id.toString() }
+  })
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}
+
+// Só repassa o productId quando a unidade é gerenciável; a escrita ainda filtra
+// por unitId para que um produto de outra unidade não seja encontrado.
+// null = sessão expirada.
+async function resolveProductTarget(workspaceId: string, unitId: string, productId: string) {
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (ownedUnitId === null) return null
+  return { ownedUnitId, productId: ownedUnitId && isObjectIdOrHexString(productId) ? productId : null }
+}
+
+export async function updateProductAction(
+  workspaceId: string,
+  unitId: string,
+  productId: string,
+  _prev: ProductActionState,
+  formData: FormData,
+): Promise<ProductActionState> {
+  const target = await resolveProductTarget(workspaceId, unitId, productId)
+  if (!target) return { error: errorMessages.unauthenticated }
+
+  const result = await updateProduct(productInput(formData), target.productId, async (id, data) => {
+    const { matchedCount } = await Product.updateOne({ _id: id, unitId: target.ownedUnitId }, { $set: data })
+    return matchedCount > 0
+  })
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}
+
+export async function deleteProductAction(
+  workspaceId: string,
+  unitId: string,
+  productId: string,
+): Promise<ProductActionState> {
+  const target = await resolveProductTarget(workspaceId, unitId, productId)
+  if (!target) return { error: errorMessages.unauthenticated }
+
+  const result = await deleteProduct(target.productId, async (id) => {
+    const { deletedCount } = await Product.deleteOne({ _id: id, unitId: target.ownedUnitId })
+    return deletedCount > 0
+  })
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}
+
+// Uma unidade do produto acabou: registra a data e tira 1 da quantidade, numa só escrita.
+export async function depleteProductAction(
+  workspaceId: string,
+  unitId: string,
+  productId: string,
+): Promise<ProductActionState> {
+  const target = await resolveProductTarget(workspaceId, unitId, productId)
+  if (!target) return { error: errorMessages.unauthenticated }
+
+  const result = await depleteProduct(target.productId, async (id) => {
+    const { matchedCount } = await Product.updateOne(
+      { _id: id, unitId: target.ownedUnitId, quantity: { $gt: 0 } },
+      { $inc: { quantity: -1 }, $push: { depletedAt: new Date() } },
+    )
+    if (matchedCount > 0) return "depleted"
+    const exists = await Product.exists({ _id: id, unitId: target.ownedUnitId })
+    return exists ? "out_of_stock" : "not_found"
+  })
+
+  if (!result.ok) return { error: errorMessages[result.error] }
+
+  refresh()
+  return { error: null }
+}

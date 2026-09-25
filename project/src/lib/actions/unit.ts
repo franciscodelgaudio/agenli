@@ -15,6 +15,7 @@ import {
 import { Appointment } from "@/models/Appointment"
 import { Unit } from "@/models/Unit"
 import { Service } from "@/models/Service"
+import { WorkspaceMember } from "@/models/WorkspaceMember"
 
 const errorMessages: Record<CreateUnitError | UpdateUnitError | "unauthenticated", string> = {
   invalid_input: "Informe o nome da unidade.",
@@ -130,7 +131,11 @@ export async function deleteUnitAction(workspaceId: string, unitId: string): Pro
   const result = await deleteUnit(target.unitId, async (id) => {
     const { deletedCount } = await Unit.deleteOne({ _id: id, workspaceId: target.ownedId })
     if (deletedCount === 0) return false
-    await Promise.all([Service.deleteMany({ unitId: id }), Appointment.deleteMany({ unitId: id })])
+    await Promise.all([
+      Service.deleteMany({ unitId: id }),
+      Appointment.deleteMany({ unitId: id }),
+      WorkspaceMember.updateMany({ "units.unitId": id }, { $pull: { units: { unitId: id } } }),
+    ])
     return true
   })
 

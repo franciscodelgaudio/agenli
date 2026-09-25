@@ -1,11 +1,16 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { MailIcon, SettingsIcon, ShieldIcon, UserIcon } from "lucide-react"
 import { canManageMembers, type MemberRole, type WorkspaceRole } from "@/lib/member-role"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
+import { parseUserListQuery, USER_PAGE_SIZE, userListPage, type UserListItem } from "@/lib/user-list"
 import { Workspace } from "@/models/Workspace"
 import { InviteMemberSheet } from "@/components/invite-member-sheet"
+import { ListPagination } from "@/components/list-pagination"
+import { ListSearch } from "@/components/list-search"
 import { MemberActions } from "@/components/member-actions"
 import { roleLabels } from "@/components/role-labels"
+import { SortableHead } from "@/components/sortable-head"
+import { UserRoleFilter, UserStatusFilter } from "@/components/user-filters"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -20,8 +25,9 @@ import {
 type Person = { name: string | null; email: string; image: string | null }
 type Member = Person & { id: string; role: MemberRole; pending: boolean; expiresAt: Date | null }
 
-export default async function UsersPage({ params }: PageProps<"/workspace/[workspaceId]/users">) {
+export default async function UsersPage({ params, searchParams }: PageProps<"/workspace/[workspaceId]/users">) {
   const { workspaceId } = await params
+  const query = parseUserListQuery(await searchParams)
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
@@ -73,48 +79,102 @@ export default async function UsersPage({ params }: PageProps<"/workspace/[works
   const canManage = canManageMembers(workspace.role)
   const now = new Date()
 
+  // Dono + membros numa lista só; busca, filtros e paginação são feitos aqui (poucos por workspace).
+  const people: UserListItem[] = [
+    ...(workspace.owner ? [{ ...workspace.owner, id: "owner", role: "owner" as const, status: "active" as const }] : []),
+    ...workspace.members.map(({ pending, expiresAt, ...member }) => ({
+      ...member,
+      status: !pending ? ("active" as const) : expiresAt && expiresAt <= now ? ("expired" as const) : ("pending" as const),
+    })),
+  ]
+  const result = userListPage(people, query)
+
+  const pathname = `/workspace/${workspaceId}/users`
+  // Filtros mudam sem levar a página junto, então a lista volta para a primeira.
+  const { page, ...filters } = query
+  // Página além da última (ex.: depois de remover o último usuário dela) vai para a última.
+  const pages = Math.ceil(result.total / USER_PAGE_SIZE)
+  if (pages > 0 && page > pages) {
+    const params = new URLSearchParams(
+      Object.entries({ ...filters, page: pages > 1 ? String(pages) : "" }).filter(([, v]) => v),
+    )
+    redirect(`${pathname}?${params}`)
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold tracking-tight">Usuários</h2>
-        {canManage && <InviteMemberSheet workspaceId={workspaceId} />}
+      <h2 className="text-2xl font-semibold tracking-tight">Usuários</h2>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+          <ListSearch query={filters} placeholder="Buscar nome ou email..." />
+          <UserRoleFilter query={filters} />
+          <UserStatusFilter query={filters} />
+        </div>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            {result.total} {result.total === 1 ? "usuário" : "usuários"}
+          </p>
+          {canManage && <InviteMemberSheet workspaceId={workspaceId} />}
+        </div>
       </div>
       <div className="border">
         <Table>
           <TableHeader>
             <TableRow>
-              <HeadWithIcon icon={UserIcon} label="Nome" />
-              <HeadWithIcon icon={MailIcon} label="Email" />
+              <SortableHead field="name" label="Nome" icon={UserIcon} query={filters} pathname={pathname} />
+              <SortableHead field="email" label="Email" icon={MailIcon} query={filters} pathname={pathname} />
               <HeadWithIcon icon={ShieldIcon} label="Função" />
               {canManage && <HeadWithIcon icon={SettingsIcon} label="Ações" className="w-0 text-right" />}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {workspace.owner && (
-              <PersonRow person={workspace.owner} canManage={canManage}>
-                <Badge>{roleLabels.owner}</Badge>
-              </PersonRow>
+            {result.rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
+                  Nenhum usuário encontrado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              result.rows.map((person) =>
+                person.role === "owner" ? (
+                  <PersonRow key={person.id} person={person} canManage={canManage}>
+                    <Badge>{roleLabels.owner}</Badge>
+                  </PersonRow>
+                ) : (
+                  <PersonRow
+                    key={person.id}
+                    person={person}
+                    canManage={canManage}
+                    actions={
+                      <MemberActions
+                        workspaceId={workspaceId}
+                        member={{ ...person, role: person.role, pending: person.status !== "active" }}
+                      />
+                    }
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary">{roleLabels[person.role]}</Badge>
+                      {person.status !== "active" && (
+                        <Badge variant="outline">
+                          {person.status === "expired" ? "Convite expirado" : "Convite pendente"}
+                        </Badge>
+                      )}
+                    </div>
+                  </PersonRow>
+                ),
+              )
             )}
-            {workspace.members.map((member) => (
-              <PersonRow
-                key={member.id}
-                person={member}
-                canManage={canManage}
-                actions={<MemberActions workspaceId={workspaceId} member={member} />}
-              >
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="secondary">{roleLabels[member.role]}</Badge>
-                  {member.pending && (
-                    <Badge variant="outline">
-                      {member.expiresAt && member.expiresAt <= now ? "Convite expirado" : "Convite pendente"}
-                    </Badge>
-                  )}
-                </div>
-              </PersonRow>
-            ))}
           </TableBody>
         </Table>
       </div>
+      <ListPagination
+        query={filters}
+        page={page}
+        pageSize={USER_PAGE_SIZE}
+        total={result.total}
+        pathname={pathname}
+        itemLabel="usuários"
+      />
     </div>
   )
 }

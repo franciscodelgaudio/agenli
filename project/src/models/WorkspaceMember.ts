@@ -2,6 +2,16 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 import { connectOnUse } from "@/lib/mongoose";
 import { MEMBER_ROLES } from "@/lib/member-role";
 
+// Unidade em que o membro trabalha. Só massagistas têm comissão: percentual sobre o
+// valor dos serviços que fizeram na unidade.
+const unitLinkSchema = new Schema(
+  {
+    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
+    commissionPercent: { type: Number, default: null, min: 0, max: 100 },
+  },
+  { _id: false },
+);
+
 // Membro ou convite pendente de um workspace. Enquanto userId é null, é um
 // convite: tokenHash/expiresAt identificam o link enviado por email. Ao aceitar,
 // userId é preenchido e o token é removido. O dono não tem documento aqui.
@@ -14,6 +24,7 @@ const workspaceMemberSchema = new Schema(
     tokenHash: { type: String, unique: true, sparse: true },
     expiresAt: Date,
     acceptedAt: Date,
+    units: { type: [unitLinkSchema], default: [] },
   },
   { collection: "workspace_members", timestamps: true },
 );

@@ -6,6 +6,7 @@ const BOOKING_ID = "64b7f0c2a1b2c3d4e5f60740";
 const APPOINTMENT_ID = "64b7f0c2a1b2c3d4e5f60760";
 const CANDLE_ID = "64b7f0c2a1b2c3d4e5f60731";
 const ANA_ID = "64b7f0c2a1b2c3d4e5f60751";
+const OIL_ID = "64b7f0c2a1b2c3d4e5f60761";
 
 // O formulário de atendimento chega pré-preenchido com os dados do agendamento e pode ter
 // sido ajustado; é validado como qualquer atendimento.
@@ -28,6 +29,9 @@ function makeDeps({
       ids.includes(CANDLE_ID) ? [{ id: CANDLE_ID, name: "Massagem Candle", priceCents: 35000, durationMinutes: 60 }] : [],
     ),
     findTherapists: vi.fn(async (ids: string[]) => (ids.includes(ANA_ID) ? [{ id: ANA_ID, name: "Ana" }] : [])),
+    findProducts: vi.fn(async (ids: string[]) =>
+      ids.includes(OIL_ID) ? [{ id: OIL_ID, name: "Óleo de amêndoas" }] : [],
+    ),
     insert: vi.fn().mockResolvedValue({ id: APPOINTMENT_ID }),
     // Liga o atendimento ao agendamento só se ele ainda não tiver um; false se outro chegou antes.
     link: vi.fn().mockResolvedValue(linked),
@@ -36,6 +40,15 @@ function makeDeps({
 }
 
 describe("convertBooking", () => {
+  // Os produtos do agendamento vêm pré-preenchidos no formulário e são validados como no atendimento.
+  it("leva os produtos do formulário para o atendimento", async () => {
+    const deps = makeDeps();
+
+    await convertBooking({ ...validInput, productIds: [OIL_ID] }, { bookingId: BOOKING_ID, unitId: UNIT_ID }, deps);
+
+    expect(deps.insert.mock.calls[0][0].products).toEqual([{ productId: OIL_ID, productName: "Óleo de amêndoas" }]);
+  });
+
   it("cria o atendimento na unidade e o liga ao agendamento", async () => {
     const deps = makeDeps();
 
@@ -57,6 +70,7 @@ describe("convertBooking", () => {
           therapistName: "Ana",
         },
       ],
+      products: [],
     });
     expect(deps.link).toHaveBeenCalledWith(BOOKING_ID, APPOINTMENT_ID);
     expect(deps.removeAppointment).not.toHaveBeenCalled();

@@ -16,6 +16,15 @@ const appointmentItemSchema = new Schema(
   { _id: false },
 );
 
+// Produto usado, com cópia do nome do momento da escolha. Não mexe na quantidade em estoque.
+const selectedProductSchema = new Schema(
+  {
+    productId: { type: Schema.Types.ObjectId, ref: "Product", required: true },
+    productName: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 // Atendimento de um hóspede numa unidade, com um ou mais serviços.
 const appointmentSchema = new Schema(
   {
@@ -26,13 +35,16 @@ const appointmentSchema = new Schema(
       room: { type: String, required: true, trim: true },
     },
     items: { type: [appointmentItemSchema], required: true },
+    products: { type: [selectedProductSchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { collection: "appointments", timestamps: true },
 );
 
-// A listagem sempre filtra por unidade e dia.
+// A listagem sempre filtra por unidade e costuma filtrar/ordenar pelo horário.
 appointmentSchema.index({ unitId: 1, performedAt: 1 });
+// O uso de cada produto no estoque.
+appointmentSchema.index({ "products.productId": 1 });
 
 appointmentSchema.plugin(connectOnUse);
 

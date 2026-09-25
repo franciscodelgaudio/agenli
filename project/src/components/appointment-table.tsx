@@ -31,7 +31,8 @@ export type AppointmentRow = {
 
 type Props = {
   appointments: AppointmentRow[]
-  query: AppointmentListQuery
+  // Sem a página: ordenar volta para a primeira.
+  query: Omit<AppointmentListQuery, "page">
   pathname: string
   workspaceId: string
   // Opções do formulário de edição; com units (visão do workspace), aparece a coluna Unidade.
@@ -39,6 +40,14 @@ type Props = {
   // Sem permissão, a coluna de ações (editar/excluir) não aparece.
   canManage: boolean
 }
+
+const dayFormat = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "America/Sao_Paulo",
+})
 
 function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) {
   return (
@@ -84,7 +93,10 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
           ) : (
             appointments.map((appointment) => (
               <TableRow key={appointment.id} className="align-top">
-                <TableCell className="px-4 tabular-nums">{timeFormat.format(appointment.performedAt)}</TableCell>
+                <TableCell className="px-4">
+                  <div className="font-medium">{dayFormat.format(appointment.performedAt)}</div>
+                  <div className="text-muted-foreground tabular-nums">{timeFormat.format(appointment.performedAt)}</div>
+                </TableCell>
                 {unitNames && (
                   <TableCell className="px-4">{unitNames.get(appointment.unitId) ?? "—"}</TableCell>
                 )}

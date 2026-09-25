@@ -11,9 +11,11 @@ import {
 } from "@/components/ui/table"
 import type { ServiceListQuery } from "@/lib/service-list"
 import { currencyFormat, formatDuration } from "@/components/service-format"
+import type { ProductOption } from "@/components/product-picker"
 
 type Props = {
-  services: { id: string; name: string; priceCents: number; durationMinutes: number }[]
+  services: { id: string; name: string; priceCents: number; durationMinutes: number; productIds: string[] }[]
+  products: ProductOption[]
   query: ServiceListQuery
   pathname: string
   workspaceId: string
@@ -22,7 +24,7 @@ type Props = {
   canManage: boolean
 }
 
-export function ServiceTable({ services, query, pathname, workspaceId, unitId, canManage }: Props) {
+export function ServiceTable({ services, products, query, pathname, workspaceId, unitId, canManage }: Props) {
   return (
     <div className="border">
       <Table>
@@ -62,7 +64,7 @@ export function ServiceTable({ services, query, pathname, workspaceId, unitId, c
                 <TableCell className="px-4 text-muted-foreground">{formatDuration(service.durationMinutes)}</TableCell>
                 {canManage && (
                   <TableCell className="px-4 text-right">
-                    <ServiceActions workspaceId={workspaceId} unitId={unitId} service={service} />
+                    <ServiceActions workspaceId={workspaceId} unitId={unitId} service={service} products={products} />
                   </TableCell>
                 )}
               </TableRow>

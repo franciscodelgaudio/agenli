@@ -14,14 +14,25 @@ export type CashFlowView = (typeof CASH_FLOW_VIEWS)[number];
 export type CashFlowQuery = { view: CashFlowView; date: string };
 // Dias do calendário ("2026-09-24"), ambos inclusivos.
 export type DayRange = { from: string; to: string };
-export type DayTotal = { date: string; cents: number };
+// Faturamento de uma massagista num dia, com a quantidade de serviços.
+export type DayTotal = { date: string; therapistId: string; therapistName: string; count: number; cents: number };
+// Percentual de comissão por id de usuário da massagista; quem não está aqui não tem comissão.
+export type CommissionRates = Record<string, number>;
 
-export type CashFlowAmounts = { grossCents: number; partnerShareCents: number; netCents: number };
+export type CashFlowAmounts = { grossCents: number; partnerShareCents: number; commissionCents: number; netCents: number };
 export type CashFlowBucket = DayRange & { real: CashFlowAmounts; forecast: CashFlowAmounts };
 export type CashFlowSummary = { buckets: CashFlowBucket[]; total: { real: CashFlowAmounts; forecast: CashFlowAmounts } };
 export type ServiceTotal = { serviceId: string; serviceName: string; count: number; cents: number };
 export type ServiceAmounts = { count: number; cents: number };
 export type ServiceSummary = { serviceId: string; serviceName: string; real: ServiceAmounts; forecast: ServiceAmounts };
+export type TherapistAmounts = { count: number; cents: number; commissionCents: number };
+export type TherapistSummary = {
+  therapistId: string;
+  therapistName: string;
+  commissionPercent: number | null;
+  real: TherapistAmounts;
+  forecast: TherapistAmounts;
+};
 
 function isView(value: string | undefined): value is CashFlowView {
   return CASH_FLOW_VIEWS.includes(value as CashFlowView);
@@ -125,24 +136,44 @@ function dayKey(field: string) {
   return { $dateToString: { format: "%Y-%m-%d", date: field, timezone: "-03:00" } };
 }
 
-const PROJECT_DAY_TOTAL = { $project: { _id: 0, date: "$_id", cents: 1 } };
+const PROJECT_DAY_TOTAL = {
+  $project: {
+    _id: 0,
+    date: "$_id.date",
+    therapistId: { $toString: "$_id.therapistId" },
+    therapistName: 1,
+    count: 1,
+    cents: 1,
+  },
+};
 
-// Etapas para o $lookup de appointments da unidade: faturamento por dia.
+// Etapas para o $lookup de appointments da unidade: faturamento por dia e massagista,
+// com o nome do registro mais recente.
 export function dailyAppointmentTotalsPipeline(range: DayRange): PipelineStage.FacetPipelineStage[] {
   const { start, end } = rangeBounds(range);
   return [
     { $match: { performedAt: { $gte: start, $lt: end } } },
-    { $group: { _id: dayKey("$performedAt"), cents: { $sum: { $sum: "$items.priceCents" } } } },
+    { $sort: { performedAt: 1 } },
+    { $unwind: "$items" },
+    {
+      $group: {
+        _id: { date: dayKey("$performedAt"), therapistId: "$items.therapistId" },
+        therapistName: { $last: "$items.therapistName" },
+        count: { $sum: 1 },
+        cents: { $sum: "$items.priceCents" },
+      },
+    },
     PROJECT_DAY_TOTAL,
   ];
 }
 
-// Etapas para o $lookup de bookings da unidade: valor previsto por dia dos agendamentos
-// de agora em diante, pelo preço atual do serviço.
+// Etapas para o $lookup de bookings da unidade: valor previsto por dia e massagista dos
+// agendamentos de agora em diante, pelo preço atual do serviço.
 export function dailyBookingForecastPipeline(range: DayRange, now: Date): PipelineStage.FacetPipelineStage[] {
   const { start, end } = rangeBounds(range);
   return [
     { $match: { startsAt: { $gte: now > start ? now : start, $lt: end } } },
+    { $sort: { startsAt: 1 } },
     {
       $lookup: {
         from: "services",
@@ -154,7 +185,9 @@ export function dailyBookingForecastPipeline(range: DayRange, now: Date): Pipeli
     },
     {
       $group: {
-        _id: dayKey("$startsAt"),
+        _id: { date: dayKey("$startsAt"), therapistId: "$therapistId" },
+        therapistName: { $last: "$therapistName" },
+        count: { $sum: 1 },
         cents: { $sum: { $ifNull: [{ $first: "$services.priceCents" }, 0] } },
       },
     },
@@ -256,46 +289,61 @@ function partnerShareByDay(totals: Map<string, number>, revenueShare: RevenueSha
   return shares;
 }
 
-function sumTotals(...lists: DayTotal[][]) {
+// Faturamento e comissão (sem arredondar) de cada dia, somando as massagistas.
+function sumTotals(rates: CommissionRates, ...lists: DayTotal[][]) {
   const totals = new Map<string, number>();
-  for (const { date, cents } of lists.flat()) totals.set(date, (totals.get(date) ?? 0) + cents);
-  return totals;
+  const commissions = new Map<string, number>();
+  for (const { date, therapistId, cents } of lists.flat()) {
+    totals.set(date, (totals.get(date) ?? 0) + cents);
+    commissions.set(date, (commissions.get(date) ?? 0) + (cents * (rates[therapistId] ?? 0)) / 100);
+  }
+  return { totals, commissions };
 }
 
-function bucketAmounts({ from, to }: DayRange, totals: Map<string, number>, shares: Map<string, number>) {
+function bucketAmounts(
+  { from, to }: DayRange,
+  { totals, commissions }: ReturnType<typeof sumTotals>,
+  shares: Map<string, number>,
+): CashFlowAmounts {
   let grossCents = 0;
   let share = 0;
+  let commission = 0;
   for (const [date, cents] of totals) {
     if (date < from || date > to) continue;
     grossCents += cents;
     share += shares.get(date) ?? 0;
+    commission += commissions.get(date) ?? 0;
   }
   const partnerShareCents = Math.round(share);
-  return { grossCents, partnerShareCents, netCents: grossCents - partnerShareCents };
+  const commissionCents = Math.round(commission);
+  return { grossCents, partnerShareCents, commissionCents, netCents: grossCents - partnerShareCents - commissionCents };
 }
 
 function addAmounts(a: CashFlowAmounts, b: CashFlowAmounts): CashFlowAmounts {
   return {
     grossCents: a.grossCents + b.grossCents,
     partnerShareCents: a.partnerShareCents + b.partnerShareCents,
+    commissionCents: a.commissionCents + b.commissionCents,
     netCents: a.netCents + b.netCents,
   };
 }
 
 // Real: atendimentos. Previsto: atendimentos mais agendamentos futuros. Os dias fora dos
 // intervalos só servem para o repasse; o total é a soma dos intervalos já arredondados.
+// Repasse e comissão são calculados sobre o bruto e ambos saem do líquido.
 export function summarizeCashFlow(
   buckets: DayRange[],
   appointments: DayTotal[],
   bookings: DayTotal[],
   revenueShare: RevenueShare | null,
+  commissionRates: CommissionRates,
 ): CashFlowSummary {
-  const real = sumTotals(appointments);
-  const forecast = sumTotals(appointments, bookings);
-  const realShares = partnerShareByDay(real, revenueShare);
-  const forecastShares = partnerShareByDay(forecast, revenueShare);
+  const real = sumTotals(commissionRates, appointments);
+  const forecast = sumTotals(commissionRates, appointments, bookings);
+  const realShares = partnerShareByDay(real.totals, revenueShare);
+  const forecastShares = partnerShareByDay(forecast.totals, revenueShare);
 
-  const zero = { grossCents: 0, partnerShareCents: 0, netCents: 0 };
+  const zero = { grossCents: 0, partnerShareCents: 0, commissionCents: 0, netCents: 0 };
   const rows = buckets.map((bucket) => ({
     ...bucket,
     real: bucketAmounts(bucket, real, realShares),
@@ -308,4 +356,55 @@ export function summarizeCashFlow(
       forecast: rows.reduce((sum, row) => addAmounts(sum, row.forecast), zero),
     },
   };
+}
+
+// Por massagista no intervalo exibido. Real: atendimentos. Previsto: atendimentos mais
+// agendamentos futuros, cujo nome é o mais recente. Ordena pelo previsto.
+export function summarizeTherapists(
+  { from, to }: DayRange,
+  appointments: DayTotal[],
+  bookings: DayTotal[],
+  commissionRates: CommissionRates,
+): TherapistSummary[] {
+  const rows = new Map<string, { therapistName: string; real: ServiceAmounts; forecast: ServiceAmounts }>();
+  const row = ({ therapistId, therapistName }: DayTotal) => {
+    const existing = rows.get(therapistId);
+    if (existing) {
+      existing.therapistName = therapistName;
+      return existing;
+    }
+    const created = { therapistName, real: { count: 0, cents: 0 }, forecast: { count: 0, cents: 0 } };
+    rows.set(therapistId, created);
+    return created;
+  };
+  const add = (amounts: ServiceAmounts, { count, cents }: DayTotal) => {
+    amounts.count += count;
+    amounts.cents += cents;
+  };
+  const inRange = ({ date }: DayTotal) => date >= from && date <= to;
+
+  for (const total of appointments.filter(inRange)) {
+    const summary = row(total);
+    add(summary.real, total);
+    add(summary.forecast, total);
+  }
+  for (const total of bookings.filter(inRange)) add(row(total).forecast, total);
+
+  return [...rows]
+    .map(([therapistId, { therapistName, real, forecast }]) => {
+      const commissionPercent = commissionRates[therapistId] ?? null;
+      const withCommission = ({ count, cents }: ServiceAmounts) => ({
+        count,
+        cents,
+        commissionCents: Math.round((cents * (commissionPercent ?? 0)) / 100),
+      });
+      return {
+        therapistId,
+        therapistName,
+        commissionPercent,
+        real: withCommission(real),
+        forecast: withCommission(forecast),
+      };
+    })
+    .sort((a, b) => b.forecast.cents - a.forecast.cents || a.therapistName.localeCompare(b.therapistName, "pt-BR"));
 }

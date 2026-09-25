@@ -27,6 +27,25 @@ export default async function CalendarPage({ params }: PageProps<"/workspace/[wo
     },
     {
       $lookup: {
+        from: "products",
+        localField: "units._id",
+        foreignField: "unitId",
+        as: "products",
+        pipeline: [
+          { $sort: { name: 1, _id: 1 } },
+          {
+            $project: {
+              _id: 0,
+              id: { $toString: "$_id" },
+              unitId: { $toString: "$unitId" },
+              name: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $lookup: {
         from: "services",
         localField: "units._id",
         foreignField: "unitId",
@@ -41,6 +60,7 @@ export default async function CalendarPage({ params }: PageProps<"/workspace/[wo
               name: 1,
               priceCents: 1,
               durationMinutes: 1,
+              productIds: { $map: { input: "$productIds", as: "id", in: { $toString: "$$id" } } },
             },
           },
         ],
@@ -53,6 +73,7 @@ export default async function CalendarPage({ params }: PageProps<"/workspace/[wo
         role: 1,
         units: { $map: { input: "$units", as: "unit", in: { id: { $toString: "$$unit._id" }, name: "$$unit.name" } } },
         services: 1,
+        products: 1,
         therapists: 1,
       },
     },

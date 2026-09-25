@@ -1,9 +1,14 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { CalendarDaysIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
-import { bookingDayListPipeline, parseBookingListQuery, type BookingRow } from "@/lib/booking-list"
+import {
+  BOOKING_PAGE_SIZE,
+  bookingSearchPipeline,
+  parseBookingListQuery,
+  type BookingPage,
+} from "@/lib/booking-list"
 import { BRT_OFFSET_HOURS } from "@/lib/timezone"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
@@ -11,8 +16,10 @@ import type { BookingOptions } from "@/components/booking-calendar"
 import { BookingTable } from "@/components/booking-table"
 import { CalendarNav } from "@/components/calendar-nav"
 import { CreateBookingSheet } from "@/components/create-booking-sheet"
-import { DayNav } from "@/components/day-nav"
+import { ListPagination } from "@/components/list-pagination"
 import { ListSearch } from "@/components/list-search"
+import { BookingStatusFilter } from "@/components/booking-status-filter"
+import { PeriodFilter } from "@/components/period-filter"
 import { TherapistFilter } from "@/components/therapist-filter"
 import {
   Empty,
@@ -25,7 +32,7 @@ import {
 
 const HOUR_MS = 60 * 60 * 1000
 
-// Agendamentos do dia de uma unidade, em lista.
+// Todos os agendamentos de uma unidade, em lista, com busca e filtros.
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
 export default async function UnitCalendarListPage({
   params,
@@ -34,16 +41,16 @@ export default async function UnitCalendarListPage({
   const { workspaceId, unitId } = await params
   const now = new Date()
   // A unidade vem da rota, não da URL.
-  const query = { ...parseBookingListQuery(await searchParams, now), unit: "" }
+  const query = { ...parseBookingListQuery(await searchParams), unit: "" }
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
   // Parte do workspace -> unidade -> agendamentos/serviços para que o acesso seja garantido em
-  // cada nível. O total do dia sem busca nem filtro separa "dia vazio" de "filtro sem resultado".
+  // cada nível. O total sem busca nem filtros separa "sem agendamentos" de "filtro sem resultado".
   const [workspace] = await Workspace.aggregate<Pick<BookingOptions, "therapists"> & {
     role: WorkspaceRole
-    unit: { bookings: BookingRow[]; dayCount: number; services: BookingOptions["services"] } | null
+    unit: { bookings: BookingPage; total: number; services: BookingOptions["services"] } | null
   }>([
     ...access,
     {
@@ -60,7 +67,7 @@ export default async function UnitCalendarListPage({
               localField: "_id",
               foreignField: "unitId",
               as: "bookings",
-              pipeline: bookingDayListPipeline(query),
+              pipeline: bookingSearchPipeline(query),
             },
           },
           {
@@ -68,8 +75,27 @@ export default async function UnitCalendarListPage({
               from: "bookings",
               localField: "_id",
               foreignField: "unitId",
-              as: "dayCount",
-              pipeline: [bookingDayListPipeline({ ...query, q: "", therapist: "" })[0], { $count: "n" }],
+              as: "total",
+              pipeline: [{ $count: "n" }],
+            },
+          },
+          {
+            $lookup: {
+              from: "products",
+              localField: "_id",
+              foreignField: "unitId",
+              as: "products",
+              pipeline: [
+                { $sort: { name: 1, _id: 1 } },
+                {
+                  $project: {
+                    _id: 0,
+                    id: { $toString: "$_id" },
+                    unitId: { $toString: "$unitId" },
+                    name: 1,
+                  },
+                },
+              ],
             },
           },
           {
@@ -88,6 +114,7 @@ export default async function UnitCalendarListPage({
                     name: 1,
                     priceCents: 1,
                     durationMinutes: 1,
+                    productIds: { $map: { input: "$productIds", as: "id", in: { $toString: "$$id" } } },
                   },
                 },
               ],
@@ -96,9 +123,10 @@ export default async function UnitCalendarListPage({
           {
             $project: {
               _id: 0,
-              bookings: 1,
+              bookings: { $first: "$bookings" },
               services: 1,
-              dayCount: { $ifNull: [{ $first: "$dayCount.n" }, 0] },
+              products: 1,
+              total: { $ifNull: [{ $first: "$total.n" }, 0] },
             },
           },
         ],
@@ -108,19 +136,28 @@ export default async function UnitCalendarListPage({
     { $project: { _id: 0, role: 1, therapists: 1, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
   if (!workspace?.unit) notFound()
-  const { bookings, dayCount, services } = workspace.unit
+  const { bookings: result, total, services } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
   const options = { services, therapists }
 
-  const today = parseBookingListQuery({}, now).date
   const base = `/workspace/${workspaceId}/unit/${unitId}/calendar`
   const pathname = `${base}/list`
-  // Hoje: a próxima hora cheia de Brasília; outro dia: 9h daquele dia.
-  const defaultStartsAt =
-    query.date === today
-      ? new Date(Math.ceil((now.getTime() - BRT_OFFSET_HOURS * HOUR_MS) / HOUR_MS) * HOUR_MS).toISOString().slice(0, 16)
-      : `${query.date}T09:00`
+  // Filtros mudam sem levar a página junto, então a lista volta para a primeira.
+  const { page, ...filters } = query
+  const bookings = result.rows
+  // Página além da última (ex.: depois de excluir o último agendamento dela) vai para a última.
+  const pages = Math.ceil(result.total / BOOKING_PAGE_SIZE)
+  if (pages > 0 && page > pages) {
+    const params = new URLSearchParams(
+      Object.entries({ ...filters, page: pages > 1 ? String(pages) : "" }).filter(([, v]) => v),
+    )
+    redirect(`${pathname}?${params}`)
+  }
+  // A próxima hora cheia de Brasília.
+  const defaultStartsAt = new Date(Math.ceil((now.getTime() - BRT_OFFSET_HOURS * HOUR_MS) / HOUR_MS) * HOUR_MS)
+    .toISOString()
+    .slice(0, 16)
 
   // O proprietário sempre está entre as massagistas, então sempre dá para agendar.
   const createButton = canManage && (
@@ -140,18 +177,13 @@ export default async function UnitCalendarListPage({
         <CalendarNav base={base} />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <DayNav query={query} today={today} pathname={pathname} />
-        {dayCount > 0 && createButton}
-      </div>
-
-      {dayCount === 0 ? (
+      {total === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <CalendarDaysIcon />
             </EmptyMedia>
-            <EmptyTitle>Nenhum agendamento neste dia</EmptyTitle>
+            <EmptyTitle>Nenhum agendamento</EmptyTitle>
             <EmptyDescription>
               {canManage
                 ? "Agende escolhendo a massagista, o serviço, o hóspede e o horário."
@@ -163,21 +195,34 @@ export default async function UnitCalendarListPage({
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-              <ListSearch query={query} placeholder="Buscar hóspede ou quarto..." />
-              <TherapistFilter query={query} therapists={therapists} />
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
+              <TherapistFilter query={filters} therapists={therapists} />
+              <BookingStatusFilter query={filters} />
+              <PeriodFilter query={filters} />
             </div>
-            <p className="text-sm text-muted-foreground">
-              {bookings.length} {bookings.length === 1 ? "agendamento" : "agendamentos"}
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                {result.total} {result.total === 1 ? "agendamento" : "agendamentos"}
+              </p>
+              {createButton}
+            </div>
           </div>
           <BookingTable
             bookings={bookings}
-            query={query}
+            query={filters}
             pathname={pathname}
             workspaceId={workspaceId}
             options={options}
             canManage={canManage}
+          />
+          <ListPagination
+            query={filters}
+            page={page}
+            pageSize={BOOKING_PAGE_SIZE}
+            total={result.total}
+            pathname={pathname}
+            itemLabel="agendamentos"
           />
         </>
       )}
