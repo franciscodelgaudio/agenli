@@ -6,7 +6,7 @@ import { TherapistAvatar, type TherapistOption } from "@/components/therapist-av
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardAction, CardContent } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
@@ -110,7 +110,7 @@ export function WeekChart({ buckets, today }: { buckets: CashFlowBucket[]; today
               >
                 {scheduled > 0 && (
                   <div
-                    className={cn("w-full bg-primary/30", "rounded-t-[4px]", !real && "rounded-b-none")}
+                    className="w-full rounded-t-[4px] bg-primary/30"
                     style={{ height: height(scheduled) }}
                   />
                 )}
@@ -160,6 +160,8 @@ export type TodayBooking = {
   therapistId: string
   therapistName: string
   attended: boolean
+  // Na visão do workspace, a unidade do agendamento.
+  unitName?: string
 }
 
 function BookingStatus({ booking, now, isNext }: { booking: TodayBooking; now: Date; isNext: boolean }) {
@@ -211,7 +213,7 @@ export function TodaySchedule({
               <div className="grid min-w-0">
                 <span className="truncate font-medium">{booking.guest.name}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  Quarto {booking.guest.room} · {booking.serviceName}
+                  {booking.unitName && `${booking.unitName} · `}Quarto {booking.guest.room} · {booking.serviceName}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -233,12 +235,14 @@ export type RankItem = {
   id: string
   name: string
   image?: string | null
+  href?: string
   real: { count: number; cents: number }
   forecast: { count: number; cents: number }
 }
 
 // Ranking do mês com barra proporcional ao maior previsto; a parte sólida é o realizado.
-export function RankList({ items, avatars }: { items: RankItem[]; avatars?: boolean }) {
+// avatar: redondo para pessoas, quadrado para unidades.
+export function RankList({ items, avatar }: { items: RankItem[]; avatar?: "round" | "square" }) {
   const max = Math.max(...items.map((item) => item.forecast.cents), 1)
   return (
     <ul className="flex flex-col gap-4">
@@ -246,10 +250,24 @@ export function RankList({ items, avatars }: { items: RankItem[]; avatars?: bool
         const scheduled = item.forecast.count - item.real.count
         return (
           <li key={item.id} className="flex items-center gap-3">
-            {avatars && <TherapistAvatar therapist={{ name: item.name, image: item.image ?? null }} className="size-8" />}
+            {avatar === "round" && (
+              <TherapistAvatar therapist={{ name: item.name, image: item.image ?? null }} className="size-8" />
+            )}
+            {avatar === "square" && (
+              <Avatar className="size-8 rounded-md after:rounded-md">
+                {item.image && <AvatarImage src={item.image} alt={item.name} className="rounded-md" />}
+                <AvatarFallback className="rounded-md">{item.name.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            )}
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="truncate font-medium">{item.name}</span>
+                {item.href ? (
+                  <Link href={item.href} className="truncate font-medium hover:underline">
+                    {item.name}
+                  </Link>
+                ) : (
+                  <span className="truncate font-medium">{item.name}</span>
+                )}
                 <span className="shrink-0 font-medium tabular-nums">{money(item.forecast.cents)}</span>
               </div>
               <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
@@ -271,10 +289,11 @@ export function RankList({ items, avatars }: { items: RankItem[]; avatars?: bool
   )
 }
 
-export type StockItem = { id: string; name: string; quantity: number; avatarUrl: string | null }
+// unitName: na visão do workspace, a unidade do produto.
+export type StockItem = { id: string; name: string; quantity: number; avatarUrl: string | null; unitName?: string }
 
 // Produtos acabando, do menor estoque para o maior.
-export function LowStockList({ products, href }: { products: StockItem[]; href: (id: string) => string }) {
+export function LowStockList({ products, href }: { products: StockItem[]; href: (product: StockItem) => string }) {
   return (
     <ul className="flex flex-col gap-3">
       {products.map((product) => (
@@ -283,9 +302,12 @@ export function LowStockList({ products, href }: { products: StockItem[]; href: 
             {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
             <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
-          <Link href={href(product.id)} className="min-w-0 flex-1 truncate font-medium hover:underline">
-            {product.name}
-          </Link>
+          <div className="grid min-w-0 flex-1">
+            <Link href={href(product)} className="truncate font-medium hover:underline">
+              {product.name}
+            </Link>
+            {product.unitName && <span className="truncate text-xs text-muted-foreground">{product.unitName}</span>}
+          </div>
           {product.quantity === 0 ? (
             <Badge variant="destructive">Esgotado</Badge>
           ) : (
@@ -310,5 +332,3 @@ export function CardEmpty({ icon: Icon = PackageCheckIcon, children }: { icon?: 
     </div>
   )
 }
-
-export { Card, CardContent, CardDescription, CardHeader, CardTitle }

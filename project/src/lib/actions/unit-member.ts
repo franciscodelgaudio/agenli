@@ -3,17 +3,18 @@
 import { refresh } from "next/cache"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
-import { updateUnitMember, type UpdateUnitMemberError } from "@/lib/unit-member"
+import { updateUnitMemberPay, type UpdateUnitMemberPayError } from "@/lib/unit-member"
 import { findWorkspaceAccess } from "@/lib/workspace-access"
 import { Unit } from "@/models/Unit"
 import { WorkspaceMember } from "@/models/WorkspaceMember"
 
-const errorMessages: Record<UpdateUnitMemberError | "unauthenticated", string> = {
+const errorMessages: Record<UpdateUnitMemberPayError | "unauthenticated", string> = {
   workspace_not_found: "Workspace não encontrado ou sem permissão.",
-  forbidden: "Só o proprietário e administradores gerenciam a equipe; massagistas, só o proprietário.",
+  forbidden: "Só o proprietário e administradores definem a remuneração; de massagistas, só o proprietário.",
   member_not_found: "Usuário não encontrado nesta unidade.",
-  invalid_input: "Preencha todos os campos.",
+  invalid_input: "Escolha comissão ou salário.",
   invalid_commission: "Informe uma comissão entre 0% e 100%.",
+  invalid_salary: "Informe um salário mensal maior que zero.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
 
@@ -34,10 +35,13 @@ export async function updateUnitMemberAction(
   // Membro e unidade precisam ser do workspace; ids inválidos contam como não encontrados.
   const valid = access && isObjectIdOrHexString(unitId) && isObjectIdOrHexString(memberId)
   const unitObjectId = valid ? new Types.ObjectId(unitId) : null
-  const filter = valid ? { _id: new Types.ObjectId(memberId), workspaceId: new Types.ObjectId(access.id) } : null
+  // Só encontra quem está vinculado à unidade; o vínculo é feito no formulário da unidade.
+  const filter = valid
+    ? { _id: new Types.ObjectId(memberId), workspaceId: new Types.ObjectId(access.id), "units.unitId": unitObjectId }
+    : null
 
-  const result = await updateUnitMember(
-    { linked: formData.get("linked") === "on", commissionPercent: formData.get("commissionPercent") },
+  const result = await updateUnitMemberPay(
+    { pay: formData.get("pay"), commissionPercent: formData.get("commissionPercent"), salary: formData.get("salary") },
     memberId,
     { actorRole: access?.role ?? null },
     {
@@ -46,14 +50,10 @@ export async function updateUnitMemberAction(
         const member = await WorkspaceMember.findOne(filter).select("role").lean()
         return member && { id: member._id.toString(), role: member.role }
       },
-      // Tira o vínculo antigo e, se for o caso, grava o novo: vale para criar e para editar.
-      update: async (_id, data) => {
-        await WorkspaceMember.updateOne(filter!, { $pull: { units: { unitId: unitObjectId } } })
-        if (data.linked) {
-          await WorkspaceMember.updateOne(filter!, {
-            $push: { units: { unitId: unitObjectId, commissionPercent: data.commissionPercent } },
-          })
-        }
+      update: async (_id, { commissionPercent, salaryCents }) => {
+        await WorkspaceMember.updateOne(filter!, {
+          $set: { "units.$.commissionPercent": commissionPercent, "units.$.salaryCents": salaryCents },
+        })
       },
     },
   )

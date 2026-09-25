@@ -3,6 +3,7 @@ import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { unitListPipeline, parseUnitListQuery } from "@/lib/unit-list"
 import type { RevenueShare } from "@/lib/revenue-share"
+import { teamCandidatesLookup, type TeamCandidate } from "@/lib/unit-team"
 import { Workspace } from "@/models/Workspace"
 import { CreateUnitSheet } from "@/components/create-unit-sheet"
 import { ListSearch } from "@/components/list-search"
@@ -32,6 +33,7 @@ export default async function UnitsPage({
     }[]
     unitCount: number
     role: WorkspaceRole
+    team: TeamCandidate[]
   }>([
     ...access,
     {
@@ -52,11 +54,13 @@ export default async function UnitsPage({
         pipeline: [{ $count: "n" }],
       },
     },
+    teamCandidatesLookup(),
     {
       $project: {
         _id: 0,
         units: 1,
         role: 1,
+        team: 1,
         unitCount: { $ifNull: [{ $first: "$unitCount.n" }, 0] },
       },
     },
@@ -64,15 +68,16 @@ export default async function UnitsPage({
   if (!workspace) notFound()
   const { units, unitCount } = workspace
   const canManage = canManageMembers(workspace.role)
+  const team = { candidates: workspace.team, canLinkTherapists: workspace.role === "owner" }
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">Unidades</h2>
-        {canManage && unitCount > 0 && <CreateUnitSheet workspaceId={workspaceId} />}
+        {canManage && unitCount > 0 && <CreateUnitSheet workspaceId={workspaceId} team={team} />}
       </div>
       {unitCount === 0 ? (
-        <UnitsEmpty workspaceId={workspaceId} canManage={canManage} />
+        <UnitsEmpty workspaceId={workspaceId} canManage={canManage} team={team} />
       ) : (
         <>
           <ListSearch query={query} placeholder="Buscar unidade..." />
@@ -82,6 +87,7 @@ export default async function UnitsPage({
             pathname={`/workspace/${workspaceId}/unit`}
             workspaceId={workspaceId}
             canManage={canManage}
+            team={team}
           />
         </>
       )}

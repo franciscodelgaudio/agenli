@@ -408,3 +408,59 @@ export function summarizeTherapists(
     })
     .sort((a, b) => b.forecast.cents - a.forecast.cents || a.therapistName.localeCompare(b.therapistName, "pt-BR"));
 }
+
+// Custos da equipe que não dependem de quem fez o serviço: comissão sobre o bruto
+// (recepcionistas) e salários mensais, que somados à equipe toda saem do líquido.
+export type StaffCosts = { grossCommissionPercent: number; monthlySalaryCents: number; today: string };
+export type StaffCashFlowAmounts = CashFlowAmounts & { salaryCents: number };
+export type StaffCashFlowBucket = DayRange & { real: StaffCashFlowAmounts; forecast: StaffCashFlowAmounts };
+export type StaffCashFlowSummary = {
+  buckets: StaffCashFlowBucket[];
+  total: { real: StaffCashFlowAmounts; forecast: StaffCashFlowAmounts };
+};
+
+// Salário (sem arredondar) dos dias do intervalo até `last`: cada dia vale 1/n do mês de n dias.
+function salaryForDays({ from, to }: DayRange, monthlySalaryCents: number, last = to) {
+  let salary = 0;
+  for (let date = from; date <= to && date <= last; date = addDays(date, 1)) {
+    const [year, month] = parseDay(date)!;
+    salary += monthlySalaryCents / Number(utcDay(year, month + 1, 0).slice(8));
+  }
+  return salary;
+}
+
+function withStaffCosts(amounts: CashFlowAmounts, grossCommissionPercent: number, salary: number): StaffCashFlowAmounts {
+  const extraCommission = Math.round((amounts.grossCents * grossCommissionPercent) / 100);
+  const salaryCents = Math.round(salary);
+  return {
+    ...amounts,
+    commissionCents: amounts.commissionCents + extraCommission,
+    salaryCents,
+    netCents: amounts.netCents - extraCommission - salaryCents,
+  };
+}
+
+// Real: salário só até hoje. Previsto: o intervalo inteiro. Arredonda por intervalo e o
+// total soma os intervalos arredondados.
+export function applyStaffCosts(
+  summary: CashFlowSummary,
+  { grossCommissionPercent, monthlySalaryCents, today }: StaffCosts,
+): StaffCashFlowSummary {
+  const buckets = summary.buckets.map((bucket) => ({
+    ...bucket,
+    real: withStaffCosts(bucket.real, grossCommissionPercent, salaryForDays(bucket, monthlySalaryCents, today)),
+    forecast: withStaffCosts(bucket.forecast, grossCommissionPercent, salaryForDays(bucket, monthlySalaryCents)),
+  }));
+  const zero = { grossCents: 0, partnerShareCents: 0, commissionCents: 0, salaryCents: 0, netCents: 0 };
+  const add = (a: StaffCashFlowAmounts, b: StaffCashFlowAmounts) => ({
+    ...addAmounts(a, b),
+    salaryCents: a.salaryCents + b.salaryCents,
+  });
+  return {
+    buckets,
+    total: {
+      real: buckets.reduce((sum, row) => add(sum, row.real), zero),
+      forecast: buckets.reduce((sum, row) => add(sum, row.forecast), zero),
+    },
+  };
+}

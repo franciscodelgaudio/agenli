@@ -2,12 +2,14 @@ import { Schema, model, models, type InferSchemaType, type Model } from "mongoos
 import { connectOnUse } from "@/lib/mongoose";
 import { MEMBER_ROLES } from "@/lib/member-role";
 
-// Unidade em que o membro trabalha. Só massagistas têm comissão: percentual sobre o
-// valor dos serviços que fizeram na unidade.
+// Unidade em que o membro trabalha e como é pago nela: comissão ou salário mensal,
+// nunca os dois (ambos null até ser definido na Equipe). Comissão de massagista é sobre
+// os serviços que ela fez; de recepcionista, sobre o faturamento bruto da unidade.
 const unitLinkSchema = new Schema(
   {
     unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
     commissionPercent: { type: Number, default: null, min: 0, max: 100 },
+    salaryCents: { type: Number, default: null, min: 1 },
   },
   { _id: false },
 );

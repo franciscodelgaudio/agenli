@@ -1,26 +1,107 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
+import { Types } from "mongoose"
+import {
+  CalendarCheckIcon,
+  CalendarXIcon,
+  PiggyBankIcon,
+  SparklesIcon,
+  StoreIcon,
+  TrendingUpIcon,
+  UsersIcon,
+} from "lucide-react"
+import {
+  cashFlowBuckets,
+  cashFlowFetchRange,
+  dailyAppointmentTotalsPipeline,
+  dailyBookingForecastPipeline,
+  parseCashFlowQuery,
+  serviceAppointmentTotalsPipeline,
+  serviceBookingForecastPipeline,
+  summarizeCashFlow,
+  summarizeServices,
+  summarizeTherapists,
+  type CashFlowAmounts,
+  type CommissionRates,
+  type DayTotal,
+  type ServiceTotal,
+} from "@/lib/cash-flow"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import type { RevenueShare } from "@/lib/revenue-share"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
+import { therapistOptionsStages } from "@/lib/therapist"
+import { BRT_OFFSET_HOURS } from "@/lib/timezone"
+import { teamCandidatesLookup, type TeamCandidate } from "@/lib/unit-team"
+import { Appointment } from "@/models/Appointment"
+import { Booking } from "@/models/Booking"
+import { Product } from "@/models/Product"
 import { Workspace } from "@/models/Workspace"
-import { Button } from "@/components/ui/button"
+import { WorkspaceMember } from "@/models/WorkspaceMember"
 import { CreateUnitSheet } from "@/components/create-unit-sheet"
-import { UnitList } from "@/components/unit-list"
+import { timeFormat } from "@/components/service-format"
+import type { TherapistOption } from "@/components/therapist-avatar"
+import {
+  CardEmpty,
+  CardLink,
+  LowStockList,
+  money,
+  plural,
+  RankList,
+  RealForecastLegend,
+  StatTile,
+  TodaySchedule,
+  WeekChart,
+  type StockItem,
+  type TodayBooking,
+} from "@/components/unit-overview"
 import { UnitsEmpty } from "@/components/units-empty"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+const DAY_MS = 24 * 60 * 60 * 1000
+// Produtos com até esta quantidade aparecem como acabando.
+const LOW_STOCK_QUANTITY = 2
+const TOP_ITEMS = 5
+
+// Os dias são do calendário, então são formatados em UTC para não deslocar.
+const monthFormat = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" })
+const todayFormat = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
+
+function toDate(day: string) {
+  const [year, month, date] = day.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, date))
+}
+
+const ZERO: CashFlowAmounts = { grossCents: 0, partnerShareCents: 0, commissionCents: 0, netCents: 0 }
+
+// Soma dos valores já calculados por unidade (cada uma com seu repasse e suas comissões).
+function sumAmounts(list: CashFlowAmounts[]): CashFlowAmounts {
+  return list.reduce(
+    (sum, amounts) => ({
+      grossCents: sum.grossCents + amounts.grossCents,
+      partnerShareCents: sum.partnerShareCents + amounts.partnerShareCents,
+      commissionCents: sum.commissionCents + amounts.commissionCents,
+      netCents: sum.netCents + amounts.netCents,
+    }),
+    ZERO,
+  )
+}
+
+type UnitInfo = { id: string; name: string; avatarUrl: string | null; revenueShare: RevenueShare | null }
+
+// Página inicial: visão geral de todas as unidades do workspace.
 export default async function WorkspacePage({ params }: PageProps<"/workspace/[workspaceId]">) {
   const { workspaceId } = await params
+  const now = new Date()
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 
-  // Workspace + as 5 primeiras unidades + o total, numa consulta só.
   const [workspace] = await Workspace.aggregate<{
     id: string
     name: string
     role: WorkspaceRole
-    units: { id: string; name: string; avatarUrl: string | null }[]
-    unitCount: number
+    units: UnitInfo[]
+    therapists: TherapistOption[]
+    team: TeamCandidate[]
   }>([
     ...access,
     {
@@ -30,58 +111,318 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
         foreignField: "workspaceId",
         as: "units",
         pipeline: [
-          { $sort: { name: 1 } },
+          { $sort: { name: 1, _id: 1 } },
           {
             $project: {
               _id: 0,
               id: { $toString: "$_id" },
               name: 1,
               avatarUrl: { $ifNull: ["$avatarUrl", null] },
+              revenueShare: { $ifNull: ["$revenueShare", null] },
             },
           },
         ],
       },
     },
-    {
-      $project: {
-        _id: 0,
-        id: { $toString: "$_id" },
-        name: 1,
-        role: 1,
-        units: { $slice: ["$units", 5] },
-        unitCount: { $size: "$units" },
-      },
-    },
+    ...therapistOptionsStages(),
+    teamCandidatesLookup(),
+    { $project: { _id: 0, id: { $toString: "$_id" }, name: 1, role: 1, units: 1, therapists: 1, team: 1 } },
   ])
   if (!workspace) notFound()
-  const { units, unitCount } = workspace
+  const { units } = workspace
   const canManage = canManageMembers(workspace.role)
+  const team = { candidates: workspace.team, canLinkTherapists: workspace.role === "owner" }
 
-  if (unitCount === 0) {
+  if (units.length === 0) {
     return (
       <div className="flex flex-1 flex-col p-4">
-        <UnitsEmpty workspaceId={workspace.id} canManage={canManage} />
+        <UnitsEmpty workspaceId={workspace.id} canManage={canManage} team={team} />
       </div>
     )
   }
 
+  // Mês corrente para os indicadores e rankings; semana corrente para o gráfico.
+  const today = parseCashFlowQuery({}, now).date
+  const monthBuckets = cashFlowBuckets({ view: "month", date: today })
+  const weekBuckets = cashFlowBuckets({ view: "week", date: today })
+  const month = { from: monthBuckets[0].from, to: monthBuckets.at(-1)!.to }
+  const [year, monthNumber, day] = today.split("-").map(Number)
+  const todayStart = new Date(Date.UTC(year, monthNumber - 1, day, BRT_OFFSET_HOURS))
+  const todayEnd = new Date(todayStart.getTime() + DAY_MS)
+  const unitIds = units.map((unit) => new Types.ObjectId(unit.id))
+
+  // O repasse depende do faturamento de cada unidade, então o caixa é calculado unidade a
+  // unidade (com o resto dos períodos de repasse das pontas) e só depois somado.
+  const [perUnit, members, todayBookings, lowStock, productCount] = await Promise.all([
+    Promise.all(
+      units.map(async (unit) => {
+        const period = unit.revenueShare?.period ?? null
+        const monthRange = cashFlowFetchRange(monthBuckets, period)
+        const weekRange = cashFlowFetchRange(weekBuckets, period)
+        const range = {
+          from: monthRange.from < weekRange.from ? monthRange.from : weekRange.from,
+          to: monthRange.to > weekRange.to ? monthRange.to : weekRange.to,
+        }
+        const unitMatch = { $match: { unitId: new Types.ObjectId(unit.id) } }
+        const [appointments, bookings, serviceAppointments, serviceBookings] = await Promise.all([
+          Appointment.aggregate<DayTotal>([unitMatch, ...dailyAppointmentTotalsPipeline(range)]),
+          Booking.aggregate<DayTotal>([unitMatch, ...dailyBookingForecastPipeline(range, now)]),
+          Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(month)]),
+          Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(month, now)]),
+        ])
+        return { unit, appointments, bookings, services: summarizeServices(serviceAppointments, serviceBookings) }
+      }),
+    ),
+    // Comissão das massagistas em cada unidade (o proprietário não tem).
+    WorkspaceMember.find({ workspaceId: workspace.id, role: "massage_therapist", userId: { $ne: null } })
+      .select({ userId: 1, units: 1 })
+      .lean(),
+    Booking.find({ unitId: { $in: unitIds }, startsAt: { $gte: todayStart, $lt: todayEnd } })
+      .sort({ startsAt: 1 })
+      .select({ unitId: 1, startsAt: 1, endsAt: 1, guest: 1, service: 1, therapistId: 1, therapistName: 1, appointmentId: 1 })
+      .lean(),
+    Product.find({ unitId: { $in: unitIds }, quantity: { $lte: LOW_STOCK_QUANTITY } })
+      .sort({ quantity: 1, name: 1 })
+      .select({ unitId: 1, name: 1, quantity: 1, avatarUrl: 1 })
+      .lean(),
+    Product.countDocuments({ unitId: { $in: unitIds } }),
+  ])
+
+  const unitSummaries = perUnit.map(({ unit, appointments, bookings, services }) => {
+    const commissionRates: CommissionRates = {}
+    for (const member of members) {
+      const link = member.units.find((link) => link.unitId.equals(unit.id))
+      if (link?.commissionPercent != null) commissionRates[member.userId!.toString()] = link.commissionPercent
+    }
+    const done = services.reduce((sum, service) => sum + service.real.count, 0)
+    const all = services.reduce((sum, service) => sum + service.forecast.count, 0)
+    return {
+      unit,
+      hasDeductions: !!unit.revenueShare || Object.keys(commissionRates).length > 0,
+      month: summarizeCashFlow(monthBuckets, appointments, bookings, unit.revenueShare, commissionRates).total,
+      week: summarizeCashFlow(weekBuckets, appointments, bookings, unit.revenueShare, commissionRates).buckets,
+      services: { done, scheduled: all - done },
+    }
+  })
+
+  const monthTotal = {
+    real: sumAmounts(unitSummaries.map((summary) => summary.month.real)),
+    forecast: sumAmounts(unitSummaries.map((summary) => summary.month.forecast)),
+  }
+  const weekBucketsTotal = weekBuckets.map((bucket, index) => ({
+    ...bucket,
+    real: sumAmounts(unitSummaries.map((summary) => summary.week[index].real)),
+    forecast: sumAmounts(unitSummaries.map((summary) => summary.week[index].forecast)),
+  }))
+  const weekTotal = {
+    real: sumAmounts(weekBucketsTotal.map((bucket) => bucket.real)),
+    forecast: sumAmounts(weekBucketsTotal.map((bucket) => bucket.forecast)),
+  }
+  const servicesDone = unitSummaries.reduce((sum, summary) => sum + summary.services.done, 0)
+  const servicesScheduled = unitSummaries.reduce((sum, summary) => sum + summary.services.scheduled, 0)
+  const hasDeductions = unitSummaries.some((summary) => summary.hasDeductions)
+  const deductionsCents = monthTotal.real.partnerShareCents + monthTotal.real.commissionCents
+
+  // Massagistas somando todas as unidades em que atenderam; só os valores brutos são usados.
+  const therapistRows = summarizeTherapists(
+    month,
+    perUnit.flatMap((unit) => unit.appointments),
+    perUnit.flatMap((unit) => unit.bookings),
+    {},
+  )
+  const therapistImages = new Map(workspace.therapists.map((therapist) => [therapist.id, therapist.image]))
+  const unitRanking = [...unitSummaries].sort(
+    (a, b) =>
+      b.month.forecast.grossCents - a.month.forecast.grossCents || a.unit.name.localeCompare(b.unit.name, "pt-BR"),
+  )
+
+  const unitNames = new Map(units.map((unit) => [unit.id, unit.name]))
+  const schedule: TodayBooking[] = todayBookings.map((booking) => ({
+    id: booking._id.toString(),
+    startsAt: booking.startsAt,
+    endsAt: booking.endsAt,
+    guest: booking.guest!,
+    serviceName: booking.service.serviceName,
+    therapistId: booking.therapistId.toString(),
+    therapistName: booking.therapistName,
+    attended: !!booking.appointmentId,
+    unitName: units.length > 1 ? unitNames.get(booking.unitId.toString()) : undefined,
+  }))
+  const attendedToday = schedule.filter((booking) => booking.attended).length
+  const nextBooking = schedule.find((booking) => !booking.attended && booking.startsAt > now)
+  const stock: (StockItem & { unitId: string })[] = lowStock.map((product) => ({
+    id: product._id.toString(),
+    unitId: product.unitId.toString(),
+    name: product.name,
+    quantity: product.quantity,
+    avatarUrl: product.avatarUrl ?? null,
+    unitName: units.length > 1 ? unitNames.get(product.unitId.toString()) : undefined,
+  }))
+  const stockUnit = new Map(stock.map((product) => [product.id, product.unitId]))
+
+  const base = `/workspace/${workspace.id}`
+  const monthName = monthFormat.format(toDate(today))
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-semibold tracking-tight">{workspace.name}</h2>
-        {canManage && <CreateUnitSheet workspaceId={workspace.id} />}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="grid gap-0.5">
+          <h2 className="text-2xl font-semibold tracking-tight">{workspace.name}</h2>
+          <span className="text-sm text-muted-foreground first-letter:uppercase">
+            {todayFormat.format(toDate(today))} · {plural(units.length, "unidade", "unidades")}
+          </span>
+        </div>
+        {canManage && <CreateUnitSheet workspaceId={workspace.id} team={team} />}
       </div>
-      <UnitList units={units} />
-      {unitCount > units.length && (
-        <Button
-          variant="link"
-          className="self-start"
-          nativeButton={false}
-          render={<Link href={`/workspace/${workspace.id}/unit`} />}
-        >
-          Ver todas as {unitCount} unidades
-        </Button>
-      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          icon={TrendingUpIcon}
+          label={`Faturamento de ${monthName}`}
+          value={money(monthTotal.real.grossCents)}
+          progress={monthTotal.forecast.grossCents ? monthTotal.real.grossCents / monthTotal.forecast.grossCents : 0}
+          detail={`de ${money(monthTotal.forecast.grossCents)} previstos`}
+        />
+        <StatTile
+          icon={PiggyBankIcon}
+          label="Líquido do mês"
+          value={money(monthTotal.real.netCents)}
+          detail={hasDeductions ? `${money(deductionsCents)} em repasse e comissões` : "Sem repasse nem comissões"}
+        />
+        <StatTile
+          icon={SparklesIcon}
+          label="Serviços no mês"
+          value={String(servicesDone)}
+          detail={
+            servicesScheduled
+              ? `+ ${plural(servicesScheduled, "agendado", "agendados")} até o fim do mês`
+              : "Nenhum outro agendado"
+          }
+        />
+        <StatTile
+          icon={CalendarCheckIcon}
+          label="Hoje"
+          value={plural(schedule.length, "agendamento", "agendamentos")}
+          detail={
+            nextBooking
+              ? `Próximo às ${timeFormat.format(nextBooking.startsAt)} · ${attendedToday} atendidos`
+              : schedule.length
+                ? `${attendedToday} de ${schedule.length} atendidos`
+                : "Dia livre"
+          }
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Agenda de hoje</CardTitle>
+            <CardDescription>
+              {schedule.length
+                ? `${plural(schedule.length, "agendamento", "agendamentos")}, ${attendedToday} ${attendedToday === 1 ? "atendido" : "atendidos"}`
+                : "Nada agendado para hoje"}
+            </CardDescription>
+            <CardLink href={`${base}/calendar`}>Calendário</CardLink>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {schedule.length ? (
+              <TodaySchedule bookings={schedule} therapists={workspace.therapists} now={now} />
+            ) : (
+              <CardEmpty icon={CalendarXIcon}>Nenhum agendamento hoje. Novos horários entram pelo calendário.</CardEmpty>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Esta semana</CardTitle>
+            <CardDescription>
+              {money(weekTotal.real.grossCents)} realizados de {money(weekTotal.forecast.grossCents)} previstos
+            </CardDescription>
+            <CardLink href={`${base}/appointments`}>Atendimentos</CardLink>
+          </CardHeader>
+          <CardContent className="gap-4">
+            <WeekChart buckets={weekBucketsTotal} today={today} />
+            <RealForecastLegend />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Unidades</CardTitle>
+            <CardDescription className="first-letter:uppercase">{monthName}, pelo previsto</CardDescription>
+            <CardLink href={`${base}/unit`}>Todas</CardLink>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {unitRanking.length ? (
+              <RankList
+                avatar="square"
+                items={unitRanking.slice(0, TOP_ITEMS).map(({ unit, month, services }) => ({
+                  id: unit.id,
+                  name: unit.name,
+                  image: unit.avatarUrl,
+                  href: `${base}/unit/${unit.id}`,
+                  real: { count: services.done, cents: month.real.grossCents },
+                  forecast: { count: services.done + services.scheduled, cents: month.forecast.grossCents },
+                }))}
+              />
+            ) : (
+              <CardEmpty icon={StoreIcon}>Nenhuma unidade.</CardEmpty>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Massagistas</CardTitle>
+            <CardDescription className="first-letter:uppercase">{monthName}, pelo previsto</CardDescription>
+            <CardLink href={`${base}/users`}>Usuários</CardLink>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {therapistRows.length ? (
+              <RankList
+                avatar="round"
+                items={therapistRows.slice(0, TOP_ITEMS).map((therapist) => ({
+                  id: therapist.therapistId,
+                  name: therapist.therapistName,
+                  image: therapistImages.get(therapist.therapistId) ?? null,
+                  real: therapist.real,
+                  forecast: therapist.forecast,
+                }))}
+              />
+            ) : (
+              <CardEmpty icon={UsersIcon}>Ninguém atendeu nem tem agendamentos neste mês.</CardEmpty>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 xl:col-span-1">
+          <CardHeader>
+            <CardTitle>Estoque acabando</CardTitle>
+            <CardDescription>
+              {productCount
+                ? `${plural(stock.length, "produto", "produtos")} com até ${LOW_STOCK_QUANTITY} unidades, de ${productCount}`
+                : "Nenhum produto cadastrado"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {stock.length ? (
+              <LowStockList
+                products={stock.slice(0, TOP_ITEMS)}
+                href={(product) => `${base}/unit/${stockUnit.get(product.id)}/stock/${product.id}`}
+              />
+            ) : (
+              <CardEmpty>
+                {productCount
+                  ? "Estoque em dia: nenhum produto acabando."
+                  : "Cadastre produtos no estoque de cada unidade."}
+              </CardEmpty>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

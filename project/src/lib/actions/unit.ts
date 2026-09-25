@@ -1,9 +1,10 @@
 "use server"
 
 import { refresh } from "next/cache"
-import { isObjectIdOrHexString } from "mongoose"
+import { isObjectIdOrHexString, Types } from "mongoose"
 import { getSessionUserId } from "@/lib/session"
-import { canManageMembers } from "@/lib/member"
+import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { planUnitTeam, type PlanUnitTeamError, type UnitTeamPlan } from "@/lib/unit-team"
 import { findWorkspaceAccess } from "@/lib/workspace-access"
 import {
   createUnit,
@@ -17,7 +18,7 @@ import { Unit } from "@/models/Unit"
 import { Service } from "@/models/Service"
 import { WorkspaceMember } from "@/models/WorkspaceMember"
 
-const errorMessages: Record<CreateUnitError | UpdateUnitError | "unauthenticated", string> = {
+const errorMessages: Record<CreateUnitError | UpdateUnitError | PlanUnitTeamError | "unauthenticated", string> = {
   invalid_input: "Informe o nome da unidade.",
   invalid_name: "Informe o nome da unidade.",
   name_too_long: "O nome pode ter no máximo 80 caracteres.",
@@ -29,6 +30,8 @@ const errorMessages: Record<CreateUnitError | UpdateUnitError | "unauthenticated
   invalid_tier_percent: "Os percentuais devem estar entre 0 e 100, com até 2 casas decimais.",
   workspace_not_found: "Workspace não encontrado ou sem permissão.",
   unit_not_found: "Unidade não encontrada ou sem permissão.",
+  forbidden: "Sem permissão para alterar a equipe.",
+  invalid_team: "Escolha só massagistas e recepcionistas deste workspace.",
   unauthenticated: "Sua sessão expirou. Entre novamente.",
 }
 
@@ -36,10 +39,37 @@ export type CreateUnitState = { error: string | null }
 export type UpdateUnitState = CreateUnitState
 export type DeleteUnitState = CreateUnitState
 
-// id do workspace se o usuário puder gerenciá-lo (dono ou administrador); senão undefined.
-async function findManagedWorkspaceId(workspaceId: string, userId: string) {
+// Acesso ao workspace se o usuário puder gerenciá-lo (dono ou administrador); senão undefined.
+async function findManagedAccess(workspaceId: string, userId: string) {
   const access = await findWorkspaceAccess(workspaceId, userId)
-  return access && canManageMembers(access.role) ? access.id : undefined
+  return access && canManageMembers(access.role) ? access : undefined
+}
+
+// Quem vincular e desvincular, conferido antes de gravar a unidade. unitId null = unidade nova.
+async function planTeam(formData: FormData, workspaceId: string, role: WorkspaceRole, unitId: string | null) {
+  const members = await WorkspaceMember.find({ workspaceId }).select({ role: 1, units: 1 }).lean()
+  return planUnitTeam(
+    formData.getAll("teamMemberId"),
+    members.map((member) => ({
+      id: member._id.toString(),
+      role: member.role,
+      linked: !!unitId && member.units.some((unit) => unit.unitId.equals(unitId)),
+    })),
+    role,
+  )
+}
+
+// Quem entra começa sem remuneração, definida depois na Equipe; quem já estava fica como está.
+async function applyTeam(workspaceId: string, unitId: string, { link, unlink }: Extract<UnitTeamPlan, { ok: true }>) {
+  const unitObjectId = new Types.ObjectId(unitId)
+  const ids = (list: string[]) => ({ _id: { $in: list.map((id) => new Types.ObjectId(id)) }, workspaceId })
+  await Promise.all([
+    link.length &&
+      WorkspaceMember.updateMany(ids(link), {
+        $push: { units: { unitId: unitObjectId, commissionPercent: null, salaryCents: null } },
+      }),
+    unlink.length && WorkspaceMember.updateMany(ids(unlink), { $pull: { units: { unitId: unitObjectId } } }),
+  ])
 }
 
 // A ordem dos campos no FormData forma as faixas: um limite para cada, menos a última.
@@ -65,14 +95,18 @@ export async function createUnitAction(
   const userId = await getSessionUserId()
   if (!userId) return { error: errorMessages.unauthenticated }
 
-  const ownedId = await findManagedWorkspaceId(workspaceId, userId)
+  const access = await findManagedAccess(workspaceId, userId)
+  const team = access && (await planTeam(formData, access.id, access.role, null))
+  if (team && !team.ok) return { error: errorMessages[team.error] }
 
   const result = await createUnit(
     unitInput(formData),
-    ownedId,
+    access?.id,
     async (data) => {
       const unit = await Unit.create(data)
-      return { id: unit._id.toString() }
+      const id = unit._id.toString()
+      if (team) await applyTeam(data.workspaceId, id, team)
+      return { id }
     },
   )
 
@@ -88,8 +122,8 @@ export async function createUnitAction(
 async function resolveUnitTarget(workspaceId: string, unitId: string) {
   const userId = await getSessionUserId()
   if (!userId) return null
-  const ownedId = await findManagedWorkspaceId(workspaceId, userId)
-  return { ownedId, unitId: ownedId && isObjectIdOrHexString(unitId) ? unitId : null }
+  const access = await findManagedAccess(workspaceId, userId)
+  return { ownedId: access?.id, role: access?.role, unitId: access && isObjectIdOrHexString(unitId) ? unitId : null }
 }
 
 export async function updateUnitAction(
@@ -100,6 +134,8 @@ export async function updateUnitAction(
 ): Promise<UpdateUnitState> {
   const target = await resolveUnitTarget(workspaceId, unitId)
   if (!target) return { error: errorMessages.unauthenticated }
+  const team = target.ownedId && target.role && (await planTeam(formData, target.ownedId, target.role, target.unitId))
+  if (team && !team.ok) return { error: errorMessages[team.error] }
 
   const result = await updateUnit(
     unitInput(formData),
@@ -114,7 +150,9 @@ export async function updateUnitAction(
           ...(Object.keys($unset).length && { $unset }),
         },
       )
-      return matchedCount > 0
+      if (matchedCount === 0) return false
+      if (team) await applyTeam(target.ownedId!, id, team)
+      return true
     },
   )
 

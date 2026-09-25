@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import {
+  applyStaffCosts,
   cashFlowBuckets,
   cashFlowFetchRange,
   dailyAppointmentTotalsPipeline,
@@ -63,32 +64,43 @@ export default async function CashFlowPage({
   const shown = { from: buckets[0].from, to: buckets.at(-1)!.to }
   const range = cashFlowFetchRange(buckets, revenueShare?.period ?? null)
   const unitMatch = { $match: { unitId: new Types.ObjectId(unitId) } }
-  const [appointments, bookings, serviceAppointments, serviceBookings, therapists] = await Promise.all([
+  const [appointments, bookings, serviceAppointments, serviceBookings, team] = await Promise.all([
     Appointment.aggregate<DayTotal>([unitMatch, ...dailyAppointmentTotalsPipeline(range)]),
     Booking.aggregate<DayTotal>([unitMatch, ...dailyBookingForecastPipeline(range, now)]),
     Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(shown)]),
     Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(shown, now)]),
-    // Comissão das massagistas vinculadas a esta unidade (o proprietário não tem).
+    // Remuneração da equipe vinculada a esta unidade (o proprietário não tem).
     WorkspaceMember.find({
       workspaceId: workspace.id,
-      role: "massage_therapist",
-      userId: { $ne: null },
-      units: { $elemMatch: { unitId, commissionPercent: { $ne: null } } },
+      role: { $in: ["massage_therapist", "receptionist"] },
+      "units.unitId": unitId,
     })
-      .select({ userId: 1, units: 1 })
+      .select({ userId: 1, role: 1, units: 1 })
       .lean(),
   ])
+  // Comissão de massagista vai pelo id de usuário, que identifica quem fez o serviço.
+  // Comissão de recepcionista é sobre o bruto; salário vale mesmo com convite pendente.
   const commissionRates: CommissionRates = {}
-  for (const member of therapists) {
+  let grossCommissionPercent = 0
+  let monthlySalaryCents = 0
+  for (const member of team) {
     const link = member.units.find((unit) => unit.unitId.equals(unitId))
-    if (link?.commissionPercent != null) commissionRates[member.userId!.toString()] = link.commissionPercent
+    if (link?.salaryCents != null) monthlySalaryCents += link.salaryCents
+    if (link?.commissionPercent == null) continue
+    if (member.role === "receptionist") grossCommissionPercent += link.commissionPercent
+    else if (member.userId) commissionRates[member.userId.toString()] = link.commissionPercent
   }
-  const summary = summarizeCashFlow(buckets, appointments, bookings, revenueShare, commissionRates)
+  const today = parseCashFlowQuery({}, now).date
+  const summary = applyStaffCosts(summarizeCashFlow(buckets, appointments, bookings, revenueShare, commissionRates), {
+    grossCommissionPercent,
+    monthlySalaryCents,
+    today,
+  })
   const services = summarizeServices(serviceAppointments, serviceBookings)
   const therapistRows = summarizeTherapists(shown, appointments, bookings, commissionRates)
-  const hasCommission = Object.keys(commissionRates).length > 0
+  const hasCommission = Object.keys(commissionRates).length > 0 || grossCommissionPercent > 0
+  const hasSalary = monthlySalaryCents > 0
 
-  const today = parseCashFlowQuery({}, now).date
   const pathname = `/workspace/${workspaceId}/unit/${unitId}/cash-flow`
 
   return (
@@ -106,6 +118,7 @@ export default async function CashFlowPage({
         summary={summary}
         hasPartnerShare={!!revenueShare}
         hasCommission={hasCommission}
+        hasSalary={hasSalary}
         today={today}
       />
       <p className="text-sm text-muted-foreground">
@@ -114,9 +127,9 @@ export default async function CashFlowPage({
         {revenueShare
           ? `O repasse ao estabelecimento é calculado sobre o faturamento ${periodLabels[revenueShare.period].toLowerCase()} e distribuído proporcionalmente entre os períodos.`
           : "Unidade em espaço próprio: sem repasse."}{" "}
-        {hasCommission
-          ? "A comissão de cada massagista é calculada sobre o valor dos serviços que ela fez, e sai do líquido junto com o repasse."
-          : "Nenhuma massagista com comissão nesta unidade (defina em Equipe)."}
+        {hasCommission || hasSalary
+          ? "A comissão de massagista é sobre os serviços que ela fez; a de recepcionista, sobre o bruto. O salário mensal é rateado por dia (no real, só até hoje). Tudo sai do líquido junto com o repasse."
+          : "Ninguém da equipe com comissão ou salário nesta unidade (defina em Equipe)."}
       </p>
       <h4 className="mt-4 font-semibold tracking-tight">Por serviço</h4>
       <CashFlowServicesTable services={services} />

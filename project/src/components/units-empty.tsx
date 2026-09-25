@@ -1,5 +1,6 @@
 import { Building2Icon } from "lucide-react"
 import { CreateUnitSheet } from "@/components/create-unit-sheet"
+import type { UnitTeamOptions } from "@/components/unit-fields"
 import {
   Empty,
   EmptyContent,
@@ -9,7 +10,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-export function UnitsEmpty({ workspaceId, canManage }: { workspaceId: string; canManage: boolean }) {
+type Props = { workspaceId: string; canManage: boolean; team: UnitTeamOptions }
+
+export function UnitsEmpty({ workspaceId, canManage, team }: Props) {
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -25,7 +28,7 @@ export function UnitsEmpty({ workspaceId, canManage }: { workspaceId: string; ca
       </EmptyHeader>
       {canManage && (
         <EmptyContent>
-          <CreateUnitSheet workspaceId={workspaceId} />
+          <CreateUnitSheet workspaceId={workspaceId} team={team} />
         </EmptyContent>
       )}
     </Empty>

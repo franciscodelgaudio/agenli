@@ -1,4 +1,4 @@
-import type { CashFlowAmounts, CashFlowSummary, CashFlowView, DayRange } from "@/lib/cash-flow"
+import type { CashFlowView, DayRange, StaffCashFlowAmounts, StaffCashFlowSummary } from "@/lib/cash-flow"
 import { currencyFormat } from "@/components/service-format"
 import {
   Table,
@@ -35,14 +35,15 @@ function money(cents: number) {
 
 type Props = {
   view: CashFlowView
-  summary: CashFlowSummary
-  // Sem repasse (espaço próprio) nem comissão, bruto e líquido são iguais e só o bruto aparece.
+  summary: StaffCashFlowSummary
+  // Sem repasse (espaço próprio), comissão nem salário, bruto e líquido são iguais e só o bruto aparece.
   hasPartnerShare: boolean
   hasCommission: boolean
+  hasSalary: boolean
   today: string
 }
 
-type Columns = { partnerShare: boolean; commission: boolean }
+type Columns = { partnerShare: boolean; commission: boolean; salary: boolean }
 
 function Deduction({ cents }: { cents: number }) {
   return (
@@ -52,29 +53,31 @@ function Deduction({ cents }: { cents: number }) {
   )
 }
 
-function AmountCells({ amounts, columns }: { amounts: CashFlowAmounts; columns: Columns }) {
-  const detailed = columns.partnerShare || columns.commission
+function AmountCells({ amounts, columns }: { amounts: StaffCashFlowAmounts; columns: Columns }) {
+  const detailed = columns.partnerShare || columns.commission || columns.salary
   return (
     <>
       <TableCell className="px-4 text-right tabular-nums">{money(amounts.grossCents)}</TableCell>
       {columns.partnerShare && <Deduction cents={amounts.partnerShareCents} />}
       {columns.commission && <Deduction cents={amounts.commissionCents} />}
+      {columns.salary && <Deduction cents={amounts.salaryCents} />}
       {detailed && <TableCell className="px-4 text-right font-medium tabular-nums">{money(amounts.netCents)}</TableCell>}
     </>
   )
 }
 
 // Real: atendimentos registrados. Previsto: real mais os agendamentos futuros.
-export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, today }: Props) {
-  const columns = { partnerShare: hasPartnerShare, commission: hasCommission }
-  const detailed = hasPartnerShare || hasCommission
-  const groupSpan = 2 + Number(hasPartnerShare) + Number(hasCommission)
+export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, hasSalary, today }: Props) {
+  const columns = { partnerShare: hasPartnerShare, commission: hasCommission, salary: hasSalary }
+  const detailed = hasPartnerShare || hasCommission || hasSalary
+  const groupSpan = 2 + Number(hasPartnerShare) + Number(hasCommission) + Number(hasSalary)
   const amountHeads = (group: string) =>
     detailed ? (
       <>
         <TableHead className="px-4 text-right">Bruto</TableHead>
         {hasPartnerShare && <TableHead className="px-4 text-right">Repasse</TableHead>}
         {hasCommission && <TableHead className="px-4 text-right">Comissão</TableHead>}
+        {hasSalary && <TableHead className="px-4 text-right">Salário</TableHead>}
         <TableHead className="px-4 text-right">Líquido</TableHead>
       </>
     ) : (

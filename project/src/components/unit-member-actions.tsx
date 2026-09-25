@@ -8,6 +8,7 @@ import type { MemberRole } from "@/lib/member-role"
 import { AmountInput } from "@/components/amount-input"
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Sheet,
   SheetContent,
@@ -17,13 +18,16 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 
-// commissionPercent só existe para massagistas vinculadas.
+const payLabels = { commission: "Comissão (%)", salary: "Salário mensal (R$)" } as const
+type Pay = keyof typeof payLabels
+
+// Comissão ou salário, nunca os dois; ambos null enquanto não foi definido.
 type Member = {
   id: string
   label: string
   role: MemberRole
-  linked: boolean
   commissionPercent: number | null
+  salaryCents: number | null
 }
 
 type Props = { workspaceId: string; unitId: string; unitName: string; member: Member }
@@ -38,7 +42,7 @@ export function UnitMemberActions(props: Props) {
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={`Editar ${props.member.label} nesta unidade`}
+        aria-label={`Editar remuneração de ${props.member.label} nesta unidade`}
         onClick={() => {
           setFormKey((k) => k + 1)
           setOpen(true)
@@ -56,7 +60,7 @@ export function UnitMemberActions(props: Props) {
 }
 
 function UnitMemberForm({ workspaceId, unitId, unitName, member, onDone }: Props & { onDone: () => void }) {
-  const [linked, setLinked] = useState(member.linked)
+  const [pay, setPay] = useState<Pay>(member.salaryCents !== null ? "salary" : "commission")
   const [state, formAction, pending] = useActionState(
     async (prev: UnitMemberFormState, formData: FormData) => {
       const next = await updateUnitMemberAction(workspaceId, unitId, member.id, prev, formData)
@@ -72,22 +76,32 @@ function UnitMemberForm({ workspaceId, unitId, unitName, member, onDone }: Props
     <form action={formAction} className="flex min-h-0 flex-1 flex-col">
       <SheetHeader>
         <SheetTitle>{member.label}</SheetTitle>
-        <SheetDescription>Vínculo com {unitName}</SheetDescription>
+        <SheetDescription>Remuneração em {unitName}</SheetDescription>
       </SheetHeader>
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
-        <Field orientation="horizontal">
-          <input
-            id={`${idPrefix}-linked`}
-            name="linked"
-            type="checkbox"
-            className="size-4 accent-primary"
-            checked={linked}
-            onChange={(event) => setLinked(event.target.checked)}
-          />
-          <FieldLabel htmlFor={`${idPrefix}-linked`}>Trabalha nesta unidade</FieldLabel>
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-pay`}>Forma de pagamento</FieldLabel>
+          <Select
+            name="pay"
+            items={Object.entries(payLabels).map(([value, label]) => ({ value, label }))}
+            value={pay}
+            onValueChange={(value) => setPay(value as Pay)}
+            required
+          >
+            <SelectTrigger id={`${idPrefix}-pay`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(payLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </Field>
-        {isTherapist && linked && (
+        {pay === "commission" ? (
           <Field>
             <FieldLabel htmlFor={`${idPrefix}-commission`}>Comissão</FieldLabel>
             <AmountInput
@@ -100,8 +114,23 @@ function UnitMemberForm({ workspaceId, unitId, unitName, member, onDone }: Props
               required
             />
             <FieldDescription>
-              Percentual sobre o valor dos serviços que ela fizer nesta unidade. Aparece no caixa.
+              {isTherapist
+                ? "Percentual sobre o valor dos serviços que ela fizer nesta unidade."
+                : "Percentual sobre o faturamento bruto desta unidade."}{" "}
+              Sai do líquido no caixa.
             </FieldDescription>
+          </Field>
+        ) : (
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-salary`}>Salário mensal</FieldLabel>
+            <AmountInput
+              id={`${idPrefix}-salary`}
+              name="salary"
+              placeholder="R$ 0,00"
+              defaultValue={member.salaryCents}
+              required
+            />
+            <FieldDescription>Rateado por dia no caixa desta unidade e descontado do líquido.</FieldDescription>
           </Field>
         )}
       </FieldGroup>

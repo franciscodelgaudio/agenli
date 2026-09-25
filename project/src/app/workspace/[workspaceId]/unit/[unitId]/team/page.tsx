@@ -6,6 +6,7 @@ import { Workspace } from "@/models/Workspace"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { roleLabels } from "@/components/role-labels"
 import { UnitMemberActions } from "@/components/unit-member-actions"
+import { currencyFormat } from "@/components/service-format"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -26,8 +27,8 @@ type Member = {
   image: string | null
   role: MemberRole
   pending: boolean
-  linked: boolean
   commissionPercent: number | null
+  salaryCents: number | null
 }
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
@@ -38,7 +39,8 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
   const unitObjectId = new Types.ObjectId(unitId)
 
-  // Parte do workspace para garantir o acesso. Vinculados primeiro, depois por nome.
+  // Parte do workspace para garantir o acesso. Só massagistas e recepcionistas vinculadas
+  // (no formulário da unidade), por nome.
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     unit: { name: string } | null
@@ -61,6 +63,12 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
         foreignField: "workspaceId",
         as: "members",
         pipeline: [
+          {
+            $match: {
+              role: { $in: ["massage_therapist", "receptionist"] },
+              "units.unitId": unitObjectId,
+            },
+          },
           { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
           { $set: { user: { $first: "$user" } } },
           {
@@ -81,11 +89,11 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
               name: { $ifNull: ["$user.name", null] },
               image: { $ifNull: ["$user.image", null] },
               pending: { $eq: [{ $ifNull: ["$userId", null] }, null] },
-              linked: { $ne: [{ $ifNull: ["$link", null] }, null] },
               commissionPercent: { $ifNull: ["$link.commissionPercent", null] },
+              salaryCents: { $ifNull: ["$link.salaryCents", null] },
             },
           },
-          { $sort: { linked: -1, name: 1, email: 1 } },
+          { $sort: { name: 1, email: 1 } },
         ],
       },
     },
@@ -105,23 +113,22 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
               <CodeHead />
               <TableHead className="px-4">Nome</TableHead>
               <TableHead className="px-4">Função</TableHead>
-              <TableHead className="px-4">Nesta unidade</TableHead>
-              <TableHead className="px-4 text-right">Comissão</TableHead>
+              <TableHead className="px-4 text-right">Remuneração</TableHead>
               {canManage && <TableHead className="w-0 px-4 text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {members.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 6 : 5} className="px-4 py-6 text-center text-muted-foreground">
-                  Nenhum usuário convidado. Convide a equipe em Usuários.
+                <TableCell colSpan={canManage ? 5 : 4} className="px-4 py-6 text-center text-muted-foreground">
+                  Ninguém trabalha nesta unidade ainda. Escolha a equipe ao editar a unidade.
                 </TableCell>
               </TableRow>
             ) : (
               members.map((member) => {
                 const label = member.name ?? member.email
                 const isTherapist = member.role === "massage_therapist"
-                // Só o proprietário vincula massagistas e define a comissão delas.
+                // Só o proprietário define a remuneração de massagistas.
                 const canEdit = canManage && (!isTherapist || role === "owner")
                 return (
                   <TableRow key={member.id}>
@@ -144,13 +151,14 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
                         {member.pending && <Badge variant="outline">Convite pendente</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell className="px-4">
-                      {member.linked ? <Badge>Sim</Badge> : <span className="text-muted-foreground">Não</span>}
-                    </TableCell>
                     <TableCell className="px-4 text-right tabular-nums">
-                      {isTherapist && member.linked && member.commissionPercent !== null
-                        ? `${percentFormat.format(member.commissionPercent)}%`
-                        : <span className="text-muted-foreground">—</span>}
+                      {member.commissionPercent !== null ? (
+                        `${percentFormat.format(member.commissionPercent)}% de comissão`
+                      ) : member.salaryCents !== null ? (
+                        `${currencyFormat.format(member.salaryCents / 100)}/mês`
+                      ) : (
+                        <span className="text-muted-foreground">Não definida</span>
+                      )}
                     </TableCell>
                     {canManage && (
                       <TableCell className="px-4 text-right">
@@ -163,8 +171,8 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
                               id: member.id,
                               label,
                               role: member.role,
-                              linked: member.linked,
                               commissionPercent: member.commissionPercent,
+                              salaryCents: member.salaryCents,
                             }}
                           />
                         )}
@@ -178,9 +186,10 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
         </Table>
       </div>
       <p className="text-sm text-muted-foreground">
-        A comissão de cada massagista é descontada do caixa desta unidade, sobre o valor dos serviços que ela
-        fez. O proprietário não tem comissão.
-        {role === "admin" && " Só o proprietário vincula massagistas e define a comissão delas."}
+        Comissão e salário saem do líquido no caixa desta unidade. A comissão de massagista é sobre os serviços
+        que ela fez; a de recepcionista, sobre o faturamento bruto. O salário é rateado por dia. O proprietário
+        não tem remuneração.
+        {role === "admin" && " Só o proprietário define a remuneração de massagistas."}
       </p>
     </div>
   )
