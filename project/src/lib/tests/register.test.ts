@@ -9,11 +9,11 @@ const validInput = {
 };
 
 function makeDeps(overrides: Partial<Parameters<typeof registerUser>[1]> = {}) {
-  return {
+  const deps = {
     findUserByEmail: vi.fn().mockResolvedValue(null),
     createUser: vi.fn().mockResolvedValue({ id: "user-1" }),
-    ...overrides,
   };
+  return { ...deps, ...overrides } as typeof deps;
 }
 
 describe("registerUser", () => {

@@ -30,14 +30,14 @@ describe("canManageMembers", () => {
 
 describe("inviteMember", () => {
   function makeDeps(overrides: Partial<Parameters<typeof inviteMember>[2]> = {}) {
-    return {
+    const deps = {
       isAlreadyInWorkspace: vi.fn().mockResolvedValue(false),
       createInvite: vi.fn().mockResolvedValue({ id: MEMBER_ID }),
       deleteInvite: vi.fn().mockResolvedValue(undefined),
       sendInvite: vi.fn().mockResolvedValue(undefined),
       now: () => NOW,
-      ...overrides,
     };
+    return { ...deps, ...overrides } as typeof deps;
   }
 
   it("cria o convite, envia o email com o token e retorna o id", async () => {
