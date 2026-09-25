@@ -36,6 +36,7 @@ type Appointment = {
   performedAt: Date
   guest: { name: string; room: string }
   items: { serviceId: string; therapistId: string }[]
+  productIds: string[]
 }
 
 // Com units (visão do workspace), a edição permite trocar a unidade.
@@ -92,6 +93,7 @@ export function AppointmentActions({ workspaceId, appointment, ...options }: Pro
               room: appointment.guest.room,
               performedAt: toFormDateTime(appointment.performedAt),
               items: appointment.items.map(({ serviceId, therapistId }) => ({ serviceId, therapistId })),
+              productIds: appointment.productIds,
             }}
             action={(prev, formData) =>
               options.units

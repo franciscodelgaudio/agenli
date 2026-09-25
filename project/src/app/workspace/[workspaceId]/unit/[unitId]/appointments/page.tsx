@@ -28,7 +28,8 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty"
 
-type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number }
+type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number; productIds: string[] }
+type ProductOption = { id: string; name: string }
 type TherapistOption = { id: string; name: string; image: string | null }
 
 // Todos os atendimentos de uma unidade, em lista, com busca e filtros.
@@ -51,7 +52,7 @@ export default async function AppointmentsPage({
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     therapists: TherapistOption[]
-    unit: { appointments: AppointmentPage<AppointmentRow>; total: number; services: ServiceOption[] } | null
+    unit: { appointments: AppointmentPage<AppointmentRow>; total: number; services: ServiceOption[]; products: ProductOption[] } | null
   }>([
     ...access,
     {
@@ -133,7 +134,7 @@ export default async function AppointmentsPage({
     },
   ])
   if (!workspace?.unit) notFound()
-  const { appointments: result, total, services } = workspace.unit
+  const { appointments: result, total, services, products } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 
@@ -155,6 +156,7 @@ export default async function AppointmentsPage({
       workspaceId={workspaceId}
       unitId={unitId}
       services={services}
+      products={products}
       therapists={therapists}
       defaultPerformedAt={defaultPerformedAt}
     />
@@ -206,7 +208,7 @@ export default async function AppointmentsPage({
             query={filters}
             pathname={pathname}
             workspaceId={workspaceId}
-            options={{ services, therapists }}
+            options={{ services, products, therapists }}
             canManage={canManage}
           />
           <ListPagination

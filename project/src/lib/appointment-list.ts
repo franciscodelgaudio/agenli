@@ -127,6 +127,8 @@ export function appointmentSearchPipeline({ q, sort, dir, unit, therapist, from,
                   },
                 },
               },
+              // Produtos escolhidos, para pré-marcar na edição.
+              productIds: { $map: { input: "$products", as: "product", in: { $toString: "$$product.productId" } } },
               totalCents: 1,
             },
           },

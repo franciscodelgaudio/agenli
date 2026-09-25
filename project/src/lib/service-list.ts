@@ -25,7 +25,17 @@ export function serviceListPipeline({ q, sort, dir }: ServiceListQuery) {
   if (q) stages.push({ $match: { name: { $regex: escapeRegex(q), $options: "i" } } });
   stages.push(
     { $sort: { [sort]: dir === "desc" ? -1 : 1, _id: 1 } },
-    { $project: { _id: 0, id: { $toString: "$_id" }, name: 1, priceCents: 1, durationMinutes: 1 } },
+    {
+      $project: {
+        _id: 0,
+        id: { $toString: "$_id" },
+        name: 1,
+        priceCents: 1,
+        durationMinutes: 1,
+        // Produtos padrão, para pré-marcar na edição.
+        productIds: { $map: { input: "$productIds", as: "id", in: { $toString: "$$id" } } },
+      },
+    },
   );
   return stages;
 }

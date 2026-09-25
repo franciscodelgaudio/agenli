@@ -51,6 +51,7 @@ export function CreateBookingSheet({ workspaceId, unitId, therapistId, defaultSt
             startsAt: defaultStartsAt,
             durationMinutes: 60,
             serviceId: null,
+            productIds: [],
           }}
           action={(prev, formData) => createBookingAction(workspaceId, prev, formData)}
           onDone={() => {

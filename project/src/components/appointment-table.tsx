@@ -26,6 +26,7 @@ export type AppointmentRow = {
     therapistId: string
     therapistName: string
   }[]
+  productIds: string[]
   totalCents: number
 }
 

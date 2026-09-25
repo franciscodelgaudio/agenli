@@ -22,6 +22,7 @@ export type BookingRow = {
   endsAt: string;
   durationMinutes: number;
   service: { serviceId: string; serviceName: string };
+  productIds: string[];
   appointmentId: string | null;
 };
 
@@ -65,6 +66,8 @@ const BOOKING_PROJECT: PipelineStage.Project = {
     endsAt: brtDateTime("$endsAt"),
     durationMinutes: { $dateDiff: { startDate: "$startsAt", endDate: "$endsAt", unit: "minute" } },
     service: { serviceId: { $toString: "$service.serviceId" }, serviceName: "$service.serviceName" },
+    // Produtos escolhidos, para pré-marcar na edição e na conversão em atendimento.
+    productIds: { $map: { input: "$products", as: "product", in: { $toString: "$$product.productId" } } },
     // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
     appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
   },

@@ -108,6 +108,7 @@ export function BookingActions({ workspaceId, booking, ...options }: Props) {
                 startsAt: booking.startsAt,
                 durationMinutes: booking.durationMinutes,
                 serviceId: booking.service.serviceId,
+                productIds: booking.productIds,
               }}
               action={(prev, formData) => updateBookingAction(workspaceId, booking.id, prev, formData)}
               onDone={done}
@@ -126,6 +127,7 @@ export function BookingActions({ workspaceId, booking, ...options }: Props) {
                 room: booking.guest.room,
                 performedAt: booking.startsAt,
                 items: [{ serviceId: booking.service.serviceId, therapistId: booking.therapistId }],
+                productIds: booking.productIds,
               }}
               action={(prev, formData) => convertBookingAction(workspaceId, booking.id, prev, formData)}
               onDone={done}

@@ -50,7 +50,12 @@ export default async function UnitCalendarListPage({
   // cada nível. O total sem busca nem filtros separa "sem agendamentos" de "filtro sem resultado".
   const [workspace] = await Workspace.aggregate<Pick<BookingOptions, "therapists"> & {
     role: WorkspaceRole
-    unit: { bookings: BookingPage; total: number; services: BookingOptions["services"] } | null
+    unit: {
+      bookings: BookingPage
+      total: number
+      services: BookingOptions["services"]
+      products: BookingOptions["products"]
+    } | null
   }>([
     ...access,
     {
@@ -136,10 +141,10 @@ export default async function UnitCalendarListPage({
     { $project: { _id: 0, role: 1, therapists: 1, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
   if (!workspace?.unit) notFound()
-  const { bookings: result, total, services } = workspace.unit
+  const { bookings: result, total, services, products } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
-  const options = { services, therapists }
+  const options = { services, products, therapists }
 
   const base = `/workspace/${workspaceId}/unit/${unitId}/calendar`
   const pathname = `${base}/list`

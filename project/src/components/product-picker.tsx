@@ -38,9 +38,12 @@ export function ProductPicker({ products, value, onChange, emptyMessage = "Nenhu
           </button>
         )
       })}
-      {value.map((id) => (
-        <input key={id} type="hidden" name="productId" value={id} />
-      ))}
+      {/* Produto excluído do estoque sai da seleção ao salvar. */}
+      {products
+        .filter((product) => selected.has(product.id))
+        .map((product) => (
+          <input key={product.id} type="hidden" name="productId" value={product.id} />
+        ))}
     </div>
   )
 }

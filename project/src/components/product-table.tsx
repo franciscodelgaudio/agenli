@@ -1,4 +1,13 @@
-import { BanknoteIcon, HashIcon, PackageIcon, SettingsIcon, StarIcon } from "lucide-react"
+import {
+  BanknoteIcon,
+  HashIcon,
+  PackageIcon,
+  RepeatIcon,
+  SettingsIcon,
+  StarIcon,
+  TimerResetIcon,
+  type LucideIcon,
+} from "lucide-react"
 import { ProductActions } from "@/components/product-actions"
 import { SortableHead } from "@/components/sortable-head"
 import { StarRating } from "@/components/star-rating"
@@ -12,7 +21,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { ProductListQuery } from "@/lib/product-list"
+import type { ProductUsageSummary } from "@/lib/product-usage"
 import { currencyFormat } from "@/components/service-format"
+import { formatAverage } from "@/components/product-format"
 
 type Props = {
   products: {
@@ -23,6 +34,7 @@ type Props = {
     notes: string | null
     rating: number | null
     avatarUrl: string | null
+    usage: ProductUsageSummary
   }[]
   query: ProductListQuery
   pathname: string
@@ -48,6 +60,16 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
               pathname={pathname}
             />
             <SortableHead field="rating" label="Avaliação" icon={StarIcon} query={query} pathname={pathname} />
+            <UsageHead
+              icon={RepeatIcon}
+              label="Usos"
+              title="Atendimentos e agendamentos desde a última vez que o produto acabou"
+            />
+            <UsageHead
+              icon={TimerResetIcon}
+              label="Média até acabar"
+              title="Média de usos entre uma vez que o produto acabou e a seguinte"
+            />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">
@@ -61,7 +83,7 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
         <TableBody>
           {products.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 5 : 4} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 7 : 6} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhum produto encontrado.
               </TableCell>
             </TableRow>
@@ -91,6 +113,10 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                 <TableCell className="px-4">
                   <StarRating value={product.rating} />
                 </TableCell>
+                <TableCell className="px-4 tabular-nums">{product.usage.usesSinceLastDepletion}</TableCell>
+                <TableCell className="px-4 text-muted-foreground tabular-nums">
+                  {formatAverage(product.usage.averageUsesPerDepletion)}
+                </TableCell>
                 {canManage && (
                   <TableCell className="px-4 text-right">
                     <ProductActions workspaceId={workspaceId} unitId={unitId} product={product} />
@@ -102,5 +128,16 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+function UsageHead({ icon: Icon, label, title }: { icon: LucideIcon; label: string; title: string }) {
+  return (
+    <TableHead className="px-4" title={title}>
+      <span className="inline-flex items-center gap-1">
+        <Icon className="size-4 text-muted-foreground" />
+        {label}
+      </span>
+    </TableHead>
   )
 }

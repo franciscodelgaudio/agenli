@@ -90,7 +90,7 @@ type Draft = { values: BookingFormValues; key: number; fallbackAnchor: Element |
 // rascunho) e o botão de novo agendamento.
 const KEEPS_DRAFT = "data-keeps-draft"
 
-export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services }: Props) {
+export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services, products }: Props) {
   const calendarRef = useRef<CalendarRef>(null)
   const [unit, setUnit] = useState(unitId ?? "")
   const [therapist, setTherapist] = useState("")
@@ -107,7 +107,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
   // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
   const canCreate = canManage && units.length > 0
-  const options = { units: unitId ? undefined : units, therapists, services }
+  const options = { units: unitId ? undefined : units, therapists, services, products }
 
   // Uma nova função a cada troca de filtro faz o calendário buscar de novo.
   const fetchEvents = useCallback(
@@ -161,6 +161,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
         startsAt,
         durationMinutes,
         serviceId: null,
+        productIds: [],
       },
     })
   }
@@ -399,6 +400,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
                 startsAt: booking.startsAt,
                 durationMinutes: booking.durationMinutes,
                 serviceId: booking.service.serviceId,
+                productIds: booking.productIds,
               },
             })
           }}
@@ -422,7 +424,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           align="start"
           sideOffset={8}
           collisionPadding={16}
-          className="max-h-(--available-height) w-[min(26rem,calc(100vw-2rem))] gap-0 p-0"
+          className="max-h-[min(32rem,var(--available-height))] w-[min(24rem,calc(100vw-2rem))] gap-0 p-0"
         >
           {draft && (
             <BookingForm
@@ -473,6 +475,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
                 room: sheet.booking.guest.room,
                 performedAt: sheet.booking.startsAt,
                 items: [{ serviceId: sheet.booking.service.serviceId, therapistId: sheet.booking.therapistId }],
+                productIds: sheet.booking.productIds,
               }}
               action={(prev, formData) => convertBookingAction(workspaceId, sheet.booking.id, prev, formData)}
               onDone={() => {

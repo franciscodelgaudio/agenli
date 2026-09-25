@@ -51,6 +51,7 @@ export default async function WorkspaceAppointmentsPage({
     appointments: AppointmentPage<AppointmentRow>
     total: number
     services: AppointmentOptions["services"]
+    products: AppointmentOptions["products"]
     therapists: AppointmentOptions["therapists"]
   }>([
     ...access,
@@ -137,7 +138,7 @@ export default async function WorkspaceAppointmentsPage({
     },
   ])
   if (!workspace) notFound()
-  const { units, appointments: result, total, services, therapists } = workspace
+  const { units, appointments: result, total, services, products, therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 
   const pathname = `/workspace/${workspaceId}/appointments`
@@ -151,7 +152,7 @@ export default async function WorkspaceAppointmentsPage({
   }
   // Hora atual de Brasília.
   const defaultPerformedAt = new Date(now.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 16)
-  const options = { services, therapists, units }
+  const options = { services, products, therapists, units }
 
   // O proprietário sempre está entre quem pode atender, então basta haver serviço.
   const createButton = canManage && services.length > 0 && (
