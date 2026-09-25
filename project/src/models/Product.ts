@@ -14,10 +14,14 @@ const productSchema = new Schema(
     avatarUrl: { type: String, default: null, trim: true },
     // Cada vez que uma unidade do produto acabou; fecha um ciclo de uso.
     depletedAt: { type: [Date], default: [] },
-    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true, index: true },
+    unitId: { type: Schema.Types.ObjectId, ref: "Unit", required: true },
   },
   { collection: "products", timestamps: true },
 );
+
+// Lista e busca do seletor: produtos da unidade em ordem de nome, com o trecho do nome
+// conferido nas chaves do índice, sem ler os documentos.
+productSchema.index({ unitId: 1, name: 1 });
 
 productSchema.plugin(connectOnUse);
 

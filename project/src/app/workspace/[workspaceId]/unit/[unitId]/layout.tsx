@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowLeftIcon } from "lucide-react"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
-import { dateTimeFormat } from "@/lib/utils"
 import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,7 @@ export default async function UnitLayout({
 
   // Parte do workspace (e não de units) para que o acesso ao workspace seja garantido.
   const [workspace] = await Workspace.aggregate<{
-    unit: { id: string; name: string; avatarUrl: string | null; createdAt: Date; updatedAt: Date } | null
+    unit: { id: string; name: string; avatarUrl: string | null } | null
   }>([
     ...access,
     {
@@ -37,8 +36,6 @@ export default async function UnitLayout({
               id: { $toString: "$_id" },
               name: 1,
               avatarUrl: { $ifNull: ["$avatarUrl", null] },
-              createdAt: 1,
-              updatedAt: 1,
             },
           },
         ],
@@ -66,13 +63,7 @@ export default async function UnitLayout({
           {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />}
           <AvatarFallback className="rounded-lg text-lg">{unit.name.charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
-        <div className="grid gap-1">
-          <h2 className="truncate text-2xl font-semibold tracking-tight">{unit.name}</h2>
-          <p className="text-sm text-muted-foreground">
-            Criado em {dateTimeFormat.format(unit.createdAt)} · Atualizado em{" "}
-            {dateTimeFormat.format(unit.updatedAt)}
-          </p>
-        </div>
+        <h2 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{unit.name}</h2>
       </div>
       <UnitNav workspaceId={workspaceId} unitId={unitId} />
       {children}

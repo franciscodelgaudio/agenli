@@ -2,6 +2,7 @@ import { BedDoubleIcon, Building2Icon, CheckIcon, ClockIcon, SettingsIcon, Spark
 import type { BookingListQuery, BookingRow } from "@/lib/booking-list"
 import { BookingActions } from "@/components/booking-actions"
 import type { BookingFormOptions } from "@/components/booking-form"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { formatDuration } from "@/components/service-format"
 import { TherapistAvatar } from "@/components/therapist-avatar"
@@ -54,12 +55,13 @@ function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) 
 export function BookingTable({ bookings, query, pathname, workspaceId, options, canManage }: Props) {
   const unitNames = options.units && new Map(options.units.map((unit) => [unit.id, unit.name]))
   const therapistsById = new Map(options.therapists.map((therapist) => [therapist.id, therapist]))
-  const columns = 4 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
+  const columns = 5 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
   return (
     <div className="border">
       <Table>
         <TableHeader>
           <TableRow>
+            <CodeHead />
             <SortableHead field="startsAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
             {unitNames && <Head icon={Building2Icon} label="Unidade" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
@@ -88,6 +90,7 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
               const therapist = therapistsById.get(booking.therapistId)
               return (
                 <TableRow key={booking.id} className="align-top">
+                  <CodeCell id={booking.id} />
                   <TableCell className="px-4">
                     <div className="font-medium">{formatDay(booking.startsAt)}</div>
                     <div className="text-muted-foreground tabular-nums">

@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/empty"
 
 type ServiceOption = { id: string; name: string; priceCents: number; durationMinutes: number; productIds: string[] }
-type ProductOption = { id: string; name: string }
 type TherapistOption = { id: string; name: string; image: string | null }
 
 // Todos os atendimentos de uma unidade, em lista, com busca e filtros.
@@ -52,7 +51,7 @@ export default async function AppointmentsPage({
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     therapists: TherapistOption[]
-    unit: { appointments: AppointmentPage<AppointmentRow>; total: number; services: ServiceOption[]; products: ProductOption[] } | null
+    unit: { appointments: AppointmentPage<AppointmentRow>; total: number; services: ServiceOption[] } | null
   }>([
     ...access,
     {
@@ -83,24 +82,6 @@ export default async function AppointmentsPage({
           },
           {
             $lookup: {
-              from: "products",
-              localField: "_id",
-              foreignField: "unitId",
-              as: "products",
-              pipeline: [
-                { $sort: { name: 1, _id: 1 } },
-                {
-                  $project: {
-                    _id: 0,
-                    id: { $toString: "$_id" },
-                    name: 1,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $lookup: {
               from: "services",
               localField: "_id",
               foreignField: "unitId",
@@ -116,7 +97,6 @@ export default async function AppointmentsPage({
               _id: 0,
               appointments: { $first: "$appointments" },
               services: 1,
-              products: 1,
               total: { $ifNull: [{ $first: "$total.n" }, 0] },
             },
           },
@@ -134,7 +114,7 @@ export default async function AppointmentsPage({
     },
   ])
   if (!workspace?.unit) notFound()
-  const { appointments: result, total, services, products } = workspace.unit
+  const { appointments: result, total, services } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 
@@ -156,7 +136,6 @@ export default async function AppointmentsPage({
       workspaceId={workspaceId}
       unitId={unitId}
       services={services}
-      products={products}
       therapists={therapists}
       defaultPerformedAt={defaultPerformedAt}
     />
@@ -208,7 +187,7 @@ export default async function AppointmentsPage({
             query={filters}
             pathname={pathname}
             workspaceId={workspaceId}
-            options={{ services, products, therapists }}
+            options={{ services, therapists }}
             canManage={canManage}
           />
           <ListPagination

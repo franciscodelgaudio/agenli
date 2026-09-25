@@ -1,0 +1,314 @@
+import Link from "next/link"
+import { ArrowRightIcon, CheckIcon, PackageCheckIcon, type LucideIcon } from "lucide-react"
+import type { CashFlowBucket } from "@/lib/cash-flow"
+import { currencyFormat, timeFormat } from "@/components/service-format"
+import { TherapistAvatar, type TherapistOption } from "@/components/therapist-avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+
+// Os dias são do calendário, então são formatados em UTC para não deslocar.
+const weekdayFormat = new Intl.DateTimeFormat("pt-BR", { weekday: "short", timeZone: "UTC" })
+const longDayFormat = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })
+
+function toDate(day: string) {
+  const [year, month, date] = day.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, date))
+}
+
+export function money(cents: number) {
+  return currencyFormat.format(cents / 100)
+}
+
+export function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`
+}
+
+// Botão "ver mais" no canto do card, para a aba com os detalhes.
+export function CardLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <CardAction>
+      <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={href} />}>
+        {children}
+        <ArrowRightIcon />
+      </Button>
+    </CardAction>
+  )
+}
+
+// Indicador do topo: rótulo com ícone, valor em destaque e uma linha de contexto.
+// progress (0 a 1) mostra quanto do previsto já foi realizado.
+export function StatTile({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  progress,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  detail: React.ReactNode
+  progress?: number
+}) {
+  return (
+    <Card size="sm">
+      <CardContent className="gap-2">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-4">
+            <Icon />
+          </span>
+          <span className="font-medium">{label}</span>
+        </div>
+        <div className="truncate text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+        {progress !== undefined && (
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress, 1) * 100}%` }} />
+          </div>
+        )}
+        <div className="truncate text-xs text-muted-foreground">{detail}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Legenda comum ao gráfico e às listas: sólido é realizado, claro é o que ainda está agendado.
+export function RealForecastLegend() {
+  return (
+    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-[3px] bg-primary" />
+        Realizado
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="size-2.5 rounded-[3px] bg-primary/30" />
+        Agendado
+      </span>
+    </div>
+  )
+}
+
+// Faturamento bruto de cada dia da semana: realizado embaixo, agendado empilhado em cima.
+export function WeekChart({ buckets, today }: { buckets: CashFlowBucket[]; today: string }) {
+  const max = Math.max(...buckets.map((bucket) => bucket.forecast.grossCents))
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid h-44 grid-cols-7 gap-2 border-b" role="list" aria-label="Faturamento por dia">
+        {buckets.map((bucket) => {
+          const real = bucket.real.grossCents
+          const scheduled = bucket.forecast.grossCents - real
+          const height = (cents: number) => (max ? `${(cents / max) * 100}%` : "0%")
+          return (
+            <Tooltip key={bucket.from}>
+              <TooltipTrigger
+                render={<div role="listitem" />}
+                className="group flex h-full flex-col justify-end gap-0.5 rounded-t-md px-1 outline-none hover:bg-muted/60 focus-visible:bg-muted/60"
+                tabIndex={0}
+              >
+                {scheduled > 0 && (
+                  <div
+                    className={cn("w-full bg-primary/30", "rounded-t-[4px]", !real && "rounded-b-none")}
+                    style={{ height: height(scheduled) }}
+                  />
+                )}
+                {real > 0 && (
+                  <div
+                    className={cn("w-full bg-primary", !scheduled && "rounded-t-[4px]")}
+                    style={{ height: height(real) }}
+                  />
+                )}
+              </TooltipTrigger>
+              <TooltipContent className="flex-col items-start gap-0.5">
+                <span className="font-medium capitalize">{longDayFormat.format(toDate(bucket.from))}</span>
+                <span className="tabular-nums">Realizado: {money(real)}</span>
+                {scheduled > 0 && <span className="tabular-nums">Agendado: {money(scheduled)}</span>}
+              </TooltipContent>
+            </Tooltip>
+          )
+        })}
+      </div>
+      <div className="grid grid-cols-7 gap-2 text-center text-xs">
+        {buckets.map((bucket) => (
+          <div key={bucket.from} className="flex flex-col items-center gap-0.5">
+            <span className="text-muted-foreground capitalize">
+              {weekdayFormat.format(toDate(bucket.from)).replace(".", "")}
+            </span>
+            <span
+              className={cn(
+                "flex size-6 items-center justify-center rounded-full font-medium tabular-nums",
+                bucket.from === today && "bg-primary text-primary-foreground",
+              )}
+            >
+              {Number(bucket.from.slice(8))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export type TodayBooking = {
+  id: string
+  startsAt: Date
+  endsAt: Date
+  guest: { name: string; room: string }
+  serviceName: string
+  therapistId: string
+  therapistName: string
+  attended: boolean
+}
+
+function BookingStatus({ booking, now, isNext }: { booking: TodayBooking; now: Date; isNext: boolean }) {
+  if (booking.attended) {
+    return (
+      <Badge variant="secondary">
+        <CheckIcon />
+        Atendido
+      </Badge>
+    )
+  }
+  if (booking.startsAt <= now && now < booking.endsAt) return <Badge>Em andamento</Badge>
+  if (booking.endsAt <= now) return <Badge variant="outline">Aguardando registro</Badge>
+  if (isNext) return <Badge variant="outline">Próximo</Badge>
+  return null
+}
+
+// Linha do tempo dos agendamentos do dia, com o andamento de cada um.
+export function TodaySchedule({
+  bookings,
+  therapists,
+  now,
+}: {
+  bookings: TodayBooking[]
+  therapists: TherapistOption[]
+  now: Date
+}) {
+  const therapistsById = new Map(therapists.map((therapist) => [therapist.id, therapist]))
+  const next = bookings.find((booking) => !booking.attended && booking.startsAt > now)
+  return (
+    <ol className="flex flex-col">
+      {bookings.map((booking, index) => {
+        const done = booking.attended || booking.endsAt <= now
+        const therapist = therapistsById.get(booking.therapistId) ?? { name: booking.therapistName, image: null }
+        return (
+          <li key={booking.id} className="relative flex gap-4 pb-4 last:pb-0">
+            {index < bookings.length - 1 && <span className="absolute top-3 bottom-0 left-[4.75rem] w-px bg-border" />}
+            <div className="w-16 shrink-0 pt-0.5 text-right tabular-nums">
+              <div className={cn("font-medium", done && "text-muted-foreground")}>{timeFormat.format(booking.startsAt)}</div>
+              <div className="text-xs text-muted-foreground">{timeFormat.format(booking.endsAt)}</div>
+            </div>
+            <span
+              className={cn(
+                "relative mt-1.5 size-2.5 shrink-0 rounded-full ring-4 ring-card",
+                done ? "bg-muted-foreground/40" : "bg-primary",
+              )}
+            />
+            <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-lg border px-3 py-2">
+              <div className="grid min-w-0">
+                <span className="truncate font-medium">{booking.guest.name}</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Quarto {booking.guest.room} · {booking.serviceName}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <BookingStatus booking={booking} now={now} isNext={booking === next} />
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <TherapistAvatar therapist={therapist} className="size-6" />
+                  <span className="max-w-28 truncate">{booking.therapistName}</span>
+                </span>
+              </div>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+export type RankItem = {
+  id: string
+  name: string
+  image?: string | null
+  real: { count: number; cents: number }
+  forecast: { count: number; cents: number }
+}
+
+// Ranking do mês com barra proporcional ao maior previsto; a parte sólida é o realizado.
+export function RankList({ items, avatars }: { items: RankItem[]; avatars?: boolean }) {
+  const max = Math.max(...items.map((item) => item.forecast.cents), 1)
+  return (
+    <ul className="flex flex-col gap-4">
+      {items.map((item) => {
+        const scheduled = item.forecast.count - item.real.count
+        return (
+          <li key={item.id} className="flex items-center gap-3">
+            {avatars && <TherapistAvatar therapist={{ name: item.name, image: item.image ?? null }} className="size-8" />}
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate font-medium">{item.name}</span>
+                <span className="shrink-0 font-medium tabular-nums">{money(item.forecast.cents)}</span>
+              </div>
+              <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${(item.real.cents / max) * 100}%` }} />
+                <div
+                  className="h-full rounded-full bg-primary/30"
+                  style={{ width: `${((item.forecast.cents - item.real.cents) / max) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {plural(item.real.count, "realizado", "realizados")}
+                {scheduled > 0 && ` · ${plural(scheduled, "agendado", "agendados")}`}
+              </span>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+export type StockItem = { id: string; name: string; quantity: number; avatarUrl: string | null }
+
+// Produtos acabando, do menor estoque para o maior.
+export function LowStockList({ products, href }: { products: StockItem[]; href: (id: string) => string }) {
+  return (
+    <ul className="flex flex-col gap-3">
+      {products.map((product) => (
+        <li key={product.id} className="flex items-center gap-3">
+          <Avatar className="rounded-md after:rounded-md">
+            {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
+            <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <Link href={href(product.id)} className="min-w-0 flex-1 truncate font-medium hover:underline">
+            {product.name}
+          </Link>
+          {product.quantity === 0 ? (
+            <Badge variant="destructive">Esgotado</Badge>
+          ) : (
+            <Badge variant="outline" className="tabular-nums">
+              {plural(product.quantity, "restante", "restantes")}
+            </Badge>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// Mensagem curta para cards sem conteúdo.
+export function CardEmpty({ icon: Icon = PackageCheckIcon, children }: { icon?: LucideIcon; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-center text-muted-foreground">
+      <span className="flex size-10 items-center justify-center rounded-full bg-muted [&_svg]:size-5">
+        <Icon />
+      </span>
+      <p className="max-w-56 text-sm">{children}</p>
+    </div>
+  )
+}
+
+export { Card, CardContent, CardDescription, CardHeader, CardTitle }

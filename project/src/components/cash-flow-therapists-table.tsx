@@ -1,4 +1,5 @@
 import type { TherapistAmounts, TherapistSummary } from "@/lib/cash-flow"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { currencyFormat } from "@/components/service-format"
 import {
   Table,
@@ -43,7 +44,7 @@ export function CashFlowTherapistsTable({ therapists }: { therapists: TherapistS
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="px-4" colSpan={2} />
+            <TableHead className="px-4" colSpan={3} />
             <TableHead colSpan={3} className="border-l px-4 text-center">
               Real
             </TableHead>
@@ -52,6 +53,7 @@ export function CashFlowTherapistsTable({ therapists }: { therapists: TherapistS
             </TableHead>
           </TableRow>
           <TableRow>
+            <CodeHead />
             <TableHead className="px-4">Massagista</TableHead>
             <TableHead className="px-4 text-right">Comissão</TableHead>
             <TableHead className="border-l px-4 text-right">Qtd.</TableHead>
@@ -65,13 +67,14 @@ export function CashFlowTherapistsTable({ therapists }: { therapists: TherapistS
         <TableBody>
           {therapists.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
+              <TableCell colSpan={9} className="px-4 py-6 text-center text-muted-foreground">
                 Nenhum serviço no período.
               </TableCell>
             </TableRow>
           ) : (
             therapists.map((therapist) => (
               <TableRow key={therapist.therapistId}>
+                <CodeCell id={therapist.therapistId} />
                 <TableCell className="px-4">{therapist.therapistName}</TableCell>
                 <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
                   {therapist.commissionPercent === null ? "—" : `${percentFormat.format(therapist.commissionPercent)}%`}
@@ -85,7 +88,7 @@ export function CashFlowTherapistsTable({ therapists }: { therapists: TherapistS
         {therapists.length > 0 && (
           <TableFooter>
             <TableRow>
-              <TableCell className="px-4 font-semibold" colSpan={2}>
+              <TableCell className="px-4 font-semibold" colSpan={3}>
                 Total
               </TableCell>
               <AmountCells amounts={sum("real")} />

@@ -12,7 +12,10 @@ import {
   type CreateProductError,
   type UpdateProductError,
 } from "@/lib/product"
+import { findUnitProducts } from "@/lib/product-lookup"
+import { PRODUCT_SEARCH_LIMIT, productSearchPipeline } from "@/lib/product-search"
 import { Product } from "@/models/Product"
+import type { ProductOption } from "@/components/product-picker"
 
 const errorMessages: Record<CreateProductError | UpdateProductError | "out_of_stock" | "unauthenticated", string> = {
   invalid_input: "Preencha nome, quantidade e preço de custo.",
@@ -141,4 +144,20 @@ export async function depleteProductAction(
 
   refresh()
   return { error: null }
+}
+
+// Busca do seletor de produtos: no máximo PRODUCT_SEARCH_LIMIT da unidade, só id e nome.
+export async function searchProductsAction(workspaceId: string, unitId: string, q: string): Promise<ProductOption[]> {
+  if (typeof q !== "string") return []
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (!ownedUnitId) return []
+  return Product.aggregate<ProductOption>(productSearchPipeline(ownedUnitId, q))
+}
+
+// Nomes dos produtos já escolhidos (edição ou padrão do serviço); os excluídos não voltam.
+export async function productNamesAction(workspaceId: string, unitId: string, ids: string[]): Promise<ProductOption[]> {
+  if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string")) return []
+  const ownedUnitId = await findManagedUnitId(workspaceId, unitId)
+  if (!ownedUnitId) return []
+  return findUnitProducts(ownedUnitId, ids.slice(0, PRODUCT_SEARCH_LIMIT))
 }

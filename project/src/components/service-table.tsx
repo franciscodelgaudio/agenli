@@ -1,5 +1,6 @@
 import { ClockIcon, BanknoteIcon, SettingsIcon, SparklesIcon } from "lucide-react"
 import { ServiceActions } from "@/components/service-actions"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import {
   Table,
@@ -11,11 +12,9 @@ import {
 } from "@/components/ui/table"
 import type { ServiceListQuery } from "@/lib/service-list"
 import { currencyFormat, formatDuration } from "@/components/service-format"
-import type { ProductOption } from "@/components/product-picker"
 
 type Props = {
   services: { id: string; name: string; priceCents: number; durationMinutes: number; productIds: string[] }[]
-  products: ProductOption[]
   query: ServiceListQuery
   pathname: string
   workspaceId: string
@@ -24,12 +23,13 @@ type Props = {
   canManage: boolean
 }
 
-export function ServiceTable({ services, products, query, pathname, workspaceId, unitId, canManage }: Props) {
+export function ServiceTable({ services, query, pathname, workspaceId, unitId, canManage }: Props) {
   return (
     <div className="border">
       <Table>
         <TableHeader>
           <TableRow>
+            <CodeHead />
             <SortableHead field="name" label="Serviço" icon={SparklesIcon} query={query} pathname={pathname} />
             <SortableHead field="priceCents" label="Valor" icon={BanknoteIcon} query={query} pathname={pathname} />
             <SortableHead
@@ -52,19 +52,20 @@ export function ServiceTable({ services, products, query, pathname, workspaceId,
         <TableBody>
           {services.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 5 : 4} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhum serviço encontrado.
               </TableCell>
             </TableRow>
           ) : (
             services.map((service) => (
               <TableRow key={service.id}>
+                <CodeCell id={service.id} />
                 <TableCell className="px-4 font-medium">{service.name}</TableCell>
                 <TableCell className="px-4 tabular-nums">{currencyFormat.format(service.priceCents / 100)}</TableCell>
                 <TableCell className="px-4 text-muted-foreground">{formatDuration(service.durationMinutes)}</TableCell>
                 {canManage && (
                   <TableCell className="px-4 text-right">
-                    <ServiceActions workspaceId={workspaceId} unitId={unitId} service={service} products={products} />
+                    <ServiceActions workspaceId={workspaceId} unitId={unitId} service={service} />
                   </TableCell>
                 )}
               </TableRow>

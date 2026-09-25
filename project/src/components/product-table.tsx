@@ -8,7 +8,9 @@ import {
   TimerResetIcon,
   type LucideIcon,
 } from "lucide-react"
+import Link from "next/link"
 import { ProductActions } from "@/components/product-actions"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { StarRating } from "@/components/star-rating"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -50,6 +52,7 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
       <Table>
         <TableHeader>
           <TableRow>
+            <CodeHead />
             <SortableHead field="name" label="Produto" icon={PackageIcon} query={query} pathname={pathname} />
             <SortableHead field="quantity" label="Quantidade" icon={HashIcon} query={query} pathname={pathname} />
             <SortableHead
@@ -83,13 +86,14 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
         <TableBody>
           {products.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 7 : 6} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 8 : 7} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhum produto encontrado.
               </TableCell>
             </TableRow>
           ) : (
             products.map((product) => (
               <TableRow key={product.id}>
+                <CodeCell id={product.id} />
                 <TableCell className="px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="rounded-md after:rounded-md">
@@ -99,7 +103,12 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                       <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="grid min-w-0">
-                      <span className="truncate font-medium">{product.name}</span>
+                      <Link
+                        href={`/workspace/${workspaceId}/unit/${unitId}/stock/${product.id}`}
+                        className="truncate font-medium hover:underline"
+                      >
+                        {product.name}
+                      </Link>
                       {product.notes && (
                         <span className="max-w-xs truncate text-xs text-muted-foreground" title={product.notes}>
                           {product.notes}

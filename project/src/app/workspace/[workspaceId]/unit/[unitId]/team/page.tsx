@@ -3,6 +3,7 @@ import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers, type MemberRole, type WorkspaceRole } from "@/lib/member-role"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { roleLabels } from "@/components/role-labels"
 import { UnitMemberActions } from "@/components/unit-member-actions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -101,6 +102,7 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
         <Table>
           <TableHeader>
             <TableRow>
+              <CodeHead />
               <TableHead className="px-4">Nome</TableHead>
               <TableHead className="px-4">Função</TableHead>
               <TableHead className="px-4">Nesta unidade</TableHead>
@@ -111,7 +113,7 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
           <TableBody>
             {members.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 5 : 4} className="px-4 py-6 text-center text-muted-foreground">
+                <TableCell colSpan={canManage ? 6 : 5} className="px-4 py-6 text-center text-muted-foreground">
                   Nenhum usuário convidado. Convide a equipe em Usuários.
                 </TableCell>
               </TableRow>
@@ -123,6 +125,7 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
                 const canEdit = canManage && (!isTherapist || role === "owner")
                 return (
                   <TableRow key={member.id}>
+                    <CodeCell id={member.id} />
                     <TableCell className="px-4">
                       <div className="flex items-center gap-3">
                         <Avatar className="size-8">

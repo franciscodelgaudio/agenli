@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PopoverDescription, PopoverTitle } from "@/components/ui/popover"
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
-import { ProductPicker, withServiceProducts, type ProductOption } from "@/components/product-picker"
+import { ProductPicker, withServiceProducts } from "@/components/product-picker"
 import { formatDuration } from "@/components/service-format"
 import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
@@ -42,8 +42,6 @@ export type BookingFormOptions = {
     durationMinutes: number
     productIds: string[]
   }[]
-  // Cada produto traz a unidade, como os serviços.
-  products: ProductOption[]
 }
 
 type Props = BookingFormOptions & {
@@ -77,7 +75,6 @@ export function BookingForm({
   units,
   therapists,
   services: allServices,
-  products: allProducts,
   mode,
   variant = "sheet",
   defaultValues,
@@ -104,7 +101,6 @@ export function BookingForm({
   const Description = variant === "popover" ? PopoverDescription : SheetDescription
   const services = allServices.filter((service) => service.unitId === unitId)
   const serviceItems = services.map((service) => ({ value: service.id, label: service.name }))
-  const products = allProducts.filter((product) => product.unitId === unitId)
 
   return (
     <form action={formAction} className="flex min-h-0 flex-1 flex-col">
@@ -239,10 +235,9 @@ export function BookingForm({
         <Field>
           <FieldLabel>Produtos (opcional)</FieldLabel>
           <ProductPicker
-            products={products}
+            unitId={unitId}
             value={productIds}
             onChange={setProductIds}
-            emptyMessage={unitId ? "Nenhum produto no estoque desta unidade." : "Escolha a unidade primeiro."}
           />
         </Field>
       </FieldGroup>

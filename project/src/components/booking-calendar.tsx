@@ -90,7 +90,7 @@ type Draft = { values: BookingFormValues; key: number; fallbackAnchor: Element |
 // rascunho) e o botão de novo agendamento.
 const KEEPS_DRAFT = "data-keeps-draft"
 
-export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services, products }: Props) {
+export function BookingCalendar({ workspaceId, canManage, unitId, units, therapists, services }: Props) {
   const calendarRef = useRef<CalendarRef>(null)
   const [unit, setUnit] = useState(unitId ?? "")
   const [therapist, setTherapist] = useState("")
@@ -107,7 +107,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
   // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
   const canCreate = canManage && units.length > 0
-  const options = { units: unitId ? undefined : units, therapists, services, products }
+  const options = { units: unitId ? undefined : units, therapists, services }
 
   // Uma nova função a cada troca de filtro faz o calendário buscar de novo.
   const fetchEvents = useCallback(

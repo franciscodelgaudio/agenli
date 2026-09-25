@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { DateTimeField } from "@/components/date-time-field"
-import { ProductPicker, withServiceProducts, type ProductOption } from "@/components/product-picker"
+import { ProductPicker, withServiceProducts } from "@/components/product-picker"
 import { currencyFormat, formatDuration } from "@/components/service-format"
 import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
@@ -41,8 +41,6 @@ export type AppointmentOptions = {
     durationMinutes: number
     productIds: string[]
   }[]
-  // Como os serviços: com a unidade na visão do workspace.
-  products: ProductOption[]
   therapists: TherapistOption[]
   units?: { id: string; name: string }[]
 }
@@ -72,7 +70,6 @@ const copy = {
 
 export function AppointmentForm({
   services: allServices,
-  products: allProducts,
   therapists,
   units,
   mode,
@@ -82,7 +79,6 @@ export function AppointmentForm({
 }: Props) {
   const [unitId, setUnitId] = useState<string | null>(defaultValues.unitId ?? null)
   const services = units ? allServices.filter((service) => service.unitId === unitId) : allServices
-  const products = units ? allProducts.filter((product) => product.unitId === unitId) : allProducts
   const [productIds, setProductIds] = useState(defaultValues.productIds ?? [])
   const [rows, setRows] = useState<Row[]>(() =>
     defaultValues.items?.length
@@ -267,12 +263,10 @@ export function AppointmentForm({
 
         <FieldSeparator>Produtos</FieldSeparator>
         <ProductPicker
-          products={products}
+          // Na unidade, a unidade vem da URL.
+          unitId={units ? unitId : undefined}
           value={productIds}
           onChange={setProductIds}
-          emptyMessage={
-            units && !unitId ? "Escolha a unidade primeiro." : "Nenhum produto no estoque desta unidade."
-          }
         />
 
         <div className="flex items-center justify-between text-sm">

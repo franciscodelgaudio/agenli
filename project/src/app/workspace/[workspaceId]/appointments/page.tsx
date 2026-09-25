@@ -51,7 +51,6 @@ export default async function WorkspaceAppointmentsPage({
     appointments: AppointmentPage<AppointmentRow>
     total: number
     services: AppointmentOptions["services"]
-    products: AppointmentOptions["products"]
     therapists: AppointmentOptions["therapists"]
   }>([
     ...access,
@@ -80,25 +79,6 @@ export default async function WorkspaceAppointmentsPage({
         foreignField: "unitId",
         as: "total",
         pipeline: [{ $count: "n" }],
-      },
-    },
-    {
-      $lookup: {
-        from: "products",
-        localField: "units._id",
-        foreignField: "unitId",
-        as: "products",
-        pipeline: [
-          { $sort: { name: 1, _id: 1 } },
-          {
-            $project: {
-              _id: 0,
-              id: { $toString: "$_id" },
-              unitId: { $toString: "$unitId" },
-              name: 1,
-            },
-          },
-        ],
       },
     },
     {
@@ -132,13 +112,12 @@ export default async function WorkspaceAppointmentsPage({
         appointments: { $first: "$appointments" },
         total: { $ifNull: [{ $first: "$total.n" }, 0] },
         services: 1,
-        products: 1,
         therapists: 1,
       },
     },
   ])
   if (!workspace) notFound()
-  const { units, appointments: result, total, services, products, therapists } = workspace
+  const { units, appointments: result, total, services, therapists } = workspace
   const canManage = canManageMembers(workspace.role)
 
   const pathname = `/workspace/${workspaceId}/appointments`
@@ -152,7 +131,7 @@ export default async function WorkspaceAppointmentsPage({
   }
   // Hora atual de Brasília.
   const defaultPerformedAt = new Date(now.getTime() - BRT_OFFSET_HOURS * 60 * 60 * 1000).toISOString().slice(0, 16)
-  const options = { services, products, therapists, units }
+  const options = { services, therapists, units }
 
   // O proprietário sempre está entre quem pode atender, então basta haver serviço.
   const createButton = canManage && services.length > 0 && (

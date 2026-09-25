@@ -1,58 +1,59 @@
 import { canManageMembers, type MemberRole, type WorkspaceRole } from "@/lib/member-role";
 import { parsePercent } from "@/lib/revenue-share";
+import { parsePriceCents } from "@/lib/service";
 
-// Vínculo de um membro com uma unidade. Só massagistas têm comissão, e só o
-// proprietário vincula ou define a comissão delas.
+// Remuneração de quem trabalha na unidade: comissão (%) ou salário mensal, nunca os dois.
+// Só o proprietário define a de massagistas.
 
-export type UpdateUnitMemberError =
+export type UpdateUnitMemberPayError =
   | "workspace_not_found"
   | "forbidden"
   | "member_not_found"
   | "invalid_input"
-  | "invalid_commission";
+  | "invalid_commission"
+  | "invalid_salary";
 
-export type UpdateUnitMemberResult = { ok: true } | { ok: false; error: UpdateUnitMemberError };
+export type UpdateUnitMemberPayResult = { ok: true } | { ok: false; error: UpdateUnitMemberPayError };
 
-export type UnitMemberUpdate = { linked: false } | { linked: true; commissionPercent: number | null };
+export type UnitMemberPay = { commissionPercent: number | null; salaryCents: number | null };
 
-type UpdateUnitMemberDeps = {
-  // null quando o membro não existe (ou não é do workspace).
+type UpdateUnitMemberPayDeps = {
+  // null quando o membro não existe, não é do workspace ou não está vinculado à unidade.
   findMember: (memberId: string) => Promise<{ id: string; role: MemberRole } | null>;
-  update: (memberId: string, data: UnitMemberUpdate) => Promise<void>;
+  update: (memberId: string, data: UnitMemberPay) => Promise<void>;
 };
 
-export async function updateUnitMember(
+function parse(value: unknown, parser: (value: string) => number | null) {
+  return typeof value === "string" ? parser(value.trim()) : null;
+}
+
+export async function updateUnitMemberPay(
   input: unknown,
   memberId: string | null | undefined,
   ctx: { actorRole: WorkspaceRole | null },
-  deps: UpdateUnitMemberDeps,
-): Promise<UpdateUnitMemberResult> {
+  deps: UpdateUnitMemberPayDeps,
+): Promise<UpdateUnitMemberPayResult> {
   if (!ctx.actorRole) return { ok: false, error: "workspace_not_found" };
   if (!canManageMembers(ctx.actorRole)) return { ok: false, error: "forbidden" };
   if (!memberId) return { ok: false, error: "member_not_found" };
 
   if (input == null || typeof input !== "object") return { ok: false, error: "invalid_input" };
-  const { linked, commissionPercent } = input as Record<string, unknown>;
-  if (typeof linked !== "boolean") return { ok: false, error: "invalid_input" };
+  const { pay, commissionPercent, salary } = input as Record<string, unknown>;
+  if (pay !== "commission" && pay !== "salary") return { ok: false, error: "invalid_input" };
 
   const member = await deps.findMember(memberId);
   if (!member) return { ok: false, error: "member_not_found" };
+  if (member.role === "massage_therapist" && ctx.actorRole !== "owner") return { ok: false, error: "forbidden" };
 
-  const isTherapist = member.role === "massage_therapist";
-  if (isTherapist && ctx.actorRole !== "owner") return { ok: false, error: "forbidden" };
-
-  if (!linked) {
-    await deps.update(memberId, { linked: false });
-    return { ok: true };
-  }
-  if (!isTherapist) {
-    await deps.update(memberId, { linked: true, commissionPercent: null });
+  if (pay === "commission") {
+    const percent = parse(commissionPercent, parsePercent);
+    if (percent === null) return { ok: false, error: "invalid_commission" };
+    await deps.update(memberId, { commissionPercent: percent, salaryCents: null });
     return { ok: true };
   }
 
-  const percent = typeof commissionPercent === "string" ? parsePercent(commissionPercent.trim()) : null;
-  if (percent === null) return { ok: false, error: "invalid_commission" };
-
-  await deps.update(memberId, { linked: true, commissionPercent: percent });
+  const salaryCents = parse(salary, parsePriceCents);
+  if (!salaryCents) return { ok: false, error: "invalid_salary" };
+  await deps.update(memberId, { commissionPercent: null, salaryCents });
   return { ok: true };
 }

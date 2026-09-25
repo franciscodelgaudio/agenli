@@ -4,8 +4,7 @@ import { PackageIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseProductListQuery, productListPipeline } from "@/lib/product-list"
-import { summarizeProductUsage } from "@/lib/product-usage"
-import { Product } from "@/models/Product"
+import { findProductUsage } from "@/lib/product-lookup"
 import { Workspace } from "@/models/Workspace"
 import { CreateProductSheet } from "@/components/create-product-sheet"
 import { ListSearch } from "@/components/list-search"
@@ -89,42 +88,8 @@ export default async function StockPage({
   const { products: rows, productCount } = workspace.unit
   const canManage = canManageMembers(workspace.role)
 
-  // Uso de cada produto: atendimentos e agendamentos que o listaram. Agendamento que virou
-  // atendimento já conta pelo atendimento, então só entram os que ainda não viraram.
-  // A unidade já foi conferida acima, a partir do workspace.
-  const usage = await Product.aggregate<{ id: string; depletedAt: Date[]; uses: Date[] }>([
-    { $match: { unitId: new Types.ObjectId(unitId) } },
-    {
-      $lookup: {
-        from: "appointments",
-        localField: "_id",
-        foreignField: "products.productId",
-        as: "appointments",
-        pipeline: [{ $project: { _id: 0, at: "$performedAt" } }],
-      },
-    },
-    {
-      $lookup: {
-        from: "bookings",
-        localField: "_id",
-        foreignField: "products.productId",
-        as: "bookings",
-        pipeline: [{ $match: { appointmentId: null } }, { $project: { _id: 0, at: "$startsAt" } }],
-      },
-    },
-    {
-      $project: {
-        _id: 0,
-        id: { $toString: "$_id" },
-        depletedAt: { $ifNull: ["$depletedAt", []] },
-        uses: { $concatArrays: ["$appointments.at", "$bookings.at"] },
-      },
-    },
-  ])
-  const now = new Date()
-  const usageById = new Map(usage.map((u) => [u.id, summarizeProductUsage(u.uses, u.depletedAt, now)]))
-  const empty = summarizeProductUsage([], [], now)
-  const products = rows.map((product) => ({ ...product, usage: usageById.get(product.id) ?? empty }))
+  const usageOf = await findProductUsage(unitId)
+  const products = rows.map((product) => ({ ...product, usage: usageOf(product.id) }))
 
   return (
     <div className="flex flex-col gap-4">

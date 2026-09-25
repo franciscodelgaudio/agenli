@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { MEMBER_ROLES, type MemberRole } from "@/lib/member-role"
 import { roleLabels } from "@/components/role-labels"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -10,10 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const roleItems = MEMBER_ROLES.map((role) => ({ value: role, label: roleLabels[role] }))
 
 export function RoleField({ idPrefix, defaultValue }: { idPrefix: string; defaultValue?: MemberRole }) {
+  // Congela o valor inicial: após salvar, a revalidação traz o papel novo antes do Sheet fechar,
+  // e o Select não controlado da Base UI avisa se o defaultValue mudar depois de montado.
+  const [initialValue] = useState(defaultValue ?? null)
+
   return (
     <Field>
       <FieldLabel htmlFor={`${idPrefix}-role`}>Função</FieldLabel>
-      <Select name="role" items={roleItems} defaultValue={defaultValue ?? null} required>
+      <Select name="role" items={roleItems} defaultValue={initialValue} required>
         <SelectTrigger id={`${idPrefix}-role`} className="w-full">
           <SelectValue placeholder="Escolha uma função" />
         </SelectTrigger>

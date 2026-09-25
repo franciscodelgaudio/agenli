@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyStaffCosts,
   cashFlowBuckets,
   cashFlowFetchRange,
   dailyAppointmentTotalsPipeline,
@@ -428,6 +429,106 @@ describe("summarizeCashFlow", () => {
 
     expect(result.buckets.map((bucket) => bucket.real.commissionCents)).toEqual([67, 33]);
     expect(result.total.real.commissionCents).toBe(100);
+  });
+});
+
+describe("applyStaffCosts", () => {
+  // Setembro de 2026 tem 30 dias: R$ 3.000 por mês = R$ 100 por dia.
+  const SALARY = { grossCommissionPercent: 0, monthlySalaryCents: 300_000, today: "2026-09-24" };
+
+  it("sem salário nem comissão sobre o bruto, só acrescenta salário zerado", () => {
+    const summary = summarizeCashFlow([day("2026-09-21")], [total("2026-09-21", 10_000)], [], null, { ana: 10 });
+
+    const result = applyStaffCosts(summary, { grossCommissionPercent: 0, monthlySalaryCents: 0, today: "2026-09-24" });
+
+    const amounts = { grossCents: 10_000, partnerShareCents: 0, commissionCents: 1_000, salaryCents: 0, netCents: 9_000 };
+    expect(result).toEqual({
+      buckets: [{ ...day("2026-09-21"), real: amounts, forecast: amounts }],
+      total: { real: amounts, forecast: amounts },
+    });
+  });
+
+  it("salário mensal rateado por dia; real conta só até hoje, previsto conta o intervalo inteiro", () => {
+    const summary = summarizeCashFlow([RANGE], [total("2026-09-21", 50_000)], [total("2026-09-26", 20_000)], null, {});
+
+    const result = applyStaffCosts(summary, SALARY);
+
+    // Real: 21 a 24 = 4 dias = R$ 400. Previsto: 21 a 27 = 7 dias = R$ 700.
+    const real = { grossCents: 50_000, partnerShareCents: 0, commissionCents: 0, salaryCents: 40_000, netCents: 10_000 };
+    const forecast = { grossCents: 70_000, partnerShareCents: 0, commissionCents: 0, salaryCents: 70_000, netCents: 0 };
+    expect(result).toEqual({ buckets: [{ ...RANGE, real, forecast }], total: { real, forecast } });
+  });
+
+  it("intervalo todo no futuro: salário só no previsto", () => {
+    const summary = summarizeCashFlow([day("2026-09-30")], [], [], null, {});
+
+    const [bucket] = applyStaffCosts(summary, SALARY).buckets;
+
+    expect(bucket.real).toEqual({ grossCents: 0, partnerShareCents: 0, commissionCents: 0, salaryCents: 0, netCents: 0 });
+    expect(bucket.forecast).toEqual({ grossCents: 0, partnerShareCents: 0, commissionCents: 0, salaryCents: 10_000, netCents: -10_000 });
+  });
+
+  it("semana que atravessa meses usa os dias de cada mês", () => {
+    const summary = summarizeCashFlow([{ from: "2026-09-28", to: "2026-10-04" }], [], [], null, {});
+
+    const [bucket] = applyStaffCosts(summary, { ...SALARY, today: "2026-12-31" }).buckets;
+
+    // Setembro: 3 dias × 300.000/30. Outubro: 4 dias × 300.000/31 = 38.709,68.
+    expect(bucket.real.salaryCents).toBe(68_710);
+    expect(bucket.forecast.salaryCents).toBe(68_710);
+  });
+
+  it("visão anual: cada mês passado recebe o salário inteiro", () => {
+    const summary = summarizeCashFlow(cashFlowBuckets({ view: "year", date: "2026-09-24" }), [], [], null, {});
+
+    const result = applyStaffCosts(summary, SALARY);
+
+    expect(result.buckets.slice(0, 3).map((bucket) => bucket.real.salaryCents)).toEqual([300_000, 300_000, 300_000]);
+    // Setembro até o dia 24: 24 × R$ 100.
+    expect(result.buckets[8].real.salaryCents).toBe(240_000);
+    expect(result.buckets[8].forecast.salaryCents).toBe(300_000);
+    expect(result.total.forecast.salaryCents).toBe(3_600_000);
+  });
+
+  it("comissão sobre o bruto (recepcionista) soma à comissão das massagistas e sai do líquido", () => {
+    const share: RevenueShare = { period: "weekly", tiers: [{ upToCents: null, percent: 20 }] };
+    const summary = summarizeCashFlow(
+      [day("2026-09-21"), day("2026-09-26")],
+      [total("2026-09-21", 10_000, "ana")],
+      [total("2026-09-26", 30_000, "ana")],
+      share,
+      { ana: 30 },
+    );
+
+    const result = applyStaffCosts(summary, { grossCommissionPercent: 5, monthlySalaryCents: 0, today: "2026-09-24" });
+
+    // Dia 21: 30% da Ana (R$ 30) + 5% do bruto (R$ 5); repasse 20% (R$ 20).
+    expect(result.buckets[0].real).toEqual({
+      grossCents: 10_000,
+      partnerShareCents: 2_000,
+      commissionCents: 3_500,
+      salaryCents: 0,
+      netCents: 4_500,
+    });
+    // Dia 26 (previsto): 30% da Ana (R$ 90) + 5% do bruto (R$ 15); repasse 20% (R$ 60).
+    expect(result.buckets[1].forecast).toEqual({
+      grossCents: 30_000,
+      partnerShareCents: 6_000,
+      commissionCents: 10_500,
+      salaryCents: 0,
+      netCents: 13_500,
+    });
+    expect(result.total.forecast.commissionCents).toBe(14_000);
+  });
+
+  it("arredonda por intervalo; o total soma os intervalos arredondados", () => {
+    // R$ 1,00 por mês em setembro = 3,33 centavos por dia.
+    const summary = summarizeCashFlow([day("2026-09-21"), day("2026-09-22")], [], [], null, {});
+
+    const result = applyStaffCosts(summary, { grossCommissionPercent: 0, monthlySalaryCents: 100, today: "2026-09-24" });
+
+    expect(result.buckets.map((bucket) => bucket.real.salaryCents)).toEqual([3, 3]);
+    expect(result.total.real).toEqual({ grossCents: 0, partnerShareCents: 0, commissionCents: 0, salaryCents: 6, netCents: -6 });
   });
 });
 

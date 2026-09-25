@@ -9,6 +9,7 @@ import { ListPagination } from "@/components/list-pagination"
 import { ListSearch } from "@/components/list-search"
 import { MemberActions } from "@/components/member-actions"
 import { roleLabels } from "@/components/role-labels"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { UserRoleFilter, UserStatusFilter } from "@/components/user-filters"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -22,8 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-type Person = { name: string | null; email: string; image: string | null }
-type Member = Person & { id: string; role: MemberRole; pending: boolean; expiresAt: Date | null }
+type Person = { id: string; name: string | null; email: string; image: string | null }
+type Member = Person & { role: MemberRole; pending: boolean; expiresAt: Date | null }
 
 export default async function UsersPage({ params, searchParams }: PageProps<"/workspace/[workspaceId]/users">) {
   const { workspaceId } = await params
@@ -121,6 +122,7 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
         <Table>
           <TableHeader>
             <TableRow>
+              <CodeHead />
               <SortableHead field="name" label="Nome" icon={UserIcon} query={filters} pathname={pathname} />
               <SortableHead field="email" label="Email" icon={MailIcon} query={filters} pathname={pathname} />
               <HeadWithIcon icon={ShieldIcon} label="Função" />
@@ -130,7 +132,7 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
           <TableBody>
             {result.rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
+                <TableCell colSpan={canManage ? 5 : 4} className="h-24 px-4 text-center text-muted-foreground">
                   Nenhum usuário encontrado.
                 </TableCell>
               </TableRow>
@@ -212,6 +214,7 @@ function PersonRow({
   const displayName = person.name ?? person.email
   return (
     <TableRow>
+      <CodeCell id={person.id} />
       <TableCell className="px-4">
         <div className="flex items-center gap-3">
           <Avatar className="size-8">

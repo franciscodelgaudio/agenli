@@ -1,6 +1,7 @@
 import { BanknoteIcon, BedDoubleIcon, Building2Icon, ClockIcon, SettingsIcon, SparklesIcon } from "lucide-react"
 import { AppointmentActions } from "@/components/appointment-actions"
 import type { AppointmentOptions } from "@/components/appointment-form"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { currencyFormat, formatDuration, timeFormat } from "@/components/service-format"
 import {
@@ -63,12 +64,13 @@ function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) 
 
 export function AppointmentTable({ appointments, query, pathname, workspaceId, options, canManage }: Props) {
   const unitNames = options.units && new Map(options.units.map((unit) => [unit.id, unit.name]))
-  const columns = 4 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
+  const columns = 5 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
   return (
     <div className="border">
       <Table>
         <TableHeader>
           <TableRow>
+            <CodeHead />
             <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
             {unitNames && <Head icon={Building2Icon} label="Unidade" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
@@ -94,6 +96,7 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
           ) : (
             appointments.map((appointment) => (
               <TableRow key={appointment.id} className="align-top">
+                <CodeCell id={appointment.id} />
                 <TableCell className="px-4">
                   <div className="font-medium">{dayFormat.format(appointment.performedAt)}</div>
                   <div className="text-muted-foreground tabular-nums">{timeFormat.format(appointment.performedAt)}</div>

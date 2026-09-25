@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useState, useTransition } from "react"
+import Link from "next/link"
 import { EllipsisIcon, HistoryIcon, PackageXIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import {
   deleteProductAction,
@@ -9,7 +10,6 @@ import {
   type ProductActionState,
 } from "@/lib/actions/product"
 import type { ProductUsageSummary } from "@/lib/product-usage"
-import { dateTimeFormat } from "@/lib/utils"
 
 import {
   AlertDialog,
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { FieldError, FieldGroup } from "@/components/ui/field"
 import { ProductFields } from "@/components/product-fields"
-import { formatAverage, formatUses } from "@/components/product-format"
+import { formatUses } from "@/components/product-format"
 import {
   Sheet,
   SheetContent,
@@ -57,7 +57,6 @@ export function ProductActions({ workspaceId, unitId, product }: Props) {
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [depleteOpen, setDepleteOpen] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
   // Muda a cada abertura para remontar o formulário com os valores atuais e sem erro antigo.
   const [editKey, setEditKey] = useState(0)
 
@@ -83,7 +82,7 @@ export function ProductActions({ workspaceId, unitId, product }: Props) {
             <PackageXIcon />
             Marcar como acabou
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setHistoryOpen(true)}>
+          <DropdownMenuItem render={<Link href={`/workspace/${workspaceId}/unit/${unitId}/stock/${product.id}`} />}>
             <HistoryIcon />
             Histórico de uso
           </DropdownMenuItem>
@@ -122,12 +121,6 @@ export function ProductActions({ workspaceId, unitId, product }: Props) {
         open={depleteOpen}
         onOpenChange={setDepleteOpen}
       />
-
-      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-        <SheetContent>
-          <UsageHistory product={product} />
-        </SheetContent>
-      </Sheet>
     </>
   )
 }
@@ -251,50 +244,5 @@ function DepleteProductDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
-}
-
-// Cada vez que o produto acabou, da mais recente para a mais antiga, com os usos do ciclo.
-function UsageHistory({ product }: { product: Product }) {
-  const { cycles, usesSinceLastDepletion, averageUsesPerDepletion } = product.usage
-
-  return (
-    <>
-      <SheetHeader>
-        <SheetTitle>Histórico de uso</SheetTitle>
-        <SheetDescription>
-          {product.name}: atendimentos e agendamentos que usaram o produto entre uma vez que ele acabou e a seguinte.
-        </SheetDescription>
-      </SheetHeader>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4">
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <div className="border p-3">
-            <dt className="text-muted-foreground">Média até acabar</dt>
-            <dd className="text-lg font-semibold tabular-nums">{formatAverage(averageUsesPerDepletion)}</dd>
-          </div>
-          <div className="border p-3">
-            <dt className="text-muted-foreground">Desde a última vez</dt>
-            <dd className="text-lg font-semibold tabular-nums">{formatUses(usesSinceLastDepletion)}</dd>
-          </div>
-        </dl>
-        {cycles.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Este produto ainda não acabou nenhuma vez. Use &quot;Marcar como acabou&quot; quando isso acontecer.
-          </p>
-        ) : (
-          <ol className="grid gap-2">
-            {[...cycles].reverse().map((cycle) => (
-              <li
-                key={cycle.depletedAt.getTime()}
-                className="flex items-center justify-between gap-4 border px-3 py-2 text-sm"
-              >
-                <span>Acabou em {dateTimeFormat.format(cycle.depletedAt)}</span>
-                <span className="font-medium tabular-nums">{formatUses(cycle.uses)}</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-    </>
   )
 }

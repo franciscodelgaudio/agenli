@@ -1,4 +1,5 @@
 import type { ServiceAmounts, ServiceSummary } from "@/lib/cash-flow"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { currencyFormat } from "@/components/service-format"
 import {
   Table,
@@ -36,7 +37,7 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="px-4" />
+            <TableHead className="px-4" colSpan={2} />
             <TableHead colSpan={2} className="border-l px-4 text-center">
               Real
             </TableHead>
@@ -45,6 +46,7 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
             </TableHead>
           </TableRow>
           <TableRow>
+            <CodeHead />
             <TableHead className="px-4">Serviço</TableHead>
             <TableHead className="border-l px-4 text-right">Qtd.</TableHead>
             <TableHead className="px-4 text-right">Bruto</TableHead>
@@ -55,13 +57,14 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
         <TableBody>
           {services.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+              <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                 Nenhum serviço no período.
               </TableCell>
             </TableRow>
           ) : (
             services.map((service) => (
               <TableRow key={service.serviceId}>
+                <CodeCell id={service.serviceId} />
                 <TableCell className="px-4">{service.serviceName}</TableCell>
                 <AmountCells amounts={service.real} />
                 <AmountCells amounts={service.forecast} />
@@ -72,7 +75,7 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
         {services.length > 0 && (
           <TableFooter>
             <TableRow>
-              <TableCell className="px-4 font-semibold">Total</TableCell>
+              <TableCell className="px-4 font-semibold" colSpan={2}>Total</TableCell>
               <AmountCells amounts={sum("real")} />
               <AmountCells amounts={sum("forecast")} />
             </TableRow>

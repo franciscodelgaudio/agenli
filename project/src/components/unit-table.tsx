@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Building2Icon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
 import { UnitActions } from "@/components/unit-actions"
+import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -37,6 +38,7 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage }: Pr
       <Table>
         <TableHeader>
           <TableRow>
+            <CodeHead />
             <SortableHead field="name" label="Nome" icon={Building2Icon} query={query} pathname={pathname} />
             <SortableHead field="createdAt" label="Criado em" icon={CalendarPlusIcon} query={query} pathname={pathname} />
             <SortableHead field="updatedAt" label="Atualizado em" icon={CalendarClockIcon} query={query} pathname={pathname} />
@@ -53,13 +55,14 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage }: Pr
         <TableBody>
           {units.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canManage ? 4 : 3} className="h-24 px-4 text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 5 : 4} className="h-24 px-4 text-center text-muted-foreground">
                 Nenhuma unidade encontrada.
               </TableCell>
             </TableRow>
           ) : (
             units.map((unit) => (
               <TableRow key={unit.id} className="relative cursor-pointer">
+                <CodeCell id={unit.id} />
                 <TableCell className="px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8 rounded-lg after:rounded-lg">

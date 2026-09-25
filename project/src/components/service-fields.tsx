@@ -4,16 +4,15 @@ import { useState } from "react"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { AmountInput } from "@/components/amount-input"
-import { ProductPicker, type ProductOption } from "@/components/product-picker"
+import { ProductPicker } from "@/components/product-picker"
 
 type Props = {
   idPrefix: string
   defaultValues?: { name: string; priceCents: number; durationMinutes: number; productIds: string[] }
-  // Produtos da unidade, para escolher os padrão do serviço.
-  products: ProductOption[]
 }
 
-export function ServiceFields({ idPrefix, defaultValues, products }: Props) {
+// Os produtos padrão são buscados na unidade da URL.
+export function ServiceFields({ idPrefix, defaultValues }: Props) {
   const [productIds, setProductIds] = useState(defaultValues?.productIds ?? [])
 
   return (
@@ -59,10 +58,8 @@ export function ServiceFields({ idPrefix, defaultValues, products }: Props) {
       <Field>
         <FieldLabel>Produtos padrão (opcional)</FieldLabel>
         <ProductPicker
-          products={products}
           value={productIds}
           onChange={setProductIds}
-          emptyMessage="Nenhum produto no estoque desta unidade."
         />
         <FieldDescription>Já vêm marcados ao escolher este serviço num agendamento ou atendimento.</FieldDescription>
       </Field>

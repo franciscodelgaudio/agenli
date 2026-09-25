@@ -54,7 +54,6 @@ export default async function UnitCalendarListPage({
       bookings: BookingPage
       total: number
       services: BookingOptions["services"]
-      products: BookingOptions["products"]
     } | null
   }>([
     ...access,
@@ -86,25 +85,6 @@ export default async function UnitCalendarListPage({
           },
           {
             $lookup: {
-              from: "products",
-              localField: "_id",
-              foreignField: "unitId",
-              as: "products",
-              pipeline: [
-                { $sort: { name: 1, _id: 1 } },
-                {
-                  $project: {
-                    _id: 0,
-                    id: { $toString: "$_id" },
-                    unitId: { $toString: "$unitId" },
-                    name: 1,
-                  },
-                },
-              ],
-            },
-          },
-          {
-            $lookup: {
               from: "services",
               localField: "_id",
               foreignField: "unitId",
@@ -130,7 +110,6 @@ export default async function UnitCalendarListPage({
               _id: 0,
               bookings: { $first: "$bookings" },
               services: 1,
-              products: 1,
               total: { $ifNull: [{ $first: "$total.n" }, 0] },
             },
           },
@@ -141,10 +120,10 @@ export default async function UnitCalendarListPage({
     { $project: { _id: 0, role: 1, therapists: 1, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
   if (!workspace?.unit) notFound()
-  const { bookings: result, total, services, products } = workspace.unit
+  const { bookings: result, total, services } = workspace.unit
   const { therapists } = workspace
   const canManage = canManageMembers(workspace.role)
-  const options = { services, products, therapists }
+  const options = { services, therapists }
 
   const base = `/workspace/${workspaceId}/unit/${unitId}/calendar`
   const pathname = `${base}/list`
