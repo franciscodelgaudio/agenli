@@ -25,6 +25,7 @@ import {
 } from "@/lib/actions/booking"
 import { BOOKING_COLORS } from "@/lib/booking-colors"
 import type { BookingRow } from "@/lib/booking-list"
+import { createRescheduleQueue, type RescheduleTimes } from "@/lib/reschedule-queue"
 import { BRT_OFFSET_HOURS } from "@/lib/timezone"
 
 import {
@@ -64,6 +65,15 @@ function toDay(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
+function withTimes(booking: BookingRow, times: RescheduleTimes): BookingRow {
+  const durationMinutes = Math.round(
+    (new Date(`${times.endsAt}:00Z`).getTime() - new Date(`${times.startsAt}:00Z`).getTime()) / 60000,
+  )
+  return { ...booking, ...times, durationMinutes }
+}
+
+const RETRY_MESSAGE = "Sem conexão. Tentando salvar de novo…"
+
 // Hora atual de Brasília no mesmo esquema, para o "hoje" e a linha de agora.
 function brtNow() {
   return new Date(Date.now() - BRT_OFFSET_HOURS * HOUR_MS)
@@ -101,6 +111,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [deleting, startDelete] = useTransition()
   // A primeira busca começa junto com o calendário, então ele já nasce carregando.
   const [eventsLoading, setEventsLoading] = useState(true)
+  // A busca que confirma arrastes já salvos não esmaece o calendário.
+  const silentFetch = useRef(false)
   const mounted = useRef(false)
   useEffect(() => {
     mounted.current = true
@@ -230,24 +242,46 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const eventSources = useMemo(() => [fetchEvents, draftEvents], [fetchEvents, draftEvents])
   const draftAnchor = draftEl ?? draft?.fallbackAnchor ?? null
 
-  async function handleChange({ event, revert }: EventChangeInfo) {
+  // Arrastes salvos em fila, na ordem feita; enquanto ela anda, as buscas esperam.
+  const [queue] = useState(() =>
+    createRescheduleQueue({
+      save: (id, times) => rescheduleBookingAction(workspaceId, id, times),
+      revert: (id, times) => {
+        const event = calendarRef.current?.getApi().getEventById(id)
+        if (!event) return
+        event.setDates(new Date(`${times.startsAt}:00Z`), new Date(`${times.endsAt}:00Z`))
+        event.setExtendedProp("booking", withTimes(event.extendedProps.booking, times))
+      },
+      onError: setError,
+      onRetry: () => setError(RETRY_MESSAGE),
+      onSaved: () => setError((current) => (current === RETRY_MESSAGE ? null : current)),
+      onIdle: () => {
+        release()
+        silentFetch.current = true
+        refetch()
+      },
+      retryDelay: (attempt) => Math.min(1000 * 2 ** (attempt - 1), 15000),
+      wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    }),
+  )
+
+  // Fechar a página com arraste ainda não salvo pede confirmação.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (queue.pending()) e.preventDefault()
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [queue])
+
+  function handleChange({ event, oldEvent }: EventChangeInfo) {
     setError(null)
     changes.current += 1
-    hold()
-    try {
-      const result = await rescheduleBookingAction(workspaceId, event.id, {
-        startsAt: toWallTime(event.start!),
-        endsAt: toWallTime(event.end!),
-      })
-      if (result.error) {
-        revert()
-        setError(result.error)
-      } else {
-        refetch()
-      }
-    } finally {
-      release()
-    }
+    const times = { startsAt: toWallTime(event.start!), endsAt: toWallTime(event.end!) }
+    // O agendamento do evento acompanha o arraste, para o formulário abrir com o horário novo.
+    event.setExtendedProp("booking", withTimes(event.extendedProps.booking, times))
+    if (!queue.pending()) hold()
+    queue.push(event.id, { startsAt: toWallTime(oldEvent.start!), endsAt: toWallTime(oldEvent.end!) }, times)
   }
 
   // O fim do arraste vem antes do eventDrop/eventResize, que são disparados em seguida no mesmo
@@ -354,6 +388,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           eventSources={eventSources}
           // O FullCalendar avisa do carregamento no meio do próprio render; o estado muda logo depois dele.
           loading={(isLoading) => {
+            if (!isLoading) silentFetch.current = false
+            else if (silentFetch.current) return
             if (mounted.current) queueMicrotask(() => setEventsLoading(isLoading))
           }}
           eventDidMount={({ event, el }) => {
