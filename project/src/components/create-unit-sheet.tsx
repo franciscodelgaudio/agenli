@@ -43,7 +43,7 @@ export function CreateUnitSheet({ workspaceId, team }: { workspaceId: string; te
           {/* Só os campos rolam; título e botões ficam fixos. */}
           <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
-            <UnitFields idPrefix="create-unit" team={team} />
+            <UnitFields idPrefix="create-unit" workspaceId={workspaceId} team={team} />
           </FieldGroup>
           <SheetFooter>
             <Button type="submit" disabled={pending}>

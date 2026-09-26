@@ -3,9 +3,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { AmountInput } from "@/components/amount-input"
 import { StarRatingInput } from "@/components/star-rating"
+import { ImageUploadField } from "@/components/image-upload-field"
 
 type Props = {
   idPrefix: string
+  workspaceId: string
+  unitId: string
   defaultValues?: {
     name: string
     quantity: number
@@ -16,7 +19,7 @@ type Props = {
   }
 }
 
-export function ProductFields({ idPrefix, defaultValues }: Props) {
+export function ProductFields({ idPrefix, workspaceId, unitId, defaultValues }: Props) {
   return (
     <>
       <Field>
@@ -72,8 +75,14 @@ export function ProductFields({ idPrefix, defaultValues }: Props) {
           maxLength={500}
         />
       </Field>
-      {/* Campo da imagem escondido por enquanto; o valor salvo segue no envio para a edição não apagá-lo. */}
-      <input type="hidden" name="avatarUrl" value={defaultValues?.avatarUrl ?? ""} />
+      <ImageUploadField
+        id={`${idPrefix}-image`}
+        label="Imagem (opcional)"
+        workspaceId={workspaceId}
+        target="product"
+        unitId={unitId}
+        defaultValue={defaultValues?.avatarUrl}
+      />
     </>
   )
 }

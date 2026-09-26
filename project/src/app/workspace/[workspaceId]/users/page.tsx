@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { MailIcon, SettingsIcon, ShieldIcon, UserIcon } from "lucide-react"
 import { canManageMembers, type MemberRole, type WorkspaceRole } from "@/lib/member-role"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseUserListQuery, USER_PAGE_SIZE, userListPage, type UserListItem } from "@/lib/user-list"
 import { Workspace } from "@/models/Workspace"
@@ -31,6 +32,7 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
   const { workspaceId } = await params
   const query = parseUserListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "users" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

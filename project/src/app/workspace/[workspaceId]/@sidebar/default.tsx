@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { logoutAction } from "@/lib/actions/auth"
+import { canManageMembers, canUseInbox, type WorkspaceRole } from "@/lib/member-role"
+import { visiblePages, type HiddenPages } from "@/lib/page-access"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 
@@ -20,6 +22,8 @@ export default async function SidebarSlot({
     id: string
     name: string
     avatarUrl: string | null
+    role: WorkspaceRole
+    hiddenPages: HiddenPages | null
   }>([
     ...access,
     {
@@ -28,10 +32,22 @@ export default async function SidebarSlot({
         id: { $toString: "$_id" },
         name: 1,
         avatarUrl: { $ifNull: ["$avatarUrl", null] },
+        role: 1,
+        hiddenPages: { $ifNull: ["$hiddenPages", null] },
       },
     },
   ])
   if (!workspace) notFound()
 
-  return <AppSidebar workspace={workspace} user={user} logoutAction={logoutAction} />
+  const { role, hiddenPages, ...header } = workspace
+  return (
+    <AppSidebar
+      workspace={header}
+      pages={visiblePages(role, hiddenPages).workspace}
+      canManage={canManageMembers(role)}
+      inbox={canUseInbox(role)}
+      user={user}
+      logoutAction={logoutAction}
+    />
+  )
 }

@@ -118,7 +118,7 @@ function EditUnitForm({
       {/* Só os campos rolam; título e botões ficam fixos. */}
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
-        <UnitFields idPrefix={`edit-unit-${unit.id}`} defaultValues={unit} team={team} />
+        <UnitFields idPrefix={`edit-unit-${unit.id}`} workspaceId={workspaceId} defaultValues={unit} team={team} />
       </FieldGroup>
       <SheetFooter>
         <Button type="submit" disabled={pending}>

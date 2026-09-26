@@ -2,7 +2,17 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { MapPinIcon, CalendarIcon, CircleCheckIcon, HomeIcon, UsersIcon, type LucideIcon } from "lucide-react"
+import {
+  MapPinIcon,
+  CalendarIcon,
+  CircleCheckIcon,
+  HomeIcon,
+  MessagesSquareIcon,
+  RadioTowerIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+  type LucideIcon,
+} from "lucide-react"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -10,29 +20,53 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { WORKSPACE_PAGE_PATHS, type WorkspacePage } from "@/lib/page-access"
 
 type NavItem = { title: string; href: string; icon: LucideIcon }
 
-export function NavMain({ workspaceId }: { workspaceId: string }) {
+// pages: páginas do sistema liberadas para a função do usuário; Permissões e Canais são só de
+// quem gerencia. inbox: a função atende clientes pelas Conversas.
+export function NavMain({
+  workspaceId,
+  pages,
+  canManage,
+  inbox,
+}: {
+  workspaceId: string
+  pages: WorkspacePage[]
+  canManage: boolean
+  inbox: boolean
+}) {
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}`
+  const item = (page: WorkspacePage, title: string, icon: LucideIcon) =>
+    pages.includes(page) ? [{ title, href: `${base}${WORKSPACE_PAGE_PATHS[page]}`, icon }] : []
   const groups: { label?: string; items: NavItem[] }[] = [
-    { items: [{ title: "Início", href: base, icon: HomeIcon }] },
+    { items: item("home", "Início", HomeIcon) },
     {
       label: "Geral",
       items: [
-        { title: "Unidades", href: `${base}/unit`, icon: MapPinIcon },
-        { title: "Atendimentos", href: `${base}/appointments`, icon: CircleCheckIcon },
-        { title: "Calendário", href: `${base}/calendar`, icon: CalendarIcon },
+        ...item("units", "Unidades", MapPinIcon),
+        ...item("appointments", "Atendimentos", CircleCheckIcon),
+        ...item("calendar", "Calendário", CalendarIcon),
+        ...(inbox ? [{ title: "Conversas", href: `${base}/inbox`, icon: MessagesSquareIcon }] : []),
       ],
     },
     {
       label: "Configurações",
-      items: [{ title: "Usuários", href: `${base}/users`, icon: UsersIcon }],
+      items: [
+        ...item("users", "Usuários", UsersIcon),
+        ...(canManage
+          ? [
+              { title: "Permissões", href: `${base}/permissions`, icon: ShieldCheckIcon },
+              { title: "Canais", href: `${base}/channels`, icon: RadioTowerIcon },
+            ]
+          : []),
+      ],
     },
   ]
 
-  return groups.map((group, i) => (
+  return groups.filter((group) => group.items.length > 0).map((group, i) => (
     <SidebarGroup key={group.label ?? i}>
       {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
       <SidebarMenu>

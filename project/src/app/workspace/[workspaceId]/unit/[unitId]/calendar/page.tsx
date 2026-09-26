@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
@@ -12,6 +13,7 @@ import { CalendarNav } from "@/components/calendar-nav"
 export default async function UnitCalendarPage({ params }: PageProps<"/workspace/[workspaceId]/unit/[unitId]/calendar">) {
   const { workspaceId, unitId } = await params
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "calendar", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 

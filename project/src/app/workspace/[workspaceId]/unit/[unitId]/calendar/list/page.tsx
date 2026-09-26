@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { CalendarIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
   BOOKING_PAGE_SIZE,
@@ -43,6 +44,7 @@ export default async function UnitCalendarListPage({
   // A unidade vem da rota, não da URL.
   const query = { ...parseBookingListQuery(await searchParams), unit: "" }
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "calendar", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 

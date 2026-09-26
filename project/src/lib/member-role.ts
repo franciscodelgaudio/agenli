@@ -7,3 +7,8 @@ export type WorkspaceRole = "owner" | MemberRole;
 export function canManageMembers(role: WorkspaceRole | null) {
   return role === "owner" || role === "admin";
 }
+
+// Quem atende os clientes pelas Conversas (WhatsApp e Instagram).
+export function canUseInbox(role: WorkspaceRole | null) {
+  return role === "owner" || role === "admin" || role === "receptionist";
+}

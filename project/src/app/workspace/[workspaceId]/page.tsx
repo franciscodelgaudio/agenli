@@ -27,6 +27,7 @@ import {
 } from "@/lib/cash-flow"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import type { RevenueShare } from "@/lib/revenue-share"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { BRT_OFFSET_HOURS } from "@/lib/timezone"
@@ -92,6 +93,7 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
   const { workspaceId } = await params
   const now = new Date()
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "home" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

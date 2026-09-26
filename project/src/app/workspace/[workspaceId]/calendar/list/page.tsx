@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { CalendarIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
   BOOKING_PAGE_SIZE,
@@ -41,6 +42,7 @@ export default async function CalendarListPage({
   const now = new Date()
   const query = parseBookingListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "calendar" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

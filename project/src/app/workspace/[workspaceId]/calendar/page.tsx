@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { therapistOptionsStages } from "@/lib/therapist"
 import { Workspace } from "@/models/Workspace"
@@ -11,6 +12,7 @@ import { CalendarNav } from "@/components/calendar-nav"
 export default async function CalendarPage({ params }: PageProps<"/workspace/[workspaceId]/calendar">) {
   const { workspaceId } = await params
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "calendar" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

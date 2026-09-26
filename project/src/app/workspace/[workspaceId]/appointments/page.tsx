@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { CircleCheckIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
   APPOINTMENT_PAGE_SIZE,
@@ -39,6 +40,7 @@ export default async function WorkspaceAppointmentsPage({
   const now = new Date()
   const query = parseAppointmentListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "appointments" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

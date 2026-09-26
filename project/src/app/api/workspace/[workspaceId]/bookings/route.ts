@@ -1,9 +1,11 @@
 import { bookingListPipeline, parseBookingRange, type BookingRow } from "@/lib/booking-list"
+import { findVisiblePages } from "@/lib/page-guard"
 import { getSessionUserId, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 
 // Agendamentos do intervalo visível no calendário (?start=&end=&unit=&therapist=), de todas
-// as unidades do workspace ou das filtradas. Qualquer membro do workspace pode ver.
+// as unidades do workspace ou das filtradas. Qualquer membro do workspace que veja o calendário
+// do sistema pode ver; filtrado por unidade, basta ver o calendário das unidades.
 // É GET (e não server action) porque o FullCalendar busca os eventos durante o render.
 export async function GET(request: Request, { params }: RouteContext<"/api/workspace/[workspaceId]/bookings">) {
   const { workspaceId } = await params
@@ -13,6 +15,11 @@ export async function GET(request: Request, { params }: RouteContext<"/api/works
   if (!query) return Response.json({ error: "Período inválido." }, { status: 400 })
   const access = workspaceAccessStages(workspaceId, userId)
   if (!access) return Response.json({ error: "Workspace não encontrado." }, { status: 404 })
+  const visible = await findVisiblePages(workspaceId, userId)
+  if (!visible) return Response.json({ error: "Workspace não encontrado." }, { status: 404 })
+  if (!visible.pages.workspace.includes("calendar") && !(query.unit && visible.pages.unit.includes("calendar"))) {
+    return Response.json({ error: "Sem permissão para ver o calendário." }, { status: 403 })
+  }
 
   const [workspace] = await Workspace.aggregate<{ bookings: BookingRow[] }>([
     ...access,

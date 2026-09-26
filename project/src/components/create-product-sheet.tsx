@@ -43,7 +43,7 @@ export function CreateProductSheet({ workspaceId, unitId }: { workspaceId: strin
           {/* Só os campos rolam; título e botões ficam fixos. */}
           <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
             {state.error && <FieldError>{state.error}</FieldError>}
-            <ProductFields idPrefix="create-product" />
+            <ProductFields idPrefix="create-product" workspaceId={workspaceId} unitId={unitId} />
           </FieldGroup>
           <SheetFooter>
             <Button type="submit" disabled={pending}>

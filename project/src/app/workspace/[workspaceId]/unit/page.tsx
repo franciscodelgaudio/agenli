@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { unitListPipeline, parseUnitListQuery } from "@/lib/unit-list"
 import type { RevenueShare } from "@/lib/revenue-share"
@@ -17,6 +18,7 @@ export default async function UnitsPage({
   const { workspaceId } = await params
   const query = parseUnitListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { workspace: "units" })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()
 

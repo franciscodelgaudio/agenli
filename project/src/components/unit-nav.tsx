@@ -4,24 +4,36 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { ArrowRightIcon, CalendarIcon, CircleCheckIcon, LayoutDashboardIcon, LeafIcon, PackageIcon, UsersIcon, WalletIcon, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { UNIT_PAGE_PATHS, type UnitPage } from "@/lib/page-access"
 import { cn } from "@/lib/utils"
 
-type NavItem = { title: string; href: string; icon: LucideIcon; pending?: boolean }
+type NavItem = { title: string; icon: LucideIcon; pending?: boolean }
 
 // hasServices: sem serviços a unidade não agenda nem registra atendimentos, então a aba
-// Serviços ganha um indicador até o primeiro cadastro.
-export function UnitNav({ workspaceId, unitId, hasServices }: { workspaceId: string; unitId: string; hasServices: boolean }) {
+// Serviços ganha um indicador até o primeiro cadastro. pages: abas liberadas para a função do usuário.
+export function UnitNav({
+  workspaceId,
+  unitId,
+  hasServices,
+  pages,
+}: {
+  workspaceId: string
+  unitId: string
+  hasServices: boolean
+  pages: UnitPage[]
+}) {
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}/unit/${unitId}`
-  const items: NavItem[] = [
-    { title: "Visão geral", href: base, icon: LayoutDashboardIcon },
-    { title: "Serviços", href: `${base}/services`, icon: LeafIcon, pending: !hasServices },
-    { title: "Calendário", href: `${base}/calendar`, icon: CalendarIcon },
-    { title: "Atendimentos", href: `${base}/appointments`, icon: CircleCheckIcon },
-    { title: "Estoque", href: `${base}/stock`, icon: PackageIcon },
-    { title: "Equipe", href: `${base}/team`, icon: UsersIcon },
-    { title: "Caixa", href: `${base}/cash-flow`, icon: WalletIcon },
-  ]
+  const tabs: Record<UnitPage, NavItem> = {
+    overview: { title: "Visão geral", icon: LayoutDashboardIcon },
+    services: { title: "Serviços", icon: LeafIcon, pending: !hasServices },
+    calendar: { title: "Calendário", icon: CalendarIcon },
+    appointments: { title: "Atendimentos", icon: CircleCheckIcon },
+    stock: { title: "Estoque", icon: PackageIcon },
+    team: { title: "Equipe", icon: UsersIcon },
+    cash_flow: { title: "Caixa", icon: WalletIcon },
+  }
+  const items = pages.map((page) => ({ ...tabs[page], href: `${base}${UNIT_PAGE_PATHS[page]}` }))
 
   return (
     <nav className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

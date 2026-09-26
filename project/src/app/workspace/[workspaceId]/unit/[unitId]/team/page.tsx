@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member-role"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseUnitTeamListQuery, UNIT_TEAM_PAGE_SIZE, unitTeamListPage, type UnitTeamListItem } from "@/lib/unit-team-list"
 import { Workspace } from "@/models/Workspace"
@@ -35,6 +36,7 @@ export default async function UnitTeamPage({
   const { workspaceId, unitId } = await params
   const query = parseUnitTeamListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "team", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
   const unitObjectId = new Types.ObjectId(unitId)

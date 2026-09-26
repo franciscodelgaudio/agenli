@@ -2,6 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowLeftIcon } from "lucide-react"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { findProductUsage } from "@/lib/product-lookup"
 import {
@@ -33,6 +34,7 @@ export default async function ProductHistoryPage({
   const { workspaceId, unitId, productId } = await params
   const query = parseProductHistoryQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "stock", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId) || !isObjectIdOrHexString(productId)) notFound()
 

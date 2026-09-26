@@ -144,7 +144,12 @@ function EditProductForm({ workspaceId, unitId, product, onDone }: Props & { onD
       {/* Só os campos rolam; título e botões ficam fixos. */}
       <FieldGroup className="min-h-0 flex-1 overflow-y-auto px-4">
         {state.error && <FieldError>{state.error}</FieldError>}
-        <ProductFields idPrefix={`edit-product-${product.id}`} defaultValues={product} />
+        <ProductFields
+          idPrefix={`edit-product-${product.id}`}
+          workspaceId={workspaceId}
+          unitId={unitId}
+          defaultValues={product}
+        />
       </FieldGroup>
       <SheetFooter>
         <Button type="submit" disabled={pending}>

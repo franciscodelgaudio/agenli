@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { LeafIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseServiceListQuery, serviceListPipeline } from "@/lib/service-list"
 import { Workspace } from "@/models/Workspace"
@@ -27,6 +28,7 @@ export default async function ServicesPage({
   const { workspaceId, unitId } = await params
   const query = parseServiceListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "services", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 

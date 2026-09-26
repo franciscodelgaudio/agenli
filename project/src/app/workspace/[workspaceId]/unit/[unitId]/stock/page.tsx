@@ -2,6 +2,7 @@ import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { PackageIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseProductListQuery, productListPipeline } from "@/lib/product-list"
 import { findProductUsage } from "@/lib/product-lookup"
@@ -36,6 +37,7 @@ export default async function StockPage({
   const { workspaceId, unitId } = await params
   const query = parseProductListQuery(await searchParams)
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "stock", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 

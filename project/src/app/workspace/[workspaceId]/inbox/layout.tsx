@@ -1,0 +1,61 @@
+import { notFound } from "next/navigation"
+import { canUseInbox, type WorkspaceRole } from "@/lib/member-role"
+import { requireUser, workspaceAccessStages } from "@/lib/session"
+import { Workspace } from "@/models/Workspace"
+import { InboxShell, type ConversationListItem } from "@/components/inbox-shell"
+
+// Conversas mais recentes primeiro; as mais antigas ficam de fora da lista.
+const CONVERSATION_LIMIT = 100
+
+export default async function InboxLayout({ children, params }: LayoutProps<"/workspace/[workspaceId]/inbox">) {
+  const { workspaceId } = await params
+  const user = await requireUser()
+  const access = workspaceAccessStages(workspaceId, user.id)
+  if (!access) notFound()
+
+  const [workspace] = await Workspace.aggregate<{ role: WorkspaceRole; conversations: ConversationListItem[] }>([
+    ...access,
+    {
+      $lookup: {
+        from: "conversations",
+        localField: "_id",
+        foreignField: "workspaceId",
+        as: "conversations",
+        pipeline: [
+          { $sort: { lastMessageAt: -1 } },
+          { $limit: CONVERSATION_LIMIT },
+          {
+            $lookup: {
+              from: "messaging_channels",
+              localField: "channelId",
+              foreignField: "_id",
+              as: "channel",
+              pipeline: [{ $project: { _id: 0, name: 1 } }],
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              id: { $toString: "$_id" },
+              platform: 1,
+              contactName: 1,
+              contactExternalId: 1,
+              channelName: { $ifNull: [{ $first: "$channel.name" }, ""] },
+              lastMessageAt: 1,
+              lastMessagePreview: 1,
+              unreadCount: 1,
+            },
+          },
+        ],
+      },
+    },
+    { $project: { _id: 0, role: 1, conversations: 1 } },
+  ])
+  if (!workspace || !canUseInbox(workspace.role)) notFound()
+
+  return (
+    <InboxShell workspaceId={workspaceId} conversations={workspace.conversations}>
+      {children}
+    </InboxShell>
+  )
+}

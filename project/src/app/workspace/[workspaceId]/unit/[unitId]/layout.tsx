@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { visiblePages, type HiddenPages } from "@/lib/page-access"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
@@ -20,6 +21,7 @@ export default async function UnitLayout({
   // Basta saber se há algum serviço: sem eles a unidade não agenda nem registra atendimentos.
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
+    hiddenPages: HiddenPages | null
     unit: { id: string; name: string; avatarUrl: string | null; hasServices: boolean } | null
   }>([
     ...access,
@@ -52,7 +54,7 @@ export default async function UnitLayout({
         ],
       },
     },
-    { $project: { _id: 0, role: 1, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
+    { $project: { _id: 0, role: 1, hiddenPages: { $ifNull: ["$hiddenPages", null] }, unit: { $ifNull: [{ $first: "$unit" }, null] } } },
   ])
   const unit = workspace?.unit
   if (!unit) notFound()
@@ -69,7 +71,12 @@ export default async function UnitLayout({
       {!unit.hasServices && (
         <ServicesSetupNotice workspaceId={workspaceId} unitId={unitId} canManage={canManageMembers(workspace.role)} />
       )}
-      <UnitNav workspaceId={workspaceId} unitId={unitId} hasServices={unit.hasServices} />
+      <UnitNav
+        workspaceId={workspaceId}
+        unitId={unitId}
+        hasServices={unit.hasServices}
+        pages={visiblePages(workspace.role, workspace.hiddenPages).unit}
+      />
       {children}
     </div>
   )

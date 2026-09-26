@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowRightIcon, CircleCheckIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
+import { requirePage } from "@/lib/page-guard"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
   APPOINTMENT_PAGE_SIZE,
@@ -43,6 +44,7 @@ export default async function AppointmentsPage({
   // A unidade vem da rota, não da URL.
   const query = { ...parseAppointmentListQuery(await searchParams), unit: "" }
   const user = await requireUser()
+  await requirePage(workspaceId, user.id, { unit: "appointments", unitId })
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
 
