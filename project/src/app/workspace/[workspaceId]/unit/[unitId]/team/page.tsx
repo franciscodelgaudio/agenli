@@ -1,9 +1,15 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
-import { canManageMembers, type MemberRole, type WorkspaceRole } from "@/lib/member-role"
+import { canManageMembers, type WorkspaceRole } from "@/lib/member-role"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
+import { parseUnitTeamListQuery, UNIT_TEAM_PAGE_SIZE, unitTeamListPage, type UnitTeamListItem } from "@/lib/unit-team-list"
 import { Workspace } from "@/models/Workspace"
+import { UserIcon } from "lucide-react"
+import { ListPagination } from "@/components/list-pagination"
+import { ListSearch } from "@/components/list-search"
 import { CodeCell, CodeHead } from "@/components/record-code"
+import { SortableHead } from "@/components/sortable-head"
+import { UnitTeamFilters } from "@/components/unit-team-filters"
 import { roleLabels } from "@/components/role-labels"
 import { UnitMemberActions } from "@/components/unit-member-actions"
 import { currencyFormat } from "@/components/service-format"
@@ -21,20 +27,13 @@ import {
 
 const percentFormat = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
-type Member = {
-  id: string
-  name: string | null
-  email: string
-  image: string | null
-  role: MemberRole
-  pending: boolean
-  commissionPercent: number | null
-  salaryCents: number | null
-}
-
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
-export default async function UnitTeamPage({ params }: PageProps<"/workspace/[workspaceId]/unit/[unitId]/team">) {
+export default async function UnitTeamPage({
+  params,
+  searchParams,
+}: PageProps<"/workspace/[workspaceId]/unit/[unitId]/team">) {
   const { workspaceId, unitId } = await params
+  const query = parseUnitTeamListQuery(await searchParams)
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
@@ -45,7 +44,7 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
   const [workspace] = await Workspace.aggregate<{
     role: WorkspaceRole
     unit: { name: string } | null
-    members: Member[]
+    members: UnitTeamListItem[]
   }>([
     ...access,
     {
@@ -94,7 +93,6 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
               salaryCents: { $ifNull: ["$link.salaryCents", null] },
             },
           },
-          { $sort: { name: 1, email: 1 } },
         ],
       },
     },
@@ -103,30 +101,58 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
   if (!workspace?.unit) notFound()
   const { role, unit, members } = workspace
   const canManage = canManageMembers(role)
+  // Busca, filtros e paginação são feitos aqui (poucas pessoas por unidade).
+  const result = unitTeamListPage(members, query)
+
+  const pathname = `/workspace/${workspaceId}/unit/${unitId}/team`
+  // Filtros mudam sem levar a página junto, então a lista volta para a primeira.
+  const { page, ...filters } = query
+  // Página além da última (ex.: depois de desvincular a última pessoa dela) vai para a última.
+  const pages = Math.ceil(result.total / UNIT_TEAM_PAGE_SIZE)
+  if (pages > 0 && page > pages) {
+    const params = new URLSearchParams(
+      Object.entries({ ...filters, page: pages > 1 ? String(pages) : "" }).filter(([, v]) => v),
+    )
+    redirect(`${pathname}?${params}`)
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-lg font-semibold tracking-tight">Equipe</h3>
+      {members.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <ListSearch query={filters} placeholder="Buscar nome ou email..." />
+            <UnitTeamFilters query={filters} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {result.total} {result.total === 1 ? "pessoa" : "pessoas"}
+          </p>
+        </div>
+      )}
       <div className="border">
         <Table>
           <TableHeader>
             <TableRow>
               <CodeHead />
-              <TableHead className="px-4">Nome</TableHead>
+              {/* Só há ordenação por nome; o sort fixo alimenta o cabeçalho e é ignorado na leitura. */}
+              <SortableHead field="name" label="Nome" icon={UserIcon} query={{ ...filters, sort: "name" }} pathname={pathname} />
               <TableHead className="px-4">Função</TableHead>
               <TableHead className="px-4 text-right">Remuneração</TableHead>
               {canManage && <TableHead className="w-0 px-4 text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {members.length === 0 ? (
+            {result.rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={canManage ? 5 : 4} className="px-4 py-6 text-center text-muted-foreground">
-                  Ninguém trabalha nesta unidade ainda. Escolha a equipe ao editar a unidade.
+                  {members.length === 0
+                    ? "Ninguém trabalha nesta unidade ainda. Escolha a equipe ao editar a unidade."
+                    : "Ninguém encontrado."}
                 </TableCell>
               </TableRow>
             ) : (
-              members.map((member) => {
+              result.rows.map((member) => {
                 const label = member.name ?? member.email
                 const isTherapist = member.role === "massage_therapist"
                 // Só o proprietário define a remuneração de massagistas.
@@ -186,6 +212,14 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
           </TableBody>
         </Table>
       </div>
+      <ListPagination
+        query={filters}
+        page={page}
+        pageSize={UNIT_TEAM_PAGE_SIZE}
+        total={result.total}
+        pathname={pathname}
+        itemLabel="pessoas"
+      />
       <p className="text-sm text-muted-foreground">
         Comissão e salário saem do líquido no caixa desta unidade. A comissão de massagista é sobre os serviços
         que ela fez; a de recepcionista, sobre o faturamento bruto. O salário é rateado por dia. O proprietário

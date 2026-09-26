@@ -29,16 +29,8 @@ export function UnitFields({ idPrefix, defaultValues, team }: Props) {
           required
         />
       </Field>
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-avatar-url`}>URL do avatar (opcional)</FieldLabel>
-        <Input
-          id={`${idPrefix}-avatar-url`}
-          name="avatarUrl"
-          type="url"
-          placeholder="https://exemplo.com/logo.png"
-          defaultValue={defaultValues?.avatarUrl ?? undefined}
-        />
-      </Field>
+      {/* Campo do avatar escondido por enquanto; o valor salvo segue no envio para a edição não apagá-lo. */}
+      <input type="hidden" name="avatarUrl" value={defaultValues?.avatarUrl ?? ""} />
       <UnitTeamFields
         idPrefix={idPrefix}
         team={team.candidates}

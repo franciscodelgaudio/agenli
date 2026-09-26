@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { AppointmentListQuery } from "@/lib/appointment-list"
 
 export type AppointmentRow = {
@@ -62,6 +63,51 @@ function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) 
   )
 }
 
+function ServiceLine({ item }: { item: AppointmentRow["items"][number] }) {
+  return (
+    <>
+      {item.serviceName}{" "}
+      <span className="text-muted-foreground">
+        · {item.therapistName} · {formatDuration(item.durationMinutes)} · {currencyFormat.format(item.priceCents / 100)}
+      </span>
+    </>
+  )
+}
+
+// Mostra só o primeiro serviço; os demais ficam no tooltip do "+N" para a linha não quebrar.
+function ServicesSummary({ items }: { items: AppointmentRow["items"] }) {
+  const [first, ...rest] = items
+  if (!first) return "—"
+  return (
+    <span className="flex items-center gap-1.5">
+      <span>
+        <ServiceLine item={first} />
+      </span>
+      {rest.length > 0 && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className="cursor-help rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground" />
+            }
+          >
+            +{rest.length}
+          </TooltipTrigger>
+          <TooltipContent className="max-w-none">
+            <ul className="grid gap-1">
+              {rest.map((item, index) => (
+                <li key={index}>
+                  {item.serviceName} · {item.therapistName} · {formatDuration(item.durationMinutes)} ·{" "}
+                  {currencyFormat.format(item.priceCents / 100)}
+                </li>
+              ))}
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </span>
+  )
+}
+
 export function AppointmentTable({ appointments, query, pathname, workspaceId, options, canManage }: Props) {
   const unitNames = options.units && new Map(options.units.map((unit) => [unit.id, unit.name]))
   const columns = 5 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
@@ -95,31 +141,32 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
             </TableRow>
           ) : (
             appointments.map((appointment) => (
-              <TableRow key={appointment.id} className="align-top">
+              <TableRow key={appointment.id} className="whitespace-nowrap">
                 <CodeCell id={appointment.id} />
                 <TableCell className="px-4">
-                  <div className="font-medium">{dayFormat.format(appointment.performedAt)}</div>
-                  <div className="text-muted-foreground tabular-nums">{timeFormat.format(appointment.performedAt)}</div>
+                  <span className="font-medium">{dayFormat.format(appointment.performedAt)}</span>{" "}
+                  <span className="text-muted-foreground tabular-nums">
+                    · {timeFormat.format(appointment.performedAt)}
+                  </span>
                 </TableCell>
                 {unitNames && (
                   <TableCell className="px-4">{unitNames.get(appointment.unitId) ?? "—"}</TableCell>
                 )}
                 <TableCell className="px-4">
-                  <div className="font-medium">{appointment.guest.name}</div>
-                  <div className="text-muted-foreground">Quarto {appointment.guest.room}</div>
+                  {/* O quarto fica escondido no tooltip para a linha caber em uma altura só. */}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <span className="cursor-help font-medium underline decoration-muted-foreground/50 decoration-dotted underline-offset-4" />
+                      }
+                    >
+                      {appointment.guest.name}
+                    </TooltipTrigger>
+                    <TooltipContent>Quarto {appointment.guest.room}</TooltipContent>
+                  </Tooltip>
                 </TableCell>
                 <TableCell className="px-4">
-                  <ul className="grid gap-1">
-                    {appointment.items.map((item, index) => (
-                      <li key={index}>
-                        {item.serviceName}{" "}
-                        <span className="text-muted-foreground">
-                          · {item.therapistName} · {formatDuration(item.durationMinutes)} ·{" "}
-                          {currencyFormat.format(item.priceCents / 100)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <ServicesSummary items={appointment.items} />
                 </TableCell>
                 <TableCell className="px-4 font-medium tabular-nums">
                   {currencyFormat.format(appointment.totalCents / 100)}

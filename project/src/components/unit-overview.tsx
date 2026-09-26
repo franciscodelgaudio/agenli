@@ -66,8 +66,8 @@ export function StatTile({
         </div>
         <div className="truncate text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
         {progress !== undefined && (
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress, 1) * 100}%` }} />
+          <div className="h-1.5 overflow-hidden bg-muted">
+            <div className="h-full bg-primary" style={{ width: `${Math.min(progress, 1) * 100}%` }} />
           </div>
         )}
         <div className="truncate text-xs text-muted-foreground">{detail}</div>
@@ -81,11 +81,11 @@ export function RealForecastLegend() {
   return (
     <div className="flex items-center gap-4 text-xs text-muted-foreground">
       <span className="flex items-center gap-1.5">
-        <span className="size-2.5 rounded-[3px] bg-primary" />
+        <span className="size-2.5 bg-primary" />
         Realizado
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="size-2.5 rounded-[3px] bg-primary/30" />
+        <span className="size-2.5 bg-primary/30" />
         Agendado
       </span>
     </div>
@@ -111,13 +111,13 @@ export function WeekChart({ buckets, today }: { buckets: CashFlowBucket[]; today
               >
                 {scheduled > 0 && (
                   <div
-                    className="w-full rounded-t-[4px] bg-primary/30"
+                    className="w-full bg-primary/30"
                     style={{ height: height(scheduled) }}
                   />
                 )}
                 {real > 0 && (
                   <div
-                    className={cn("w-full bg-primary", !scheduled && "rounded-t-[4px]")}
+                    className="w-full bg-primary"
                     style={{ height: height(real) }}
                   />
                 )}
@@ -271,10 +271,10 @@ export function RankList({ items, avatar }: { items: RankItem[]; avatar?: "round
                 )}
                 <span className="shrink-0 font-medium tabular-nums">{money(item.forecast.cents)}</span>
               </div>
-              <div className="flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${(item.real.cents / max) * 100}%` }} />
+              <div className="flex h-1.5 gap-0.5 overflow-hidden bg-muted">
+                <div className="h-full bg-primary" style={{ width: `${(item.real.cents / max) * 100}%` }} />
                 <div
-                  className="h-full rounded-full bg-primary/30"
+                  className="h-full bg-primary/30"
                   style={{ width: `${((item.forecast.cents - item.real.cents) / max) * 100}%` }}
                 />
               </div>

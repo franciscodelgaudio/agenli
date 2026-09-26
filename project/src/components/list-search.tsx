@@ -39,7 +39,7 @@ export function ListSearch({ query, placeholder }: Props) {
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder.replace(/\.+$/, "")}
-        className="h-10 pl-8"
+        className="pl-8"
       />
     </div>
   )

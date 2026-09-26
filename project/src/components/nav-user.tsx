@@ -32,9 +32,9 @@ export function NavUser({ user, logoutAction }: Props) {
 
   const userInfo = (
     <>
-      <Avatar className="size-8 rounded-lg after:rounded-lg">
-        {user.image && <AvatarImage src={user.image} alt={name} className="rounded-lg" />}
-        <InitialFallback name={name} className="rounded-lg" />
+      <Avatar className="size-8 rounded-[0.625rem] after:rounded-[0.625rem]">
+        {user.image && <AvatarImage src={user.image} alt={name} className="rounded-[0.625rem]" />}
+        <InitialFallback name={name} className="rounded-[0.625rem]" />
       </Avatar>
       <div className="grid flex-1 text-left text-sm leading-tight">
         <span className="truncate font-medium">{name}</span>

@@ -31,12 +31,18 @@ export function UserStatusFilter({ query }: Props) {
   return <QuerySelect query={query} field="status" items={statusItems} label="Filtrar por status" />
 }
 
-function QuerySelect({
+// Select de filtro que grava o valor escolhido na URL, preservando os demais campos da query.
+export function QuerySelect<F extends string>({
   query,
   field,
   items,
   label,
-}: Props & { field: "role" | "status"; items: { value: string; label: string }[]; label: string }) {
+}: {
+  query: Record<F, string> & Record<string, string>
+  field: F
+  items: { value: string; label: string }[]
+  label: string
+}) {
   const router = useRouter()
   const pathname = usePathname()
 

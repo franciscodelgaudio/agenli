@@ -150,7 +150,11 @@ export default async function CalendarListPage({
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-2xl font-semibold tracking-tight">Calendário</h2>
-        <CalendarNav base={base} />
+        {/* O botão sobe para o título: com muitos filtros, a linha deles quebra sozinha. */}
+        <div className="flex items-center gap-2">
+          {total > 0 && createButton}
+          <CalendarNav base={base} />
+        </div>
       </div>
 
       {total === 0 ? (
@@ -172,20 +176,12 @@ export default async function CalendarListPage({
         </Empty>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
-              <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
-              <UnitFilter query={filters} units={options.units} />
-              <TherapistFilter query={filters} therapists={options.therapists} />
-              <BookingStatusFilter query={filters} />
-              <PeriodFilter query={filters} />
-            </div>
-            <div className="flex items-center gap-4">
-              <p className="text-sm text-muted-foreground">
-                {result.total} {result.total === 1 ? "agendamento" : "agendamentos"}
-              </p>
-              {createButton}
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
+            <UnitFilter query={filters} units={options.units} />
+            <TherapistFilter query={filters} therapists={options.therapists} />
+            <BookingStatusFilter query={filters} />
+            <PeriodFilter query={filters} />
           </div>
           <BookingTable
             bookings={bookings}

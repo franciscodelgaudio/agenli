@@ -54,7 +54,7 @@ export function PeriodFilter({ query }: Props) {
           render={
             <Button
               variant="outline"
-              className="h-10 flex-1 justify-start font-normal sm:flex-none"
+              className="flex-1 justify-start font-normal sm:flex-none"
               aria-label="Filtrar por período"
             />
           }

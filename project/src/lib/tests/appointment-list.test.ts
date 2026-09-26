@@ -169,20 +169,19 @@ describe("appointmentSearchPipeline", () => {
       totalCents: 1,
     },
   };
-  // Numa ida só: a página pedida, já projetada, e a quantidade e a soma dos valores de tudo que
-  // passou pela busca e pelos filtros (para a paginação e o resumo).
+  // Numa ida só: a página pedida, já projetada, e a quantidade de tudo que passou pela busca e
+  // pelos filtros (para a paginação).
   const paged = (skip: number) => [
     {
       $facet: {
         rows: [{ $skip: skip }, { $limit: APPOINTMENT_PAGE_SIZE }, PROJECT],
-        summary: [{ $group: { _id: null, n: { $sum: 1 }, totalCents: { $sum: "$totalCents" } } }],
+        summary: [{ $count: "n" }],
       },
     },
     {
       $project: {
         rows: 1,
         total: { $ifNull: [{ $first: "$summary.n" }, 0] },
-        totalCents: { $ifNull: [{ $first: "$summary.totalCents" }, 0] },
       },
     },
   ];

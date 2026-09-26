@@ -86,10 +86,7 @@ export function UnitTeamFields({ idPrefix, team, unitId, canLinkTherapists }: Pr
       {selected.filter(isEditable).map((member) => (
         <input key={member.id} type="hidden" name="teamMemberId" value={member.id} />
       ))}
-      <FieldDescription>
-        A comissão ou o salário de cada pessoa é definido na Equipe da unidade.
-        {!canLinkTherapists && " Só o proprietário vincula massagistas."}
-      </FieldDescription>
+      {!canLinkTherapists && <FieldDescription>Só o proprietário vincula massagistas.</FieldDescription>}
     </Field>
   )
 }

@@ -6,7 +6,6 @@ import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { formatDuration } from "@/components/service-format"
 import { TherapistAvatar } from "@/components/therapist-avatar"
-import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -15,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 type Props = {
   bookings: BookingRow[]
@@ -89,24 +89,39 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
               // Quem saiu do workspace não está nas opções: fica só com o nome copiado.
               const therapist = therapistsById.get(booking.therapistId)
               return (
-                <TableRow key={booking.id} className="align-top">
+                <TableRow key={booking.id} className="whitespace-nowrap">
                   <CodeCell id={booking.id} />
                   <TableCell className="px-4">
-                    <div className="font-medium">{formatDay(booking.startsAt)}</div>
-                    <div className="text-muted-foreground tabular-nums">
-                      {booking.startsAt.slice(11)}–{booking.endsAt.slice(11)}
-                    </div>
-                    {booking.appointmentId && (
-                      <Badge variant="secondary" className="mt-1">
-                        <CheckIcon />
-                        Atendido
-                      </Badge>
-                    )}
+                    <span className="flex items-center gap-1.5">
+                      <span className="font-medium">{formatDay(booking.startsAt)}</span>
+                      <span className="text-muted-foreground tabular-nums">
+                        · {booking.startsAt.slice(11)}–{booking.endsAt.slice(11)}
+                      </span>
+                      {booking.appointmentId && (
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={<span aria-label="Atendido" className="inline-flex text-muted-foreground" />}
+                          >
+                            <CheckIcon className="size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>Atendido</TooltipContent>
+                        </Tooltip>
+                      )}
+                    </span>
                   </TableCell>
                   {unitNames && <TableCell className="px-4">{unitNames.get(booking.unitId) ?? "—"}</TableCell>}
                   <TableCell className="px-4">
-                    <div className="font-medium">{booking.guest.name}</div>
-                    <div className="text-muted-foreground">Quarto {booking.guest.room}</div>
+                    {/* O quarto fica escondido no tooltip para a linha caber em uma altura só. */}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="cursor-help font-medium underline decoration-muted-foreground/50 decoration-dotted underline-offset-4" />
+                        }
+                      >
+                        {booking.guest.name}
+                      </TooltipTrigger>
+                      <TooltipContent>Quarto {booking.guest.room}</TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="px-4">
                     <span className="flex items-center gap-2">

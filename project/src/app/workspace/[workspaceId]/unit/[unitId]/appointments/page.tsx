@@ -18,7 +18,6 @@ import { CreateAppointmentSheet } from "@/components/create-appointment-sheet"
 import { ListPagination } from "@/components/list-pagination"
 import { ListSearch } from "@/components/list-search"
 import { PeriodFilter } from "@/components/period-filter"
-import { currencyFormat } from "@/components/service-format"
 import { TherapistFilter } from "@/components/therapist-filter"
 import { Button } from "@/components/ui/button"
 import {
@@ -145,8 +144,10 @@ export default async function AppointmentsPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h3 className="text-lg font-semibold tracking-tight">Atendimentos</h3>
+        {/* O botão sobe para o título: com muitos filtros, a linha deles quebra sozinha. */}
+        {total > 0 && createButton}
       </div>
 
       {total === 0 ? (
@@ -176,21 +177,10 @@ export default async function AppointmentsPage({
         </Empty>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
-              <TherapistFilter query={filters} therapists={therapists} />
-              <PeriodFilter query={filters} />
-            </div>
-            <div className="flex items-center gap-4">
-              <p className="text-sm text-muted-foreground">
-                {result.total} {result.total === 1 ? "atendimento" : "atendimentos"} ·{" "}
-                <span className="font-medium text-foreground tabular-nums">
-                  {currencyFormat.format(result.totalCents / 100)}
-                </span>
-              </p>
-              {createButton}
-            </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ListSearch query={filters} placeholder="Buscar hóspede, quarto, massagista ou serviço..." />
+            <TherapistFilter query={filters} therapists={therapists} />
+            <PeriodFilter query={filters} />
           </div>
           <AppointmentTable
             appointments={result.rows}

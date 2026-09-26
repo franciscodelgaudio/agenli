@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="#" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Image src="/logo.png" alt="" width={28} height={28} loading="eager" />
+            <Image src="/logo.svg" alt="" width={28} height={28} loading="eager" />
             agenli
           </a>
         </div>
@@ -15,14 +15,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="w-full max-w-xs">{children}</div>
         </div>
       </div>
-      <div className="relative hidden items-center justify-center bg-linear-to-br from-secondary via-accent to-muted lg:flex">
-        {/* multiply faz o branco da imagem sumir e deixa o degradê do painel aparecer. */}
+      <div className="hidden items-center justify-center bg-linear-to-br from-secondary via-accent to-muted lg:flex">
         <Image
-          src="/logo-1920x1080.png"
+          src="/logo-app.svg"
           alt="agenli"
-          fill
-          sizes="50vw"
-          className="object-contain mix-blend-multiply"
+          width={320}
+          height={320}
+          className="size-64 drop-shadow-2xl xl:size-80"
           loading="eager"
         />
       </div>

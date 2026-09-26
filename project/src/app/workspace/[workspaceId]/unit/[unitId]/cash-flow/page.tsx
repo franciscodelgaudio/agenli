@@ -26,7 +26,6 @@ import { CashFlowNav } from "@/components/cash-flow-nav"
 import { CashFlowServicesTable } from "@/components/cash-flow-services-table"
 import { CashFlowTable } from "@/components/cash-flow-table"
 import { CashFlowTherapistsTable } from "@/components/cash-flow-therapists-table"
-import { periodLabels } from "@/components/revenue-share-labels"
 
 // Layout e página podem renderizar em paralelo, então a página refaz a verificação de acesso.
 export default async function CashFlowPage({
@@ -121,26 +120,10 @@ export default async function CashFlowPage({
         hasSalary={hasSalary}
         today={today}
       />
-      <p className="text-sm text-muted-foreground">
-        Real soma os atendimentos registrados. Previsto soma também os agendamentos de agora em diante, pelo
-        preço atual do serviço.{" "}
-        {revenueShare
-          ? `O repasse ao estabelecimento é calculado sobre o faturamento ${periodLabels[revenueShare.period].toLowerCase()} e distribuído proporcionalmente entre os períodos.`
-          : "Unidade em espaço próprio: sem repasse."}{" "}
-        {hasCommission || hasSalary
-          ? "A comissão de massagista é sobre os serviços que ela fez; a de recepcionista, sobre o bruto. O salário mensal é rateado por dia (no real, só até hoje). Tudo sai do líquido junto com o repasse."
-          : "Ninguém da equipe com comissão ou salário nesta unidade (defina em Equipe)."}
-      </p>
       <h4 className="mt-4 font-semibold tracking-tight">Por serviço</h4>
       <CashFlowServicesTable services={services} />
-      <p className="text-sm text-muted-foreground">
-        Valores brutos de cada serviço no período, com a quantidade realizada e agendada.
-      </p>
       <h4 className="mt-4 font-semibold tracking-tight">Por massagista</h4>
       <CashFlowTherapistsTable therapists={therapistRows} />
-      <p className="text-sm text-muted-foreground">
-        Serviços de cada massagista no período e a comissão pelo percentual definido em Equipe.
-      </p>
     </div>
   )
 }

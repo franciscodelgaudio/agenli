@@ -54,7 +54,7 @@ const ALL = "all"
 const HOUR_MS = 60 * 60 * 1000
 
 // Uma cor por massagista, na ordem da lista (o proprietário primeiro).
-const THERAPIST_COLORS = ["#0e7490", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#2563eb", "#ca8a04", "#dc2626"]
+const THERAPIST_COLORS = ["#1f5a4e", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#2563eb", "#ca8a04", "#dc2626"]
 
 // O calendário roda em UTC com os horários "de parede" de Brasília: a string
 // "2026-09-24T14:30" vira um Date cujos campos UTC são 14:30, e volta igual.
@@ -315,22 +315,6 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           </Button>
         )}
       </div>
-
-      {therapists.length > 0 && (
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground" aria-label="Cores por massagista">
-          {therapists.map((option) => (
-            <li key={option.id} className="flex items-center gap-2">
-              {/* O anel na cor da massagista faz a vez da legenda de cores. */}
-              <TherapistAvatar
-                therapist={option}
-                className="size-5"
-                style={{ outline: `2px solid ${colors.get(option.id)}`, outlineOffset: 1 }}
-              />
-              {option.name}
-            </li>
-          ))}
-        </ul>
-      )}
 
       {canManage && !canCreate && (
         <p className="text-sm text-muted-foreground">Cadastre uma unidade antes de criar agendamentos.</p>
