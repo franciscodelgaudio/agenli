@@ -1,4 +1,5 @@
 import { parsePerformedAt } from "@/lib/appointment";
+import { isBookingColor } from "@/lib/booking-colors";
 import {
   resolveProducts,
   type FindProducts,
@@ -22,6 +23,7 @@ export type BookingError =
   | "room_too_long"
   | "invalid_starts_at"
   | "invalid_duration"
+  | "invalid_color"
   | "service_not_found"
   | "therapist_not_found"
   | "therapist_busy"
@@ -39,6 +41,8 @@ export type BookingFields = {
   endsAt: Date;
   service: { serviceId: string; serviceName: string };
   products: SelectedProduct[];
+  // Cor no calendário; null usa a da massagista.
+  color: string | null;
 };
 
 export type BookingData = BookingFields & { unitId: string };
@@ -67,7 +71,7 @@ async function resolveBookingFields(
   { findService, findTherapist, hasConflict, findProducts }: Lookups,
   excludeId?: string,
 ): Promise<{ ok: true; fields: BookingFields } | { ok: false; error: FieldsError }> {
-  const { therapistId, guestName, room, startsAt, durationMinutes, serviceId, productIds } = (input ?? {}) as Record<
+  const { therapistId, guestName, room, startsAt, durationMinutes, serviceId, productIds, color } = (input ?? {}) as Record<
     string,
     unknown
   >;
@@ -103,6 +107,11 @@ async function resolveBookingFields(
   if (!/^\d+$/.test(duration) || !isDurationValid(Number(duration))) return { ok: false, error: "invalid_duration" };
   const end = new Date(start.getTime() + Number(duration) * MINUTE_MS);
 
+  // Sem cor (campo ausente ou vazio) fica null.
+  if (color != null && typeof color !== "string") return { ok: false, error: "invalid_color" };
+  const normalizedColor = color?.trim() || null;
+  if (normalizedColor && !isBookingColor(normalizedColor)) return { ok: false, error: "invalid_color" };
+
   const [service, therapist, selection] = await Promise.all([
     findService(normalizedServiceId),
     findTherapist(normalizedTherapistId),
@@ -126,6 +135,7 @@ async function resolveBookingFields(
       endsAt: end,
       service: { serviceId: normalizedServiceId, serviceName: service.name },
       products: selection.products,
+      color: normalizedColor,
     },
   };
 }

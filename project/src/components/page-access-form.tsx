@@ -70,7 +70,7 @@ export function PageAccessForm({ workspaceId, visible }: { workspaceId: string; 
               </TableRow>
               {section.pages.map((page) => (
                 <TableRow key={page}>
-                  <TableCell className="px-4">{(section.labels as Record<string, string>)[page]}</TableCell>
+                  <TableCell className="max-w-0 truncate px-4">{(section.labels as Record<string, string>)[page]}</TableCell>
                   {RESTRICTED_ROLES.map((role) => (
                     <TableCell key={role} className="px-4">
                       <div className="flex justify-center">

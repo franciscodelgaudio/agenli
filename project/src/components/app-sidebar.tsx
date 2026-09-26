@@ -11,14 +11,14 @@ import { WorkspaceHeader } from "@/components/workspace-header"
 
 type Props = React.ComponentProps<typeof NavUser> &
   Pick<React.ComponentProps<typeof NavMain>, "pages" | "canManage" | "inbox"> & {
-    workspace: React.ComponentProps<typeof WorkspaceHeader>["workspace"] & { id: string }
+    workspace: React.ComponentProps<typeof WorkspaceHeader>["workspace"]
   }
 
 export function AppSidebar({ workspace, pages, canManage, inbox, user, logoutAction }: Props) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <WorkspaceHeader workspace={workspace} />
+        <WorkspaceHeader workspace={workspace} canManage={canManage} />
       </SidebarHeader>
       <SidebarContent>
         <NavMain workspaceId={workspace.id} pages={pages} canManage={canManage} inbox={inbox} />

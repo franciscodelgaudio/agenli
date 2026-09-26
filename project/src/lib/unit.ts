@@ -15,7 +15,7 @@ export type CreateUnitResult =
   | { ok: true; unitId: string }
   | { ok: false; error: CreateUnitError };
 
-function isHttpUrl(value: string) {
+export function isHttpUrl(value: string) {
   try {
     const { protocol } = new URL(value);
     return protocol === "http:" || protocol === "https:";

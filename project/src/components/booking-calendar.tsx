@@ -23,6 +23,7 @@ import {
   rescheduleBookingAction,
   updateBookingAction,
 } from "@/lib/actions/booking"
+import { BOOKING_COLORS } from "@/lib/booking-colors"
 import type { BookingRow } from "@/lib/booking-list"
 import { BRT_OFFSET_HOURS } from "@/lib/timezone"
 
@@ -52,9 +53,6 @@ type Props = BookingOptions & { workspaceId: string; canManage: boolean; unitId?
 
 const ALL = "all"
 const HOUR_MS = 60 * 60 * 1000
-
-// Uma cor por massagista, na ordem da lista (o proprietário primeiro).
-const THERAPIST_COLORS = ["#1f5a4e", "#7c3aed", "#db2777", "#ea580c", "#16a34a", "#2563eb", "#ca8a04", "#dc2626"]
 
 // O calendário roda em UTC com os horários "de parede" de Brasília: a string
 // "2026-09-24T14:30" vira um Date cujos campos UTC são 14:30, e volta igual.
@@ -103,7 +101,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [deleting, startDelete] = useTransition()
 
   const therapistsById = new Map(therapists.map((option) => [option.id, option]))
-  const colors = new Map(therapists.map((option, i) => [option.id, THERAPIST_COLORS[i % THERAPIST_COLORS.length]]))
+  // Uma cor por massagista, na ordem da lista (o proprietário primeiro).
+  const colors = new Map(therapists.map((option, i) => [option.id, BOOKING_COLORS[i % BOOKING_COLORS.length].value]))
   // O proprietário sempre está entre as massagistas, então basta haver uma unidade.
   const canCreate = canManage && units.length > 0
   const options = { units: unitId ? undefined : units, therapists, services }
@@ -162,7 +161,8 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
         title: `${booking.guest.name} · Quarto ${booking.guest.room}`,
         start: booking.startsAt,
         end: booking.endsAt,
-        color: colors.get(booking.therapistId) ?? "#64748b",
+        // A cor escolhida no agendamento vale mais que a da massagista.
+        color: booking.color ?? colors.get(booking.therapistId) ?? "#64748b",
         // Já atendido: fica no calendário como histórico, esmaecido e sem arrastar.
         ...(booking.appointmentId && { editable: false, className: "opacity-55" }),
         extendedProps: { booking },
@@ -195,6 +195,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
         durationMinutes,
         serviceId: null,
         productIds: [],
+        color: null,
       },
     })
   }
@@ -451,6 +452,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
                 durationMinutes: booking.durationMinutes,
                 serviceId: booking.service.serviceId,
                 productIds: booking.productIds,
+                color: booking.color,
               },
             })
           }}

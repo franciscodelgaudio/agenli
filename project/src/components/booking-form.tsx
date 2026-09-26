@@ -1,8 +1,9 @@
 "use client"
 
 import { useActionState, useState } from "react"
-import { ClipboardCheckIcon } from "lucide-react"
+import { CheckIcon, ClipboardCheckIcon, UserRoundIcon } from "lucide-react"
 import type { BookingActionState } from "@/lib/actions/booking"
+import { BOOKING_COLORS } from "@/lib/booking-colors"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -25,6 +26,8 @@ export type BookingFormValues = {
   durationMinutes: number
   serviceId: string | null
   productIds: string[]
+  // null: a cor da massagista.
+  color: string | null
 }
 
 export type BookingFormOptions = {
@@ -88,6 +91,7 @@ export function BookingForm({
   const [serviceId, setServiceId] = useState(defaultValues.serviceId)
   const [duration, setDuration] = useState(String(defaultValues.durationMinutes))
   const [productIds, setProductIds] = useState(defaultValues.productIds)
+  const [color, setColor] = useState(defaultValues.color ?? "")
   const [state, formAction, pending] = useActionState(
     async (prev: BookingActionState, formData: FormData) => {
       const next = await action(prev, formData)
@@ -101,6 +105,16 @@ export function BookingForm({
   const Description = variant === "popover" ? PopoverDescription : SheetDescription
   const services = allServices.filter((service) => service.unitId === unitId)
   const serviceItems = services.map((service) => ({ value: service.id, label: service.name }))
+  // A opção automática mostra a cor que a massagista escolhida tem no calendário.
+  const therapistIndex = therapists.findIndex((therapist) => therapist.id === therapistId)
+  const colorOptions = [
+    {
+      value: "",
+      name: "Automática (cor da massagista)",
+      swatch: therapistIndex >= 0 ? BOOKING_COLORS[therapistIndex % BOOKING_COLORS.length].value : "#64748b",
+    },
+    ...BOOKING_COLORS.map((option) => ({ ...option, swatch: option.value })),
+  ]
 
   return (
     <form action={formAction} className="flex min-h-0 flex-1 flex-col">
@@ -231,6 +245,34 @@ export function BookingForm({
           {Number(duration) >= 5 && Number(duration) <= 720 && (
             <FieldDescription>{formatDuration(Number(duration))}</FieldDescription>
           )}
+        </Field>
+        <Field>
+          <FieldLabel id="booking-color">Cor no calendário</FieldLabel>
+          <div role="radiogroup" aria-labelledby="booking-color" className="flex flex-wrap gap-2">
+            {colorOptions.map((option) => (
+              <label key={option.value} title={option.name} className="relative cursor-pointer">
+                <input
+                  type="radio"
+                  name="color"
+                  value={option.value}
+                  checked={color === option.value}
+                  onChange={() => setColor(option.value)}
+                  aria-label={option.name}
+                  className="peer sr-only"
+                />
+                <span
+                  className="flex size-7 items-center justify-center rounded-full text-white ring-offset-2 ring-offset-background peer-checked:ring-2 peer-checked:ring-foreground peer-focus-visible:ring-2 peer-focus-visible:ring-ring"
+                  style={{ backgroundColor: option.swatch }}
+                >
+                  {color === option.value ? (
+                    <CheckIcon className="size-4" />
+                  ) : (
+                    !option.value && <UserRoundIcon className="size-3.5" />
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
         </Field>
         <Field>
           <FieldLabel>Produtos (opcional)</FieldLabel>

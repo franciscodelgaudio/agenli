@@ -41,10 +41,24 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
-            <SortableHead field="name" label="Nome" icon={MapPinIcon} query={query} pathname={pathname} />
-            <SortableHead field="createdAt" label="Criado em" icon={CalendarPlusIcon} query={query} pathname={pathname} />
-            <SortableHead field="updatedAt" label="Atualizado em" icon={CalendarClockIcon} query={query} pathname={pathname} />
+            <CodeHead className="@max-2xl:hidden" />
+            <SortableHead field="name" label="Nome" icon={MapPinIcon} query={query} pathname={pathname} className="w-full" />
+            <SortableHead
+              field="createdAt"
+              label="Criado em"
+              icon={CalendarPlusIcon}
+              query={query}
+              pathname={pathname}
+              className="@max-xl:hidden"
+            />
+            <SortableHead
+              field="updatedAt"
+              label="Atualizado em"
+              icon={CalendarClockIcon}
+              query={query}
+              pathname={pathname}
+              className="@max-3xl:hidden"
+            />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">
@@ -65,8 +79,8 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
           ) : (
             units.map((unit) => (
               <TableRow key={unit.id} className="relative cursor-pointer">
-                <CodeCell id={unit.id} />
-                <TableCell className="px-4">
+                <CodeCell id={unit.id} className="@max-2xl:hidden" />
+                <TableCell className="max-w-0 px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8 rounded-lg after:rounded-lg">
                       {unit.avatarUrl && (
@@ -83,8 +97,10 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
                     </Link>
                   </div>
                 </TableCell>
-                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(unit.createdAt)}</TableCell>
-                <TableCell className="px-4 text-muted-foreground">{dateTimeFormat.format(unit.updatedAt)}</TableCell>
+                <TableCell className="px-4 text-muted-foreground @max-xl:hidden">{dateTimeFormat.format(unit.createdAt)}</TableCell>
+                <TableCell className="px-4 text-muted-foreground @max-3xl:hidden">
+                  {dateTimeFormat.format(unit.updatedAt)}
+                </TableCell>
                 {canManage && (
                   <TableCell className="relative z-10 px-4 text-right">
                     <UnitActions workspaceId={workspaceId} unit={unit} team={team} />

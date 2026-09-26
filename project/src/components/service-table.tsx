@@ -29,8 +29,8 @@ export function ServiceTable({ services, query, pathname, workspaceId, unitId, c
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
-            <SortableHead field="name" label="Serviço" icon={LeafIcon} query={query} pathname={pathname} />
+            <CodeHead className="@max-xl:hidden" />
+            <SortableHead field="name" label="Serviço" icon={LeafIcon} query={query} pathname={pathname} className="w-full" />
             <SortableHead field="priceCents" label="Valor" icon={BanknoteIcon} query={query} pathname={pathname} />
             <SortableHead
               field="durationMinutes"
@@ -38,6 +38,7 @@ export function ServiceTable({ services, query, pathname, workspaceId, unitId, c
               icon={ClockIcon}
               query={query}
               pathname={pathname}
+              className="@max-md:hidden"
             />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
@@ -59,10 +60,10 @@ export function ServiceTable({ services, query, pathname, workspaceId, unitId, c
           ) : (
             services.map((service) => (
               <TableRow key={service.id}>
-                <CodeCell id={service.id} />
-                <TableCell className="px-4 font-medium">{service.name}</TableCell>
+                <CodeCell id={service.id} className="@max-xl:hidden" />
+                <TableCell className="max-w-0 truncate px-4 font-medium">{service.name}</TableCell>
                 <TableCell className="px-4 tabular-nums">{currencyFormat.format(service.priceCents / 100)}</TableCell>
-                <TableCell className="px-4 text-muted-foreground">{formatDuration(service.durationMinutes)}</TableCell>
+                <TableCell className="px-4 text-muted-foreground @max-md:hidden">{formatDuration(service.durationMinutes)}</TableCell>
                 {canManage && (
                   <TableCell className="px-4 text-right">
                     <ServiceActions workspaceId={workspaceId} unitId={unitId} service={service} />

@@ -25,7 +25,8 @@ export async function uploadImage(
   const key = `${folder}/${randomId()}.${ext}`;
   try {
     await put(key, file, file.type);
-  } catch {
+  } catch (error) {
+    console.error("Falha ao enviar imagem ao storage", error);
     return { ok: false, error: "upload_failed" };
   }
   return { ok: true, url: `${publicUrl.replace(/\/+$/, "")}/${key}` };

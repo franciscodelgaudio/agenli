@@ -8,6 +8,7 @@ import {
   TimerResetIcon,
   type LucideIcon,
 } from "lucide-react"
+import { cn } from "cn"
 import Link from "next/link"
 import { ProductActions } from "@/components/product-actions"
 import { CodeCell, CodeHead } from "@/components/record-code"
@@ -53,8 +54,8 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
-            <SortableHead field="name" label="Produto" icon={PackageIcon} query={query} pathname={pathname} />
+            <CodeHead className="@max-5xl:hidden" />
+            <SortableHead field="name" label="Produto" icon={PackageIcon} query={query} pathname={pathname} className="w-full" />
             <SortableHead field="quantity" label="Quantidade" icon={HashIcon} query={query} pathname={pathname} />
             <SortableHead
               field="costCents"
@@ -62,17 +63,27 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
               icon={BanknoteIcon}
               query={query}
               pathname={pathname}
+              className="@max-xl:hidden"
             />
-            <SortableHead field="rating" label="Avaliação" icon={StarIcon} query={query} pathname={pathname} />
+            <SortableHead
+              field="rating"
+              label="Avaliação"
+              icon={StarIcon}
+              query={query}
+              pathname={pathname}
+              className="@max-3xl:hidden"
+            />
             <UsageHead
               icon={RepeatIcon}
               label="Usos"
               title="Atendimentos e agendamentos desde a última vez que o produto acabou"
+              className="@max-2xl:hidden"
             />
             <UsageHead
               icon={TimerResetIcon}
               label="Média até acabar"
               title="Média de usos entre uma vez que o produto acabou e a seguinte"
+              className="@max-4xl:hidden"
             />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
@@ -94,8 +105,8 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
           ) : (
             products.map((product) => (
               <TableRow key={product.id}>
-                <CodeCell id={product.id} />
-                <TableCell className="px-4">
+                <CodeCell id={product.id} className="@max-5xl:hidden" />
+                <TableCell className="max-w-0 px-4">
                   <div className="flex items-center gap-3">
                     <Avatar className="rounded-md after:rounded-md">
                       {product.avatarUrl && (
@@ -111,7 +122,7 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                         {product.name}
                       </Link>
                       {product.notes && (
-                        <span className="max-w-xs truncate text-xs text-muted-foreground" title={product.notes}>
+                        <span className="truncate text-xs text-muted-foreground" title={product.notes}>
                           {product.notes}
                         </span>
                       )}
@@ -119,12 +130,14 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                   </div>
                 </TableCell>
                 <TableCell className="px-4 tabular-nums">{product.quantity}</TableCell>
-                <TableCell className="px-4 tabular-nums">{currencyFormat.format(product.costCents / 100)}</TableCell>
-                <TableCell className="px-4">
+                <TableCell className="px-4 tabular-nums @max-xl:hidden">
+                  {currencyFormat.format(product.costCents / 100)}
+                </TableCell>
+                <TableCell className="px-4 @max-3xl:hidden">
                   <StarRating value={product.rating} />
                 </TableCell>
-                <TableCell className="px-4 tabular-nums">{product.usage.usesSinceLastDepletion}</TableCell>
-                <TableCell className="px-4 text-muted-foreground tabular-nums">
+                <TableCell className="px-4 tabular-nums @max-2xl:hidden">{product.usage.usesSinceLastDepletion}</TableCell>
+                <TableCell className="px-4 text-muted-foreground tabular-nums @max-4xl:hidden">
                   {formatAverage(product.usage.averageUsesPerDepletion)}
                 </TableCell>
                 {canManage && (
@@ -141,9 +154,19 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
   )
 }
 
-function UsageHead({ icon: Icon, label, title }: { icon: LucideIcon; label: string; title: string }) {
+function UsageHead({
+  icon: Icon,
+  label,
+  title,
+  className,
+}: {
+  icon: LucideIcon
+  label: string
+  title: string
+  className?: string
+}) {
   return (
-    <TableHead className="px-4" title={title}>
+    <TableHead className={cn("px-4", className)} title={title}>
       <span className="inline-flex items-center gap-1">
         <Icon className="size-4 text-muted-foreground" />
         {label}

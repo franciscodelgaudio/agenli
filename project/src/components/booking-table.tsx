@@ -1,4 +1,5 @@
 import { BedDoubleIcon, MapPinIcon, CheckIcon, ClockIcon, SettingsIcon, LeafIcon, UserIcon } from "lucide-react"
+import { cn } from "cn"
 import type { BookingListQuery, BookingRow } from "@/lib/booking-list"
 import { BookingActions } from "@/components/booking-actions"
 import type { BookingFormOptions } from "@/components/booking-form"
@@ -41,9 +42,9 @@ function formatDay(dateTime: string) {
   return dayFormat.format(new Date(`${dateTime.slice(0, 10)}T00:00:00Z`))
 }
 
-function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) {
+function Head({ icon: Icon, label, className }: { icon: typeof ClockIcon; label: string; className?: string }) {
   return (
-    <TableHead className="px-4">
+    <TableHead className={cn("px-4", className)}>
       <span className="inline-flex items-center gap-1">
         <Icon className="size-4 text-muted-foreground" />
         {label}
@@ -61,12 +62,19 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
+            <CodeHead className="@max-5xl:hidden" />
             <SortableHead field="startsAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
-            {unitNames && <Head icon={MapPinIcon} label="Unidade" />}
+            {unitNames && <Head icon={MapPinIcon} label="Unidade" className="@max-4xl:hidden" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
-            <SortableHead field="therapistName" label="Massagista" icon={UserIcon} query={query} pathname={pathname} />
-            <Head icon={LeafIcon} label="Serviço" />
+            <SortableHead
+              field="therapistName"
+              label="Massagista"
+              icon={UserIcon}
+              query={query}
+              pathname={pathname}
+              className="@max-2xl:hidden"
+            />
+            <Head icon={LeafIcon} label="Serviço" className="w-full @max-lg:hidden" />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">
@@ -89,8 +97,8 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
               // Quem saiu do workspace não está nas opções: fica só com o nome copiado.
               const therapist = therapistsById.get(booking.therapistId)
               return (
-                <TableRow key={booking.id} className="whitespace-nowrap">
-                  <CodeCell id={booking.id} />
+                <TableRow key={booking.id}>
+                  <CodeCell id={booking.id} className="@max-5xl:hidden" />
                   <TableCell className="px-4">
                     <span className="flex items-center gap-1.5">
                       <span className="font-medium">{formatDay(booking.startsAt)}</span>
@@ -109,7 +117,7 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
                       )}
                     </span>
                   </TableCell>
-                  {unitNames && <TableCell className="px-4">{unitNames.get(booking.unitId) ?? "—"}</TableCell>}
+                  {unitNames && <TableCell className="px-4 @max-4xl:hidden">{unitNames.get(booking.unitId) ?? "—"}</TableCell>}
                   <TableCell className="px-4">
                     {/* O quarto fica escondido no tooltip para a linha caber em uma altura só. */}
                     <Tooltip>
@@ -123,13 +131,14 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
                       <TooltipContent>Quarto {booking.guest.room}</TooltipContent>
                     </Tooltip>
                   </TableCell>
-                  <TableCell className="px-4">
+                  <TableCell className="px-4 @max-2xl:hidden">
                     <span className="flex items-center gap-2">
                       {therapist && <TherapistAvatar therapist={therapist} className="size-6" />}
                       {booking.therapistName}
                     </span>
                   </TableCell>
-                  <TableCell className="px-4">
+                  {/* Ocupa o que sobra da linha e corta com reticências em vez de quebrar. */}
+                  <TableCell className="max-w-0 truncate px-4 @max-lg:hidden">
                     {booking.service.serviceName}{" "}
                     <span className="text-muted-foreground">· {formatDuration(booking.durationMinutes)}</span>
                   </TableCell>

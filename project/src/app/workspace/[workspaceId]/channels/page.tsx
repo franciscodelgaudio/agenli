@@ -91,25 +91,27 @@ export default async function ChannelsPage({ params }: PageProps<"/workspace/[wo
           <Table>
             <TableHeader>
               <TableRow>
-                <CodeHead />
-                <HeadWithIcon icon={TagIcon} label="Nome" />
+                <CodeHead className="@max-2xl:hidden" />
+                <HeadWithIcon icon={TagIcon} label="Nome" className="w-full" />
                 <HeadWithIcon icon={RadioTowerIcon} label="Plataforma" />
-                <HeadWithIcon icon={HashIcon} label="ID na Meta" />
+                <HeadWithIcon icon={HashIcon} label="ID na Meta" className="@max-xl:hidden" />
                 <HeadWithIcon icon={SettingsIcon} label="Ações" className="w-0 text-right" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {workspace.channels.map((channel) => (
                 <TableRow key={channel.id}>
-                  <CodeCell id={channel.id} />
-                  <TableCell className="px-4 font-medium">{channel.name}</TableCell>
+                  <CodeCell id={channel.id} className="@max-2xl:hidden" />
+                  <TableCell className="max-w-0 truncate px-4 font-medium">{channel.name}</TableCell>
                   <TableCell className="px-4">
                     <span className="inline-flex items-center gap-1.5">
                       <PlatformIcon platform={channel.platform} />
                       {platformLabels[channel.platform]}
                     </span>
                   </TableCell>
-                  <TableCell className="px-4 font-mono text-xs text-muted-foreground">{channel.externalId}</TableCell>
+                  <TableCell className="px-4 font-mono text-xs text-muted-foreground @max-xl:hidden">
+                    {channel.externalId}
+                  </TableCell>
                   <TableCell className="px-4 text-right">
                     <ChannelActions workspaceId={workspaceId} channel={channel} />
                   </TableCell>

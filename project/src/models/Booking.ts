@@ -35,6 +35,8 @@ const bookingSchema = new Schema(
       required: true,
     },
     products: { type: [selectedProductSchema], default: [] },
+    // Cor no calendário, uma da paleta; null usa a cor da massagista.
+    color: { type: String, default: null },
     // Atendimento registrado a partir deste agendamento; enquanto null, ainda pode ser editado.
     appointmentId: { type: Schema.Types.ObjectId, ref: "Appointment", default: null, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },

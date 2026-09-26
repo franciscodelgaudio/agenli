@@ -120,9 +120,16 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
         <Table>
           <TableHeader>
             <TableRow>
-              <CodeHead />
-              <SortableHead field="name" label="Nome" icon={UserIcon} query={filters} pathname={pathname} />
-              <SortableHead field="email" label="Email" icon={MailIcon} query={filters} pathname={pathname} />
+              <CodeHead className="@max-3xl:hidden" />
+              <SortableHead field="name" label="Nome" icon={UserIcon} query={filters} pathname={pathname} className="w-full" />
+              <SortableHead
+                field="email"
+                label="Email"
+                icon={MailIcon}
+                query={filters}
+                pathname={pathname}
+                className="@max-2xl:hidden"
+              />
               <HeadWithIcon icon={ShieldIcon} label="Função" />
               {canManage && <HeadWithIcon icon={SettingsIcon} label="Ações" className="w-0 text-right" />}
             </TableRow>
@@ -152,7 +159,7 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
                       />
                     }
                   >
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
                       <Badge variant="secondary">{roleLabels[person.role]}</Badge>
                       {person.status !== "active" && (
                         <Badge variant="outline">
@@ -212,8 +219,8 @@ function PersonRow({
   const displayName = person.name ?? person.email
   return (
     <TableRow>
-      <CodeCell id={person.id} />
-      <TableCell className="px-4">
+      <CodeCell id={person.id} className="@max-3xl:hidden" />
+      <TableCell className="max-w-0 px-4">
         <div className="flex items-center gap-3">
           <Avatar className="size-8">
             {person.image && <AvatarImage src={person.image} alt={displayName} />}
@@ -224,7 +231,7 @@ function PersonRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className="px-4 text-muted-foreground">{person.email}</TableCell>
+      <TableCell className="px-4 text-muted-foreground @max-2xl:hidden">{person.email}</TableCell>
       <TableCell className="px-4">{children}</TableCell>
       {canManage && <TableCell className="px-4 text-right">{actions}</TableCell>}
     </TableRow>

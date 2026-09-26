@@ -45,23 +45,39 @@ type Props = {
 
 type Columns = { partnerShare: boolean; commission: boolean; salary: boolean }
 
-function Deduction({ cents }: { cents: number }) {
+// Conforme a tabela estreita, somem as deduções do previsto, depois o previsto inteiro e por
+// último as deduções do real. Sem as deduções, o cabeçalho do grupo cobre só bruto e líquido.
+// Sem nenhuma dedução (só bruto), as três colunas sempre cabem.
+type GroupHide = { group: string; deduction: string; compactHead: string }
+const realHide: GroupHide = { group: "", deduction: "@max-2xl:hidden", compactHead: "hidden @max-2xl:table-cell" }
+const forecastHide: GroupHide = {
+  group: "@max-4xl:hidden",
+  deduction: "@max-7xl:hidden",
+  compactHead: "hidden @max-7xl:table-cell @max-4xl:hidden",
+}
+
+function Deduction({ cents, className }: { cents: number; className: string }) {
   return (
-    <TableCell className="px-4 text-right text-muted-foreground tabular-nums">
+    <TableCell className={cn("px-4 text-right text-muted-foreground tabular-nums", className)}>
       {cents ? `−${money(cents)}` : money(0)}
     </TableCell>
   )
 }
 
-function AmountCells({ amounts, columns }: { amounts: StaffCashFlowAmounts; columns: Columns }) {
+function AmountCells({ amounts, columns, hide }: { amounts: StaffCashFlowAmounts; columns: Columns; hide: GroupHide }) {
   const detailed = columns.partnerShare || columns.commission || columns.salary
+  const deduction = cn(hide.group, hide.deduction)
   return (
     <>
-      <TableCell className="px-4 text-right tabular-nums">{money(amounts.grossCents)}</TableCell>
-      {columns.partnerShare && <Deduction cents={amounts.partnerShareCents} />}
-      {columns.commission && <Deduction cents={amounts.commissionCents} />}
-      {columns.salary && <Deduction cents={amounts.salaryCents} />}
-      {detailed && <TableCell className="px-4 text-right font-medium tabular-nums">{money(amounts.netCents)}</TableCell>}
+      <TableCell className={cn("px-4 text-right tabular-nums", detailed && hide.group)}>{money(amounts.grossCents)}</TableCell>
+      {columns.partnerShare && <Deduction cents={amounts.partnerShareCents} className={deduction} />}
+      {columns.commission && <Deduction cents={amounts.commissionCents} className={deduction} />}
+      {columns.salary && <Deduction cents={amounts.salaryCents} className={deduction} />}
+      {detailed && (
+        <TableCell className={cn("px-4 text-right font-medium tabular-nums", hide.group)}>
+          {money(amounts.netCents)}
+        </TableCell>
+      )}
     </>
   )
 }
@@ -71,18 +87,30 @@ export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, h
   const columns = { partnerShare: hasPartnerShare, commission: hasCommission, salary: hasSalary }
   const detailed = hasPartnerShare || hasCommission || hasSalary
   const groupSpan = 2 + Number(hasPartnerShare) + Number(hasCommission) + Number(hasSalary)
-  const amountHeads = (group: string) =>
-    detailed ? (
+  const amountHeads = (group: string, hide: GroupHide) => {
+    const deduction = cn("px-4 text-right", hide.group, hide.deduction)
+    return detailed ? (
       <>
-        <TableHead className="px-4 text-right">Bruto</TableHead>
-        {hasPartnerShare && <TableHead className="px-4 text-right">Repasse</TableHead>}
-        {hasCommission && <TableHead className="px-4 text-right">Comissão</TableHead>}
-        {hasSalary && <TableHead className="px-4 text-right">Salário</TableHead>}
-        <TableHead className="px-4 text-right">Líquido</TableHead>
+        <TableHead className={cn("px-4 text-right", hide.group)}>Bruto</TableHead>
+        {hasPartnerShare && <TableHead className={deduction}>Repasse</TableHead>}
+        {hasCommission && <TableHead className={deduction}>Comissão</TableHead>}
+        {hasSalary && <TableHead className={deduction}>Salário</TableHead>}
+        <TableHead className={cn("px-4 text-right", hide.group)}>Líquido</TableHead>
       </>
     ) : (
       <TableHead className="px-4 text-right">{group}</TableHead>
     )
+  }
+  const groupHeads = (group: string, hide: GroupHide) => (
+    <>
+      <TableHead colSpan={groupSpan} className={cn("border-l px-4 text-center", hide.group, hide.deduction)}>
+        {group}
+      </TableHead>
+      <TableHead colSpan={2} className={cn("border-l px-4 text-center", hide.compactHead)}>
+        {group}
+      </TableHead>
+    </>
+  )
 
   return (
     <div className="border">
@@ -91,18 +119,14 @@ export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, h
           {detailed && (
             <TableRow>
               <TableHead className="px-4" />
-              <TableHead colSpan={groupSpan} className="border-l px-4 text-center">
-                Real
-              </TableHead>
-              <TableHead colSpan={groupSpan} className="border-l px-4 text-center">
-                Previsto
-              </TableHead>
+              {groupHeads("Real", realHide)}
+              {groupHeads("Previsto", forecastHide)}
             </TableRow>
           )}
           <TableRow>
             <TableHead className="px-4">Período</TableHead>
-            {amountHeads("Real")}
-            {amountHeads("Previsto")}
+            {amountHeads("Real", realHide)}
+            {amountHeads("Previsto", forecastHide)}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -114,8 +138,8 @@ export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, h
                   {bucketLabel(view, bucket)}
                   {isCurrent && <span className="ml-2 text-xs text-muted-foreground">(atual)</span>}
                 </TableCell>
-                <AmountCells amounts={bucket.real} columns={columns} />
-                <AmountCells amounts={bucket.forecast} columns={columns} />
+                <AmountCells amounts={bucket.real} columns={columns} hide={realHide} />
+                <AmountCells amounts={bucket.forecast} columns={columns} hide={forecastHide} />
               </TableRow>
             )
           })}
@@ -123,8 +147,8 @@ export function CashFlowTable({ view, summary, hasPartnerShare, hasCommission, h
         <TableFooter>
           <TableRow>
             <TableCell className="px-4 font-semibold">Total</TableCell>
-            <AmountCells amounts={summary.total.real} columns={columns} />
-            <AmountCells amounts={summary.total.forecast} columns={columns} />
+            <AmountCells amounts={summary.total.real} columns={columns} hide={realHide} />
+            <AmountCells amounts={summary.total.forecast} columns={columns} hide={forecastHide} />
           </TableRow>
         </TableFooter>
       </Table>

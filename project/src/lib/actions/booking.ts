@@ -28,6 +28,7 @@ const errorMessages: Record<BookingError | "unauthenticated", string> = {
   room_too_long: "O quarto pode ter no máximo 20 caracteres.",
   invalid_starts_at: "Informe uma data e hora válidas.",
   invalid_duration: "O agendamento precisa durar entre 5 minutos e 12 horas.",
+  invalid_color: "Escolha uma cor da lista.",
   service_not_found: "O serviço escolhido não é desta unidade. Recarregue a página.",
   therapist_not_found: "A massagista escolhida não pode atender neste workspace. Recarregue a página.",
   therapist_busy: "A massagista já tem um agendamento nesse horário.",
@@ -49,6 +50,7 @@ function bookingInput(formData: FormData) {
     durationMinutes: formData.get("durationMinutes"),
     serviceId: formData.get("serviceId"),
     productIds: formData.getAll("productId"),
+    color: formData.get("color"),
   }
 }
 

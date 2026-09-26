@@ -58,6 +58,7 @@ describe("createBooking", () => {
       endsAt: new Date("2026-09-24T18:30:00.000Z"),
       service: { serviceId: CANDLE_ID, serviceName: "Massagem Candle" },
       products: [],
+      color: null,
     });
   });
 
@@ -220,6 +221,39 @@ describe("createBooking", () => {
     expect(deps.insert).not.toHaveBeenCalled();
   });
 
+  // Cor do agendamento no calendário: uma da paleta; sem cor, o calendário usa a da massagista.
+  it("salva a cor escolhida da paleta, sem espaços nas pontas", async () => {
+    const deps = makeDeps();
+
+    const result = await createBooking({ ...validInput, color: " #7c3aed " }, UNIT_ID, deps);
+
+    expect(result).toEqual({ ok: true, bookingId: BOOKING_ID });
+    expect(deps.insert.mock.calls[0][0].color).toBe("#7c3aed");
+  });
+
+  it.each([undefined, null, "", "  "])("salva sem cor quando a cor não é escolhida (%j)", async (color) => {
+    const deps = makeDeps();
+
+    await createBooking({ ...validInput, color }, UNIT_ID, deps);
+
+    expect(deps.insert.mock.calls[0][0].color).toBeNull();
+  });
+
+  it.each([
+    ["cor fora da paleta", "#123456"],
+    ["cor que não é hex", "red"],
+    ["cor que não é string", 1],
+  ])("retorna invalid_color sem buscar nem salvar quando há %s", async (_label, color) => {
+    const deps = makeDeps();
+
+    const result = await createBooking({ ...validInput, color }, UNIT_ID, deps);
+
+    expect(result).toEqual({ ok: false, error: "invalid_color" });
+    expect(deps.findService).not.toHaveBeenCalled();
+    expect(deps.findTherapist).not.toHaveBeenCalled();
+    expect(deps.insert).not.toHaveBeenCalled();
+  });
+
   it.each([undefined, null, ""])(
     "retorna unit_not_found sem buscar nem salvar quando não há unitId (%j)",
     async (unitId) => {
@@ -264,6 +298,7 @@ describe("updateBooking", () => {
       endsAt: new Date("2026-09-24T19:45:00.000Z"),
       service: { serviceId: CANDLE_ID, serviceName: "Massagem Candle" },
       products: [],
+      color: null,
     });
   });
 
@@ -274,6 +309,32 @@ describe("updateBooking", () => {
     await updateBooking({ ...validInput, productIds: [OIL_ID] }, BOOKING_ID, deps);
 
     expect(deps.update.mock.calls[0][1].products).toEqual([{ productId: OIL_ID, productName: "Óleo de amêndoas" }]);
+  });
+
+  it("troca a cor pela escolhida", async () => {
+    const deps = makeDeps();
+
+    await updateBooking({ ...validInput, color: "#db2777" }, BOOKING_ID, deps);
+
+    expect(deps.update.mock.calls[0][1].color).toBe("#db2777");
+  });
+
+  // Voltar para "automática" apaga a cor salva.
+  it("apaga a cor quando nenhuma é escolhida", async () => {
+    const deps = makeDeps();
+
+    await updateBooking({ ...validInput, color: "" }, BOOKING_ID, deps);
+
+    expect(deps.update.mock.calls[0][1].color).toBeNull();
+  });
+
+  it("retorna invalid_color sem salvar quando a cor não é da paleta", async () => {
+    const deps = makeDeps();
+
+    const result = await updateBooking({ ...validInput, color: "#123456" }, BOOKING_ID, deps);
+
+    expect(result).toEqual({ ok: false, error: "invalid_color" });
+    expect(deps.update).not.toHaveBeenCalled();
   });
 
   it("retorna product_not_found sem salvar quando algum produto não é da unidade", async () => {

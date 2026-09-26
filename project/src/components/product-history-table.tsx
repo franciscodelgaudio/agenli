@@ -37,7 +37,7 @@ export function ProductHistoryTable({ rows, query, pathname, cycleUses, now }: P
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
+            <CodeHead className="@max-4xl:hidden" />
             <SortableHead field="at" label="Data" icon={CalendarIcon} query={query} pathname={pathname} />
             <TableHead className="px-4">
               <span className="inline-flex items-center gap-1">
@@ -46,13 +46,13 @@ export function ProductHistoryTable({ rows, query, pathname, cycleUses, now }: P
               </span>
             </TableHead>
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
-            <TableHead className="px-4">
+            <TableHead className="w-full px-4 @max-xl:hidden">
               <span className="inline-flex items-center gap-1">
                 <LeafIcon className="size-4 text-muted-foreground" />
                 Serviços
               </span>
             </TableHead>
-            <TableHead className="px-4">
+            <TableHead className="px-4 @max-3xl:hidden">
               <span className="inline-flex items-center gap-1">
                 <UserIcon className="size-4 text-muted-foreground" />
                 Massagista
@@ -71,7 +71,11 @@ export function ProductHistoryTable({ rows, query, pathname, cycleUses, now }: P
             rows.map((row) => (
               <TableRow key={`${row.kind}-${row.id}-${row.at.getTime()}`}>
                 {/* Produto que acabou não é um documento próprio. */}
-                {row.kind === "depletion" ? <TableCell className="px-4 text-muted-foreground">—</TableCell> : <CodeCell id={row.id} />}
+                {row.kind === "depletion" ? (
+                  <TableCell className="px-4 text-muted-foreground @max-4xl:hidden">—</TableCell>
+                ) : (
+                  <CodeCell id={row.id} className="@max-4xl:hidden" />
+                )}
                 <TableCell className="px-4 tabular-nums">{dateTimeFormat.format(row.at)}</TableCell>
                 <TableCell className="px-4">
                   <span className="inline-flex items-center gap-2">
@@ -91,8 +95,10 @@ export function ProductHistoryTable({ rows, query, pathname, cycleUses, now }: P
                       <span className="font-medium">{row.guest?.name}</span>
                       <span className="text-muted-foreground"> · Quarto {row.guest?.room}</span>
                     </TableCell>
-                    <TableCell className="px-4 text-muted-foreground">{row.services.join(", ")}</TableCell>
-                    <TableCell className="px-4 text-muted-foreground">{[...new Set(row.therapists)].join(", ")}</TableCell>
+                    <TableCell className="max-w-0 truncate px-4 text-muted-foreground @max-xl:hidden">
+                      {row.services.join(", ")}
+                    </TableCell>
+                    <TableCell className="px-4 text-muted-foreground @max-3xl:hidden">{[...new Set(row.therapists)].join(", ")}</TableCell>
                   </>
                 )}
               </TableRow>

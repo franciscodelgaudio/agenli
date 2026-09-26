@@ -30,11 +30,15 @@ export function r2UploadDeps(): UploadImageDeps {
     publicUrl: process.env.R2_PUBLIC_URL!,
     randomId: randomUUID,
     put: async (key, body, contentType) => {
-      const response = await client.fetch(`${endpoint}/${key}`, {
+      // Assina e envia o buffer direto: via client.fetch o corpo vira stream e sai sem
+      // Content-Length, que o R2 exige (411 MissingContentLength).
+      const bytes = new Uint8Array(await body.arrayBuffer())
+      const signed = await client.sign(`${endpoint}/${key}`, {
         method: "PUT",
-        body: await body.arrayBuffer(),
+        body: bytes,
         headers: { "Content-Type": contentType, "Cache-Control": "public, max-age=31536000, immutable" },
       })
+      const response = await fetch(signed.url, { method: "PUT", headers: signed.headers, body: bytes })
       if (!response.ok) throw new Error(`R2 ${response.status}: ${await response.text()}`)
     },
   }

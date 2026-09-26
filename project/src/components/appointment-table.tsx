@@ -1,4 +1,5 @@
 import { BanknoteIcon, BedDoubleIcon, MapPinIcon, ClockIcon, SettingsIcon, LeafIcon } from "lucide-react"
+import { cn } from "cn"
 import { AppointmentActions } from "@/components/appointment-actions"
 import type { AppointmentOptions } from "@/components/appointment-form"
 import { CodeCell, CodeHead } from "@/components/record-code"
@@ -52,9 +53,9 @@ const dayFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
 })
 
-function Head({ icon: Icon, label }: { icon: typeof ClockIcon; label: string }) {
+function Head({ icon: Icon, label, className }: { icon: typeof ClockIcon; label: string; className?: string }) {
   return (
-    <TableHead className="px-4">
+    <TableHead className={cn("px-4", className)}>
       <span className="inline-flex items-center gap-1">
         <Icon className="size-4 text-muted-foreground" />
         {label}
@@ -80,14 +81,14 @@ function ServicesSummary({ items }: { items: AppointmentRow["items"] }) {
   if (!first) return "—"
   return (
     <span className="flex items-center gap-1.5">
-      <span>
+      <span className="truncate">
         <ServiceLine item={first} />
       </span>
       {rest.length > 0 && (
         <Tooltip>
           <TooltipTrigger
             render={
-              <span className="cursor-help rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground" />
+              <span className="shrink-0 cursor-help rounded-sm bg-muted px-1.5 text-xs font-medium text-muted-foreground" />
             }
           >
             +{rest.length}
@@ -116,12 +117,19 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
       <Table>
         <TableHeader>
           <TableRow>
-            <CodeHead />
+            <CodeHead className="@max-5xl:hidden" />
             <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
-            {unitNames && <Head icon={MapPinIcon} label="Unidade" />}
+            {unitNames && <Head icon={MapPinIcon} label="Unidade" className="@max-4xl:hidden" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
-            <Head icon={LeafIcon} label="Serviços" />
-            <SortableHead field="totalCents" label="Total" icon={BanknoteIcon} query={query} pathname={pathname} />
+            <Head icon={LeafIcon} label="Serviços" className="w-full @max-lg:hidden" />
+            <SortableHead
+              field="totalCents"
+              label="Total"
+              icon={BanknoteIcon}
+              query={query}
+              pathname={pathname}
+              className="@max-2xl:hidden"
+            />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">
@@ -141,8 +149,8 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
             </TableRow>
           ) : (
             appointments.map((appointment) => (
-              <TableRow key={appointment.id} className="whitespace-nowrap">
-                <CodeCell id={appointment.id} />
+              <TableRow key={appointment.id}>
+                <CodeCell id={appointment.id} className="@max-5xl:hidden" />
                 <TableCell className="px-4">
                   <span className="font-medium">{dayFormat.format(appointment.performedAt)}</span>{" "}
                   <span className="text-muted-foreground tabular-nums">
@@ -150,7 +158,7 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
                   </span>
                 </TableCell>
                 {unitNames && (
-                  <TableCell className="px-4">{unitNames.get(appointment.unitId) ?? "—"}</TableCell>
+                  <TableCell className="px-4 @max-4xl:hidden">{unitNames.get(appointment.unitId) ?? "—"}</TableCell>
                 )}
                 <TableCell className="px-4">
                   {/* O quarto fica escondido no tooltip para a linha caber em uma altura só. */}
@@ -165,10 +173,11 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
                     <TooltipContent>Quarto {appointment.guest.room}</TooltipContent>
                   </Tooltip>
                 </TableCell>
-                <TableCell className="px-4">
+                {/* Ocupa o que sobra da linha e corta com reticências em vez de quebrar. */}
+                <TableCell className="max-w-0 px-4 @max-lg:hidden">
                   <ServicesSummary items={appointment.items} />
                 </TableCell>
-                <TableCell className="px-4 font-medium tabular-nums">
+                <TableCell className="px-4 font-medium tabular-nums @max-2xl:hidden">
                   {currencyFormat.format(appointment.totalCents / 100)}
                 </TableCell>
                 {canManage && (

@@ -10,16 +10,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 
 function money(cents: number) {
   return currencyFormat.format(cents / 100)
 }
 
-function AmountCells({ amounts }: { amounts: ServiceAmounts }) {
+// Com a tabela estreita, o grupo Previsto some inteiro.
+const FORECAST = "@max-2xl:hidden"
+
+function AmountCells({ amounts, className }: { amounts: ServiceAmounts; className?: string }) {
   return (
     <>
-      <TableCell className="border-l px-4 text-right text-muted-foreground tabular-nums">{amounts.count}</TableCell>
-      <TableCell className="px-4 text-right tabular-nums">{money(amounts.cents)}</TableCell>
+      <TableCell className={cn("border-l px-4 text-right text-muted-foreground tabular-nums", className)}>
+        {amounts.count}
+      </TableCell>
+      <TableCell className={cn("px-4 text-right tabular-nums", className)}>{money(amounts.cents)}</TableCell>
     </>
   )
 }
@@ -41,17 +47,17 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
             <TableHead colSpan={2} className="border-l px-4 text-center">
               Real
             </TableHead>
-            <TableHead colSpan={2} className="border-l px-4 text-center">
+            <TableHead colSpan={2} className={cn("border-l px-4 text-center", FORECAST)}>
               Previsto
             </TableHead>
           </TableRow>
           <TableRow>
             <CodeHead />
-            <TableHead className="px-4">Serviço</TableHead>
+            <TableHead className="w-full px-4">Serviço</TableHead>
             <TableHead className="border-l px-4 text-right">Qtd.</TableHead>
             <TableHead className="px-4 text-right">Bruto</TableHead>
-            <TableHead className="border-l px-4 text-right">Qtd.</TableHead>
-            <TableHead className="px-4 text-right">Bruto</TableHead>
+            <TableHead className={cn("border-l px-4 text-right", FORECAST)}>Qtd.</TableHead>
+            <TableHead className={cn("px-4 text-right", FORECAST)}>Bruto</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -65,9 +71,9 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
             services.map((service) => (
               <TableRow key={service.serviceId}>
                 <CodeCell id={service.serviceId} />
-                <TableCell className="px-4">{service.serviceName}</TableCell>
+                <TableCell className="max-w-0 truncate px-4">{service.serviceName}</TableCell>
                 <AmountCells amounts={service.real} />
-                <AmountCells amounts={service.forecast} />
+                <AmountCells amounts={service.forecast} className={FORECAST} />
               </TableRow>
             ))
           )}
@@ -77,7 +83,7 @@ export function CashFlowServicesTable({ services }: { services: ServiceSummary[]
             <TableRow>
               <TableCell className="px-4 font-semibold" colSpan={2}>Total</TableCell>
               <AmountCells amounts={sum("real")} />
-              <AmountCells amounts={sum("forecast")} />
+              <AmountCells amounts={sum("forecast")} className={FORECAST} />
             </TableRow>
           </TableFooter>
         )}

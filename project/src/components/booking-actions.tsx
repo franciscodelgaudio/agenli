@@ -109,6 +109,7 @@ export function BookingActions({ workspaceId, booking, ...options }: Props) {
                 durationMinutes: booking.durationMinutes,
                 serviceId: booking.service.serviceId,
                 productIds: booking.productIds,
+                color: booking.color,
               }}
               action={(prev, formData) => updateBookingAction(workspaceId, booking.id, prev, formData)}
               onDone={done}

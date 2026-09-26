@@ -131,11 +131,18 @@ export default async function UnitTeamPage({
         <Table>
           <TableHeader>
             <TableRow>
-              <CodeHead />
+              <CodeHead className="@max-3xl:hidden" />
               {/* Só há ordenação por nome; o sort fixo alimenta o cabeçalho e é ignorado na leitura. */}
-              <SortableHead field="name" label="Nome" icon={UserIcon} query={{ ...filters, sort: "name" }} pathname={pathname} />
+              <SortableHead
+                field="name"
+                label="Nome"
+                icon={UserIcon}
+                query={{ ...filters, sort: "name" }}
+                pathname={pathname}
+                className="w-full"
+              />
               <TableHead className="px-4">Função</TableHead>
-              <TableHead className="px-4 text-right">Remuneração</TableHead>
+              <TableHead className="px-4 text-right @max-xl:hidden">Remuneração</TableHead>
               {canManage && <TableHead className="w-0 px-4 text-right">Ações</TableHead>}
             </TableRow>
           </TableHeader>
@@ -156,8 +163,8 @@ export default async function UnitTeamPage({
                 const canEdit = canManage && (!isTherapist || role === "owner")
                 return (
                   <TableRow key={member.id}>
-                    <CodeCell id={member.id} />
-                    <TableCell className="px-4">
+                    <CodeCell id={member.id} className="@max-3xl:hidden" />
+                    <TableCell className="max-w-0 px-4">
                       <div className="flex items-center gap-3">
                         <Avatar className="size-8">
                           {member.image && <AvatarImage src={member.image} alt={label} />}
@@ -170,12 +177,12 @@ export default async function UnitTeamPage({
                       </div>
                     </TableCell>
                     <TableCell className="px-4">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex items-center gap-1.5">
                         <Badge variant="secondary">{roleLabels[member.role]}</Badge>
                         {member.pending && <Badge variant="outline">Convite pendente</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell className="px-4 text-right tabular-nums">
+                    <TableCell className="px-4 text-right tabular-nums @max-xl:hidden">
                       {member.commissionPercent !== null ? (
                         `${percentFormat.format(member.commissionPercent)}% de comissão`
                       ) : member.salaryCents !== null ? (

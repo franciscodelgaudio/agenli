@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, type LucideIcon } from "lucide-react"
+import { cn } from "cn"
 import { TableHead } from "@/components/ui/table"
 import type { SortDir } from "@/lib/unit-list"
 
@@ -10,9 +11,10 @@ type Props<F extends string> = {
   // Os demais campos da query (busca, data...) são preservados no link.
   query: { q: string; sort: F; dir: SortDir } & Record<string, string>
   pathname: string
+  className?: string
 }
 
-export function SortableHead<F extends string>({ field, label, icon: LabelIcon, query, pathname }: Props<F>) {
+export function SortableHead<F extends string>({ field, label, icon: LabelIcon, query, pathname, className }: Props<F>) {
   const active = query.sort === field
   // Clicar na coluna ativa inverte a direção; numa coluna nova começa crescente.
   const dir = active && query.dir === "asc" ? "desc" : "asc"
@@ -22,7 +24,7 @@ export function SortableHead<F extends string>({ field, label, icon: LabelIcon, 
 
   return (
     <TableHead
-      className="px-4"
+      className={cn("px-4", className)}
       aria-sort={active ? (query.dir === "asc" ? "ascending" : "descending") : undefined}
     >
       <Link

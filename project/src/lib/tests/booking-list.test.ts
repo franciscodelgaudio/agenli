@@ -86,6 +86,8 @@ describe("bookingListPipeline", () => {
       productIds: { $map: { input: "$products", as: "product", in: { $toString: "$$product.productId" } } },
       // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
       appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
+      // Cor escolhida para o calendário; null usa a cor da massagista.
+      color: { $ifNull: ["$color", null] },
     },
   };
   const SORT = { $sort: { startsAt: 1, _id: 1 } };

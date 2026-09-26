@@ -24,6 +24,8 @@ export type BookingRow = {
   service: { serviceId: string; serviceName: string };
   productIds: string[];
   appointmentId: string | null;
+  // Cor escolhida para o calendário; null usa a da massagista.
+  color: string | null;
 };
 
 function objectIdOrEmpty(value: unknown) {
@@ -70,6 +72,8 @@ const BOOKING_PROJECT: PipelineStage.Project = {
     productIds: { $map: { input: "$products", as: "product", in: { $toString: "$$product.productId" } } },
     // Atendimento criado a partir do agendamento; null (ou ausente nos antigos) se ainda não virou.
     appointmentId: { $ifNull: [{ $toString: "$appointmentId" }, null] },
+    // Cor escolhida para o calendário; null usa a cor da massagista.
+    color: { $ifNull: ["$color", null] },
   },
 };
 
