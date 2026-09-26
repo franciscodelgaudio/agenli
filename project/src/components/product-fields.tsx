@@ -72,16 +72,8 @@ export function ProductFields({ idPrefix, defaultValues }: Props) {
           maxLength={500}
         />
       </Field>
-      <Field>
-        <FieldLabel htmlFor={`${idPrefix}-avatar-url`}>URL da imagem (opcional)</FieldLabel>
-        <Input
-          id={`${idPrefix}-avatar-url`}
-          name="avatarUrl"
-          type="url"
-          placeholder="https://exemplo.com/produto.png"
-          defaultValue={defaultValues?.avatarUrl ?? undefined}
-        />
-      </Field>
+      {/* Campo da imagem escondido por enquanto; o valor salvo segue no envio para a edição não apagá-lo. */}
+      <input type="hidden" name="avatarUrl" value={defaultValues?.avatarUrl ?? ""} />
     </>
   )
 }

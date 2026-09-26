@@ -127,13 +127,10 @@ export default async function ProductHistoryPage({
         aparecem na lista, mas só contam quando a data chegar.
       </p>
 
-      <div className="flex w-full flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <ListSearch query={filters} placeholder="Buscar hóspede, quarto, serviço ou massagista..." />
         <ProductHistoryKindFilter query={filters} />
         <PeriodFilter query={filters} />
-        <p className="ml-auto text-sm text-muted-foreground">
-          {history.total} {history.total === 1 ? "registro" : "registros"}
-        </p>
       </div>
       <ProductHistoryTable
         rows={history.rows}

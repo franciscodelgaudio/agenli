@@ -5,7 +5,7 @@ import { PlusIcon, Trash2Icon } from "lucide-react"
 import { REVENUE_SHARE_PERIODS, type RevenueShare } from "@/lib/revenue-share"
 
 import { Button } from "@/components/ui/button"
-import { Field, FieldDescription, FieldLabel, FieldSeparator } from "@/components/ui/field"
+import { Field, FieldLabel, FieldSeparator } from "@/components/ui/field"
 import { AmountInput } from "@/components/amount-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ownershipLabels, periodLabels, type Ownership } from "@/components/revenue-share-labels"
@@ -64,9 +64,6 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
             ))}
           </SelectContent>
         </Select>
-        {ownership === "partner" && (
-          <FieldDescription>O estabelecimento parceiro fica com parte do faturamento da unidade.</FieldDescription>
-        )}
       </Field>
 
       {ownership === "partner" && (
@@ -95,77 +92,80 @@ export function RevenueShareFields({ idPrefix, defaultValue = null }: Props) {
             </Select>
           </Field>
 
-          {tiers.map((tier, index) => {
-            const isLast = index === tiers.length - 1
-            const previousLimit = tiers[index - 1]?.limit
-            return (
-              <div key={tier.key} className="grid gap-2 border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">
-                    {tiers.length === 1
-                      ? "Sobre todo o faturamento"
-                      : isLast
-                        ? previousLimit
-                          ? `Acima de ${currencyFormat.format(previousLimit / 100)}`
-                          : "Acima do limite anterior"
-                        : `Faixa ${index + 1}`}
-                  </span>
-                  {tiers.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Remover faixa ${index + 1}`}
-                      onClick={() => setTiers((current) => current.filter((t) => t.key !== tier.key))}
-                    >
-                      <Trash2Icon />
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {/* A ordem dos campos no FormData forma as faixas; a última não tem limite. */}
-                  {!isLast && (
+          {/* Um bloco só, com as faixas em sequência: cada uma começa onde a anterior termina. */}
+          <div className="divide-y border">
+            {tiers.map((tier, index) => {
+              const isLast = index === tiers.length - 1
+              const from = index === 0 ? 0 : tiers[index - 1].limit
+              const fromText = from === null ? "o limite anterior" : currencyFormat.format(from / 100)
+              return (
+                <div key={tier.key} className="grid gap-2 p-3">
+                  <div className="flex min-h-7 items-center justify-between gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {tiers.length === 1
+                        ? "Sobre todo o faturamento"
+                        : isLast
+                          ? `Acima de ${fromText}`
+                          : `De ${fromText} até`}
+                    </span>
+                    {tiers.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remover faixa ${index + 1}`}
+                        onClick={() => setTiers((current) => current.filter((t) => t.key !== tier.key))}
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* A ordem dos campos no FormData forma as faixas; a última não tem limite. */}
+                    {!isLast && (
+                      <AmountInput
+                        name="tierLimit"
+                        max={100_000_000_000}
+                        placeholder="R$ 30.000,00"
+                        aria-label={`Limite da faixa ${index + 1}`}
+                        value={tier.limit}
+                        onValueChange={(limit) => updateTier(tier.key, { limit })}
+                        required
+                      />
+                    )}
                     <AmountInput
-                      name="tierLimit"
-                      max={100_000_000_000}
-                      placeholder="Até R$ 30.000,00"
-                      aria-label={`Limite da faixa ${index + 1}`}
-                      value={tier.limit}
-                      onValueChange={(limit) => updateTier(tier.key, { limit })}
+                      mode="percent"
+                      name="tierPercent"
+                      max={10_000}
+                      placeholder="% de repasse"
+                      aria-label={`Percentual da faixa ${index + 1}`}
+                      className={isLast ? "col-span-2" : undefined}
+                      value={tier.percent}
+                      onValueChange={(percent) => updateTier(tier.key, { percent })}
                       required
                     />
-                  )}
-                  <AmountInput
-                    mode="percent"
-                    name="tierPercent"
-                    max={10_000}
-                    placeholder="% do estabelecimento"
-                    aria-label={`Percentual da faixa ${index + 1}`}
-                    className={isLast ? "col-span-2" : undefined}
-                    value={tier.percent}
-                    onValueChange={(percent) => updateTier(tier.key, { percent })}
-                    required
-                  />
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
 
-          {tiers.length < MAX_TIERS && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                setTiers((current) => [
-                  ...current,
-                  { key: Math.max(...current.map((t) => t.key)) + 1, limit: null, percent: null },
-                ])
-              }
-            >
-              <PlusIcon />
-              Adicionar faixa
-            </Button>
-          )}
+            {tiers.length < MAX_TIERS && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() =>
+                  setTiers((current) => [
+                    ...current,
+                    { key: Math.max(...current.map((t) => t.key)) + 1, limit: null, percent: null },
+                  ])
+                }
+              >
+                <PlusIcon />
+                Adicionar faixa
+              </Button>
+            )}
+          </div>
         </>
       )}
     </>

@@ -105,19 +105,14 @@ export default async function UsersPage({ params, searchParams }: PageProps<"/wo
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <h2 className="text-2xl font-semibold tracking-tight">Usuários</h2>
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
-          <ListSearch query={filters} placeholder="Buscar nome ou email..." />
-          <UserRoleFilter query={filters} />
-          <UserStatusFilter query={filters} />
-        </div>
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-muted-foreground">
-            {result.total} {result.total === 1 ? "usuário" : "usuários"}
-          </p>
-          {canManage && <InviteMemberSheet workspaceId={workspaceId} />}
-        </div>
+        <h2 className="text-2xl font-semibold tracking-tight">Usuários</h2>
+        {canManage && <InviteMemberSheet workspaceId={workspaceId} />}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <ListSearch query={filters} placeholder="Buscar nome ou email..." />
+        <UserRoleFilter query={filters} />
+        <UserStatusFilter query={filters} />
       </div>
       <div className="border">
         <Table>

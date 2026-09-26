@@ -120,14 +120,9 @@ export default async function UnitTeamPage({
     <div className="flex flex-col gap-4">
       <h3 className="text-lg font-semibold tracking-tight">Equipe</h3>
       {members.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
-            <ListSearch query={filters} placeholder="Buscar nome ou email..." />
-            <UnitTeamFilters query={filters} />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {result.total} {result.total === 1 ? "pessoa" : "pessoas"}
-          </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <ListSearch query={filters} placeholder="Buscar nome ou email..." />
+          <UnitTeamFilters query={filters} />
         </div>
       )}
       <div className="border">
@@ -220,12 +215,9 @@ export default async function UnitTeamPage({
         pathname={pathname}
         itemLabel="pessoas"
       />
-      <p className="text-sm text-muted-foreground">
-        Comissão e salário saem do líquido no caixa desta unidade. A comissão de massagista é sobre os serviços
-        que ela fez; a de recepcionista, sobre o faturamento bruto. O salário é rateado por dia. O proprietário
-        não tem remuneração.
-        {role === "admin" && " Só o proprietário define a remuneração de massagistas."}
-      </p>
+      {role === "admin" && (
+        <p className="text-sm text-muted-foreground">Só o proprietário define a remuneração de massagistas.</p>
+      )}
     </div>
   )
 }

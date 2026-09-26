@@ -1,13 +1,10 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
-import { ArrowLeftIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { InitialFallback } from "@/components/initial-fallback"
-import { Button } from "@/components/ui/button"
 import { ServicesSetupNotice, UnitNav } from "@/components/unit-nav"
 
 export default async function UnitLayout({
@@ -62,16 +59,6 @@ export default async function UnitLayout({
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="self-start"
-        nativeButton={false}
-        render={<Link href={`/workspace/${workspaceId}/unit`} />}
-      >
-        <ArrowLeftIcon />
-        Unidades
-      </Button>
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-lg after:rounded-lg">
           {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />}
