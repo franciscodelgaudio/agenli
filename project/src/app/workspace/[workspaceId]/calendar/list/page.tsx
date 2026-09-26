@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation"
-import { CalendarDaysIcon } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
@@ -157,7 +157,7 @@ export default async function CalendarListPage({
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <CalendarDaysIcon />
+              <CalendarIcon />
             </EmptyMedia>
             <EmptyTitle>Nenhum agendamento</EmptyTitle>
             <EmptyDescription>

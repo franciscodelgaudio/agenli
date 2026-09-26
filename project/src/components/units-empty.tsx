@@ -1,4 +1,4 @@
-import { Building2Icon } from "lucide-react"
+import { MapPinIcon } from "lucide-react"
 import { CreateUnitSheet } from "@/components/create-unit-sheet"
 import type { UnitTeamOptions } from "@/components/unit-fields"
 import {
@@ -17,7 +17,7 @@ export function UnitsEmpty({ workspaceId, canManage, team }: Props) {
     <Empty className="border">
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <Building2Icon />
+          <MapPinIcon />
         </EmptyMedia>
         <EmptyTitle>Nenhuma unidade cadastrada</EmptyTitle>
         <EmptyDescription>

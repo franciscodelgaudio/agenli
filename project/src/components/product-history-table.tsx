@@ -1,4 +1,4 @@
-import { BedDoubleIcon, CalendarIcon, SparklesIcon, TagIcon, UserIcon } from "lucide-react"
+import { BedDoubleIcon, CalendarIcon, LeafIcon, TagIcon, UserIcon } from "lucide-react"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { formatUses } from "@/components/product-format"
@@ -48,7 +48,7 @@ export function ProductHistoryTable({ rows, query, pathname, cycleUses, now }: P
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
             <TableHead className="px-4">
               <span className="inline-flex items-center gap-1">
-                <SparklesIcon className="size-4 text-muted-foreground" />
+                <LeafIcon className="size-4 text-muted-foreground" />
                 Serviços
               </span>
             </TableHead>

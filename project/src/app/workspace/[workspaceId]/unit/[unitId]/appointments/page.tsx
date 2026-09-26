@@ -1,6 +1,7 @@
+import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
-import { ClipboardListIcon } from "lucide-react"
+import { ArrowRightIcon, CircleCheckIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
@@ -19,6 +20,7 @@ import { ListSearch } from "@/components/list-search"
 import { PeriodFilter } from "@/components/period-filter"
 import { currencyFormat } from "@/components/service-format"
 import { TherapistFilter } from "@/components/therapist-filter"
+import { Button } from "@/components/ui/button"
 import {
   Empty,
   EmptyContent,
@@ -151,18 +153,26 @@ export default async function AppointmentsPage({
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <ClipboardListIcon />
+              <CircleCheckIcon />
             </EmptyMedia>
             <EmptyTitle>Nenhum atendimento</EmptyTitle>
             <EmptyDescription>
               {!canManage
                 ? "Os atendimentos registrados nesta unidade aparecerão aqui."
                 : !services.length
-                  ? "Cadastre os serviços da unidade na aba Serviços antes de registrar atendimentos."
+                  ? "Cadastre os serviços da unidade antes de registrar atendimentos."
                   : "Registre os atendimentos com o hóspede, os serviços e as massagistas."}
             </EmptyDescription>
           </EmptyHeader>
           {createButton && <EmptyContent>{createButton}</EmptyContent>}
+          {canManage && !services.length && (
+            <EmptyContent>
+              <Button nativeButton={false} render={<Link href={`/workspace/${workspaceId}/unit/${unitId}/services`} />}>
+                Cadastrar serviços
+                <ArrowRightIcon />
+              </Button>
+            </EmptyContent>
+          )}
         </Empty>
       ) : (
         <>

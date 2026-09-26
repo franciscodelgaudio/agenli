@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2Icon, CalendarDaysIcon, ClipboardListIcon, HomeIcon, UsersIcon, type LucideIcon } from "lucide-react"
+import { MapPinIcon, CalendarIcon, CircleCheckIcon, HomeIcon, UsersIcon, type LucideIcon } from "lucide-react"
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -21,9 +21,9 @@ export function NavMain({ workspaceId }: { workspaceId: string }) {
     {
       label: "Geral",
       items: [
-        { title: "Unidades", href: `${base}/unit`, icon: Building2Icon },
-        { title: "Atendimentos", href: `${base}/appointments`, icon: ClipboardListIcon },
-        { title: "Calendário", href: `${base}/calendar`, icon: CalendarDaysIcon },
+        { title: "Unidades", href: `${base}/unit`, icon: MapPinIcon },
+        { title: "Atendimentos", href: `${base}/appointments`, icon: CircleCheckIcon },
+        { title: "Calendário", href: `${base}/calendar`, icon: CalendarIcon },
       ],
     },
     {

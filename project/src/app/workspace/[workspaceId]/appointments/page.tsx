@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation"
-import { ClipboardListIcon } from "lucide-react"
+import { CircleCheckIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import {
@@ -148,7 +148,7 @@ export default async function WorkspaceAppointmentsPage({
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <ClipboardListIcon />
+              <CircleCheckIcon />
             </EmptyMedia>
             <EmptyTitle>Nenhum atendimento</EmptyTitle>
             <EmptyDescription>

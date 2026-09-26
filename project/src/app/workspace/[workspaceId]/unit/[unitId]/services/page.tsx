@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
-import { SparklesIcon } from "lucide-react"
+import { LeafIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { parseServiceListQuery, serviceListPipeline } from "@/lib/service-list"
@@ -89,12 +89,12 @@ export default async function ServicesPage({
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <SparklesIcon />
+              <LeafIcon />
             </EmptyMedia>
             <EmptyTitle>Nenhum serviço cadastrado</EmptyTitle>
             <EmptyDescription>
               {canManage
-                ? "Cadastre os serviços prestados nesta unidade, com valor e duração média."
+                ? "Cadastre os serviços prestados nesta unidade, com valor e duração média. Eles são a base dos agendamentos, atendimentos e do caixa."
                 : "Esta unidade ainda não tem serviços cadastrados."}
             </EmptyDescription>
           </EmptyHeader>

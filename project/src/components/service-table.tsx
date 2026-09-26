@@ -1,4 +1,4 @@
-import { ClockIcon, BanknoteIcon, SettingsIcon, SparklesIcon } from "lucide-react"
+import { ClockIcon, BanknoteIcon, SettingsIcon, LeafIcon } from "lucide-react"
 import { ServiceActions } from "@/components/service-actions"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
@@ -30,7 +30,7 @@ export function ServiceTable({ services, query, pathname, workspaceId, unitId, c
         <TableHeader>
           <TableRow>
             <CodeHead />
-            <SortableHead field="name" label="Serviço" icon={SparklesIcon} query={query} pathname={pathname} />
+            <SortableHead field="name" label="Serviço" icon={LeafIcon} query={query} pathname={pathname} />
             <SortableHead field="priceCents" label="Valor" icon={BanknoteIcon} query={query} pathname={pathname} />
             <SortableHead
               field="durationMinutes"

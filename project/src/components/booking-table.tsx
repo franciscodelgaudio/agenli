@@ -1,4 +1,4 @@
-import { BedDoubleIcon, Building2Icon, CheckIcon, ClockIcon, SettingsIcon, SparklesIcon, UserIcon } from "lucide-react"
+import { BedDoubleIcon, MapPinIcon, CheckIcon, ClockIcon, SettingsIcon, LeafIcon, UserIcon } from "lucide-react"
 import type { BookingListQuery, BookingRow } from "@/lib/booking-list"
 import { BookingActions } from "@/components/booking-actions"
 import type { BookingFormOptions } from "@/components/booking-form"
@@ -63,10 +63,10 @@ export function BookingTable({ bookings, query, pathname, workspaceId, options, 
           <TableRow>
             <CodeHead />
             <SortableHead field="startsAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
-            {unitNames && <Head icon={Building2Icon} label="Unidade" />}
+            {unitNames && <Head icon={MapPinIcon} label="Unidade" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
             <SortableHead field="therapistName" label="Massagista" icon={UserIcon} query={query} pathname={pathname} />
-            <Head icon={SparklesIcon} label="Serviço" />
+            <Head icon={LeafIcon} label="Serviço" />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">
                 <span className="inline-flex items-center gap-1">

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDaysIcon, ListIcon, type LucideIcon } from "lucide-react"
+import { CalendarIcon, ListIcon, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type NavItem = { title: string; href: string; icon: LucideIcon }
@@ -11,7 +11,7 @@ type NavItem = { title: string; href: string; icon: LucideIcon }
 export function CalendarNav({ base }: { base: string }) {
   const pathname = usePathname()
   const items: NavItem[] = [
-    { title: "Calendário", href: base, icon: CalendarDaysIcon },
+    { title: "Calendário", href: base, icon: CalendarIcon },
     { title: "Lista", href: `${base}/list`, icon: ListIcon },
   ]
 

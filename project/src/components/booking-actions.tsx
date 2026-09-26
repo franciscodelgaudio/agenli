@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ClipboardCheckIcon, ClipboardListIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
+import { ClipboardCheckIcon, CircleCheckIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import { convertBookingAction } from "@/lib/actions/appointment"
 import { deleteBookingAction, updateBookingAction } from "@/lib/actions/booking"
 import type { BookingRow } from "@/lib/booking-list"
@@ -70,7 +70,7 @@ export function BookingActions({ workspaceId, booking, ...options }: Props) {
         <DropdownMenuContent align="end" className="w-52">
           {booking.appointmentId ? (
             <DropdownMenuItem render={<Link href={appointmentsHref} />}>
-              <ClipboardListIcon />
+              <CircleCheckIcon />
               Ver em Atendimentos
             </DropdownMenuItem>
           ) : (

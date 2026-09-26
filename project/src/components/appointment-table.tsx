@@ -1,4 +1,4 @@
-import { BanknoteIcon, BedDoubleIcon, Building2Icon, ClockIcon, SettingsIcon, SparklesIcon } from "lucide-react"
+import { BanknoteIcon, BedDoubleIcon, MapPinIcon, ClockIcon, SettingsIcon, LeafIcon } from "lucide-react"
 import { AppointmentActions } from "@/components/appointment-actions"
 import type { AppointmentOptions } from "@/components/appointment-form"
 import { CodeCell, CodeHead } from "@/components/record-code"
@@ -72,9 +72,9 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
           <TableRow>
             <CodeHead />
             <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
-            {unitNames && <Head icon={Building2Icon} label="Unidade" />}
+            {unitNames && <Head icon={MapPinIcon} label="Unidade" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
-            <Head icon={SparklesIcon} label="Serviços" />
+            <Head icon={LeafIcon} label="Serviços" />
             <SortableHead field="totalCents" label="Total" icon={BanknoteIcon} query={query} pathname={pathname} />
             {canManage && (
               <TableHead className="w-0 px-4 text-right">

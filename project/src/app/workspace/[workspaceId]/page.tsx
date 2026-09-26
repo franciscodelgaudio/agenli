@@ -4,7 +4,7 @@ import {
   CalendarCheckIcon,
   CalendarXIcon,
   PiggyBankIcon,
-  SparklesIcon,
+  LeafIcon,
   StoreIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -290,7 +290,7 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
           detail={hasDeductions ? `${money(deductionsCents)} em repasse e comissões` : "Sem repasse nem comissões"}
         />
         <StatTile
-          icon={SparklesIcon}
+          icon={LeafIcon}
           label="Serviços no mês"
           value={String(servicesDone)}
           detail={

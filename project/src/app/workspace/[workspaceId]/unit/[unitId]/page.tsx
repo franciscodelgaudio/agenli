@@ -4,7 +4,7 @@ import {
   CalendarCheckIcon,
   CalendarXIcon,
   PiggyBankIcon,
-  SparklesIcon,
+  LeafIcon,
   TrendingUpIcon,
   UsersIcon,
 } from "lucide-react"
@@ -214,7 +214,7 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
           }
         />
         <StatTile
-          icon={SparklesIcon}
+          icon={LeafIcon}
           label="Serviços no mês"
           value={String(servicesDone)}
           detail={servicesScheduled ? `+ ${plural(servicesScheduled, "agendado", "agendados")} até o fim do mês` : "Nenhum outro agendado"}
@@ -286,7 +286,7 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
                 }))}
               />
             ) : (
-              <CardEmpty icon={SparklesIcon}>Nenhum serviço realizado ou agendado neste mês.</CardEmpty>
+              <CardEmpty icon={LeafIcon}>Nenhum serviço realizado ou agendado neste mês.</CardEmpty>
             )}
           </CardContent>
         </Card>

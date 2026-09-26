@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Building2Icon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
+import { MapPinIcon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
 import { UnitActions } from "@/components/unit-actions"
 import type { UnitTeamOptions } from "@/components/unit-fields"
 import { CodeCell, CodeHead } from "@/components/record-code"
@@ -41,7 +41,7 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
         <TableHeader>
           <TableRow>
             <CodeHead />
-            <SortableHead field="name" label="Nome" icon={Building2Icon} query={query} pathname={pathname} />
+            <SortableHead field="name" label="Nome" icon={MapPinIcon} query={query} pathname={pathname} />
             <SortableHead field="createdAt" label="Criado em" icon={CalendarPlusIcon} query={query} pathname={pathname} />
             <SortableHead field="updatedAt" label="Atualizado em" icon={CalendarClockIcon} query={query} pathname={pathname} />
             {canManage && (
