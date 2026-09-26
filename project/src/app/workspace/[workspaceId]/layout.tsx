@@ -1,10 +1,14 @@
 import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
+import { NavigationProgressBar, NavigationProgressProvider } from "@/components/navigation-progress"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 
+// O layout espera o workspace antes de renderizar: ao abrir a página inteira, a espera cai no
+// loading.tsx da raiz (tela do agenli). Na navegação interna ele não recarrega, e as páginas
+// mostram seus skeletons dentro da moldura.
 export default async function WorkspaceLayout({
   children,
   sidebar,
@@ -25,16 +29,20 @@ export default async function WorkspaceLayout({
   const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false"
 
   return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      {sidebar}
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-center" />
-          <h1 className="truncate text-sm font-medium">{workspace.name}</h1>
-        </header>
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <NavigationProgressProvider>
+      <SidebarProvider defaultOpen={defaultOpen}>
+        {sidebar}
+        <SidebarInset>
+          <header className="relative flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 data-vertical:h-4 data-vertical:self-center" />
+            <h1 className="truncate text-sm font-medium">{workspace.name}</h1>
+            <NavigationProgressBar />
+          </header>
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </NavigationProgressProvider>
   )
 }
+

@@ -19,7 +19,9 @@ import {
   summarizeCashFlow,
   summarizeServices,
   summarizeTherapists,
+  type CashFlowView,
   type CommissionRates,
+  type DayRange,
   type DayTotal,
   type ServiceTotal,
 } from "@/lib/cash-flow"
@@ -41,7 +43,6 @@ import {
   LowStockList,
   money,
   plural,
-  RankList,
   RealForecastLegend,
   StatTile,
   TodaySchedule,
@@ -49,6 +50,7 @@ import {
   type StockItem,
   type TodayBooking,
 } from "@/components/unit-overview"
+import { PeriodRankCard, type RankPeriod } from "@/components/period-rank-card"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 const HOUR_MS = 60 * 60 * 1000
@@ -56,6 +58,12 @@ const DAY_MS = 24 * HOUR_MS
 // Produtos com até esta quantidade aparecem como acabando.
 const LOW_STOCK_QUANTITY = 2
 const TOP_ITEMS = 5
+const PERIOD_VIEWS: CashFlowView[] = ["week", "month", "year"]
+
+// Um valor para cada período dos rankings: semana, mês e ano correntes.
+function byPeriod<T>(value: (view: CashFlowView) => T): Record<CashFlowView, T> {
+  return { week: value("week"), month: value("month"), year: value("year") }
+}
 
 // Os dias são do calendário, então são formatados em UTC para não deslocar.
 const monthFormat = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" })
@@ -108,17 +116,21 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
   if (!workspace?.unit) notFound()
   const { revenueShare } = workspace.unit
 
-  // Mês corrente para os indicadores e rankings; semana corrente para o gráfico. Uma busca
-  // só cobre os dois, com o resto dos períodos de repasse das pontas.
+  // Mês corrente para os indicadores; semana corrente para o gráfico; semana, mês e ano para
+  // os rankings. Uma busca só cobre todos, com o resto dos períodos de repasse das pontas.
   const today = parseCashFlowQuery({}, now).date
   const monthBuckets = cashFlowBuckets({ view: "month", date: today })
   const weekBuckets = cashFlowBuckets({ view: "week", date: today })
-  const month = { from: monthBuckets[0].from, to: monthBuckets.at(-1)!.to }
-  const monthRange = cashFlowFetchRange(monthBuckets, revenueShare?.period ?? null)
-  const weekRange = cashFlowFetchRange(weekBuckets, revenueShare?.period ?? null)
+  const periods = byPeriod((view): DayRange => {
+    const buckets = cashFlowBuckets({ view, date: today })
+    return { from: buckets[0].from, to: buckets.at(-1)!.to }
+  })
+  const fetchRanges = [weekBuckets, cashFlowBuckets({ view: "year", date: today })].map((buckets) =>
+    cashFlowFetchRange(buckets, revenueShare?.period ?? null),
+  )
   const range = {
-    from: monthRange.from < weekRange.from ? monthRange.from : weekRange.from,
-    to: monthRange.to > weekRange.to ? monthRange.to : weekRange.to,
+    from: fetchRanges.reduce((from, next) => (next.from < from ? next.from : from), fetchRanges[0].from),
+    to: fetchRanges.reduce((to, next) => (next.to > to ? next.to : to), fetchRanges[0].to),
   }
   const [year, monthNumber, day] = today.split("-").map(Number)
   const todayStart = new Date(Date.UTC(year, monthNumber - 1, day, BRT_OFFSET_HOURS))
@@ -126,12 +138,19 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
 
   const unitObjectId = new Types.ObjectId(unitId)
   const unitMatch = { $match: { unitId: unitObjectId } }
-  const [appointments, bookings, serviceAppointments, serviceBookings, therapists, todayBookings, lowStock, productCount] =
+  const [appointments, bookings, serviceSummaries, therapists, todayBookings, lowStock, productCount] =
     await Promise.all([
       Appointment.aggregate<DayTotal>([unitMatch, ...dailyAppointmentTotalsPipeline(range)]),
       Booking.aggregate<DayTotal>([unitMatch, ...dailyBookingForecastPipeline(range, now)]),
-      Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(month)]),
-      Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(month, now)]),
+      Promise.all(
+        PERIOD_VIEWS.map(async (view) => {
+          const [serviceAppointments, serviceBookings] = await Promise.all([
+            Appointment.aggregate<ServiceTotal>([unitMatch, ...serviceAppointmentTotalsPipeline(periods[view])]),
+            Booking.aggregate<ServiceTotal>([unitMatch, ...serviceBookingForecastPipeline(periods[view], now)]),
+          ])
+          return summarizeServices(serviceAppointments, serviceBookings)
+        }),
+      ),
       // Comissão das massagistas vinculadas a esta unidade (o proprietário não tem).
       WorkspaceMember.find({
         workspaceId: workspace.id,
@@ -159,8 +178,8 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
   }
   const monthTotal = summarizeCashFlow(monthBuckets, appointments, bookings, revenueShare, commissionRates).total
   const week = summarizeCashFlow(weekBuckets, appointments, bookings, revenueShare, commissionRates)
-  const services = summarizeServices(serviceAppointments, serviceBookings)
-  const therapistRows = summarizeTherapists(month, appointments, bookings, commissionRates)
+  const servicesByPeriod = byPeriod((view) => serviceSummaries[PERIOD_VIEWS.indexOf(view)])
+  const services = servicesByPeriod.month
   const therapistImages = new Map(workspace.therapists.map((therapist) => [therapist.id, therapist.image]))
 
   const servicesDone = services.reduce((sum, service) => sum + service.real.count, 0)
@@ -189,6 +208,35 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
 
   const base = `/workspace/${workspaceId}/unit/${unitId}`
   const monthName = monthFormat.format(toDate(today))
+  const periodLabels: Record<CashFlowView, string> = { week: "Esta semana", month: monthName, year: today.slice(0, 4) }
+  const periodNouns: Record<CashFlowView, string> = { week: "nesta semana", month: "neste mês", year: "neste ano" }
+  const servicePeriods = byPeriod(
+    (view): RankPeriod => ({
+      label: periodLabels[view],
+      items: servicesByPeriod[view].slice(0, TOP_ITEMS).map((service) => ({
+        id: service.serviceId,
+        name: service.serviceName,
+        real: service.real,
+        forecast: service.forecast,
+      })),
+      empty: <CardEmpty icon={LeafIcon}>Nenhum serviço realizado ou agendado {periodNouns[view]}.</CardEmpty>,
+    }),
+  )
+  const therapistPeriods = byPeriod(
+    (view): RankPeriod => ({
+      label: periodLabels[view],
+      items: summarizeTherapists(periods[view], appointments, bookings, commissionRates)
+        .slice(0, TOP_ITEMS)
+        .map((therapist) => ({
+          id: therapist.therapistId,
+          name: therapist.therapistName,
+          image: therapistImages.get(therapist.therapistId) ?? null,
+          real: therapist.real,
+          forecast: therapist.forecast,
+        })),
+      empty: <CardEmpty icon={UsersIcon}>Ninguém atendeu nem tem agendamentos {periodNouns[view]}.</CardEmpty>,
+    }),
+  )
 
   return (
     <div className="flex flex-col gap-4">
@@ -271,51 +319,18 @@ export default async function UnitOverviewPage({ params }: PageProps<"/workspace
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Serviços em destaque</CardTitle>
-            <CardDescription className="first-letter:uppercase">{monthName}, pelo previsto</CardDescription>
-            <CardLink href={`${base}/services`}>Serviços</CardLink>
-          </CardHeader>
-          <CardContent className="flex-1">
-            {services.length ? (
-              <RankList
-                items={services.slice(0, TOP_ITEMS).map((service) => ({
-                  id: service.serviceId,
-                  name: service.serviceName,
-                  real: service.real,
-                  forecast: service.forecast,
-                }))}
-              />
-            ) : (
-              <CardEmpty icon={LeafIcon}>Nenhum serviço realizado ou agendado neste mês.</CardEmpty>
-            )}
-          </CardContent>
-        </Card>
+        <PeriodRankCard
+          title="Serviços em destaque"
+          action={<CardLink href={`${base}/services`}>Serviços</CardLink>}
+          periods={servicePeriods}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Massagistas</CardTitle>
-            <CardDescription className="first-letter:uppercase">{monthName}, pelo previsto</CardDescription>
-            <CardLink href={`${base}/team`}>Equipe</CardLink>
-          </CardHeader>
-          <CardContent className="flex-1">
-            {therapistRows.length ? (
-              <RankList
-                avatar="round"
-                items={therapistRows.slice(0, TOP_ITEMS).map((therapist) => ({
-                  id: therapist.therapistId,
-                  name: therapist.therapistName,
-                  image: therapistImages.get(therapist.therapistId) ?? null,
-                  real: therapist.real,
-                  forecast: therapist.forecast,
-                }))}
-              />
-            ) : (
-              <CardEmpty icon={UsersIcon}>Ninguém atendeu nem tem agendamentos neste mês.</CardEmpty>
-            )}
-          </CardContent>
-        </Card>
+        <PeriodRankCard
+          title="Massagistas"
+          avatar="round"
+          action={<CardLink href={`${base}/team`}>Equipe</CardLink>}
+          periods={therapistPeriods}
+        />
 
         <Card className="md:col-span-2 xl:col-span-1">
           <CardHeader>

@@ -1,9 +1,10 @@
-import { BanknoteIcon, BedDoubleIcon, MapPinIcon, ClockIcon, SettingsIcon, LeafIcon } from "lucide-react"
+import { BanknoteIcon, BedDoubleIcon, MapPinIcon, ClockIcon, SettingsIcon, LeafIcon, UserIcon } from "lucide-react"
 import { cn } from "cn"
 import { AppointmentActions } from "@/components/appointment-actions"
 import type { AppointmentOptions } from "@/components/appointment-form"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
+import { TherapistAvatar, type TherapistOption } from "@/components/therapist-avatar"
 import { currencyFormat, formatDuration, timeFormat } from "@/components/service-format"
 import {
   Table,
@@ -64,26 +65,13 @@ function Head({ icon: Icon, label, className }: { icon: typeof ClockIcon; label:
   )
 }
 
-function ServiceLine({ item }: { item: AppointmentRow["items"][number] }) {
-  return (
-    <>
-      {item.serviceName}{" "}
-      <span className="text-muted-foreground">
-        · {item.therapistName} · {formatDuration(item.durationMinutes)} · {currencyFormat.format(item.priceCents / 100)}
-      </span>
-    </>
-  )
-}
-
-// Mostra só o primeiro serviço; os demais ficam no tooltip do "+N" para a linha não quebrar.
-function ServicesSummary({ items }: { items: AppointmentRow["items"] }) {
+// Mostra só o primeiro item; os demais ficam no tooltip do "+N" para a linha não quebrar.
+function FirstWithMore<T>({ items, render }: { items: T[]; render: (item: T) => React.ReactNode }) {
   const [first, ...rest] = items
   if (!first) return "—"
   return (
     <span className="flex items-center gap-1.5">
-      <span className="truncate">
-        <ServiceLine item={first} />
-      </span>
+      <span className="flex min-w-0 items-center gap-2 truncate">{render(first)}</span>
       {rest.length > 0 && (
         <Tooltip>
           <TooltipTrigger
@@ -96,9 +84,8 @@ function ServicesSummary({ items }: { items: AppointmentRow["items"] }) {
           <TooltipContent className="max-w-none">
             <ul className="grid gap-1">
               {rest.map((item, index) => (
-                <li key={index}>
-                  {item.serviceName} · {item.therapistName} · {formatDuration(item.durationMinutes)} ·{" "}
-                  {currencyFormat.format(item.priceCents / 100)}
+                <li key={index} className="flex items-center gap-2">
+                  {render(item)}
                 </li>
               ))}
             </ul>
@@ -109,9 +96,43 @@ function ServicesSummary({ items }: { items: AppointmentRow["items"] }) {
   )
 }
 
+function ServiceLine({ item }: { item: AppointmentRow["items"][number] }) {
+  return (
+    <span className="truncate">
+      {item.serviceName}{" "}
+      <span className="text-muted-foreground">· {formatDuration(item.durationMinutes)}</span>
+    </span>
+  )
+}
+
+// Massagistas distintas do atendimento, na ordem dos serviços.
+function appointmentTherapists(items: AppointmentRow["items"]) {
+  const seen = new Map<string, string>()
+  for (const item of items) if (!seen.has(item.therapistId)) seen.set(item.therapistId, item.therapistName)
+  return [...seen].map(([id, name]) => ({ id, name }))
+}
+
+function TherapistLine({
+  therapist,
+  therapistsById,
+}: {
+  therapist: { id: string; name: string }
+  therapistsById: Map<string, TherapistOption>
+}) {
+  // Quem saiu do workspace não está nas opções: fica só com o nome copiado.
+  const option = therapistsById.get(therapist.id)
+  return (
+    <>
+      {option && <TherapistAvatar therapist={option} className="size-6" />}
+      <span className="truncate">{therapist.name}</span>
+    </>
+  )
+}
+
 export function AppointmentTable({ appointments, query, pathname, workspaceId, options, canManage }: Props) {
   const unitNames = options.units && new Map(options.units.map((unit) => [unit.id, unit.name]))
-  const columns = 5 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
+  const therapistsById = new Map(options.therapists.map((therapist) => [therapist.id, therapist]))
+  const columns = 6 + (unitNames ? 1 : 0) + (canManage ? 1 : 0)
   return (
     <div className="border">
       <Table>
@@ -121,6 +142,7 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
             <SortableHead field="performedAt" label="Horário" icon={ClockIcon} query={query} pathname={pathname} />
             {unitNames && <Head icon={MapPinIcon} label="Unidade" className="@max-4xl:hidden" />}
             <SortableHead field="guestName" label="Hóspede" icon={BedDoubleIcon} query={query} pathname={pathname} />
+            <Head icon={UserIcon} label="Massagista" className="@max-2xl:hidden" />
             <Head icon={LeafIcon} label="Serviços" className="w-full @max-lg:hidden" />
             <SortableHead
               field="totalCents"
@@ -173,9 +195,15 @@ export function AppointmentTable({ appointments, query, pathname, workspaceId, o
                     <TooltipContent>Quarto {appointment.guest.room}</TooltipContent>
                   </Tooltip>
                 </TableCell>
+                <TableCell className="px-4 @max-2xl:hidden">
+                  <FirstWithMore
+                    items={appointmentTherapists(appointment.items)}
+                    render={(therapist) => <TherapistLine therapist={therapist} therapistsById={therapistsById} />}
+                  />
+                </TableCell>
                 {/* Ocupa o que sobra da linha e corta com reticências em vez de quebrar. */}
                 <TableCell className="max-w-0 px-4 @max-lg:hidden">
-                  <ServicesSummary items={appointment.items} />
+                  <FirstWithMore items={appointment.items} render={(item) => <ServiceLine item={item} />} />
                 </TableCell>
                 <TableCell className="px-4 font-medium tabular-nums @max-2xl:hidden">
                   {currencyFormat.format(appointment.totalCents / 100)}

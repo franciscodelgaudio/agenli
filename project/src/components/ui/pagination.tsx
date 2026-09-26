@@ -1,6 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 
+import Link from "@/components/link"
 import { Button } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 
@@ -8,7 +9,7 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
     <nav
       role="navigation"
-      aria-label="pagination"
+      aria-label="Paginação"
       data-slot="pagination"
       className={cn("mx-auto flex w-full justify-center", className)}
       {...props}
@@ -36,7 +37,7 @@ function PaginationItem({ ...props }: React.ComponentProps<"li">) {
 type PaginationLinkProps = {
   isActive?: boolean
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
-  React.ComponentProps<"a">
+  React.ComponentProps<typeof Link>
 
 function PaginationLink({
   className,
@@ -51,7 +52,7 @@ function PaginationLink({
       className={cn(className)}
       nativeButton={false}
       render={
-        <a
+        <Link
           aria-current={isActive ? "page" : undefined}
           data-slot="pagination-link"
           data-active={isActive}
@@ -64,12 +65,12 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
-  text = "Previous",
+  text = "Anterior",
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label="Página anterior"
       size="default"
       className={cn("pl-2!", className)}
       {...props}
@@ -82,12 +83,12 @@ function PaginationPrevious({
 
 function PaginationNext({
   className,
-  text = "Next",
+  text = "Próxima",
   ...props
 }: React.ComponentProps<typeof PaginationLink> & { text?: string }) {
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label="Próxima página"
       size="default"
       className={cn("pr-2!", className)}
       {...props}
@@ -112,9 +113,8 @@ function PaginationEllipsis({
       )}
       {...props}
     >
-      <MoreHorizontalIcon
-      />
-      <span className="sr-only">More pages</span>
+      <MoreHorizontalIcon />
+      <span className="sr-only">Mais páginas</span>
     </span>
   )
 }

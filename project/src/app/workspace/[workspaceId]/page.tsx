@@ -21,6 +21,8 @@ import {
   summarizeServices,
   summarizeTherapists,
   type CashFlowAmounts,
+  type CashFlowView,
+  type DayRange,
   type CommissionRates,
   type DayTotal,
   type ServiceTotal,
@@ -55,12 +57,18 @@ import {
   type TodayBooking,
 } from "@/components/unit-overview"
 import { UnitsEmpty } from "@/components/units-empty"
+import { PeriodRankCard, type RankPeriod } from "@/components/period-rank-card"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 // Produtos com até esta quantidade aparecem como acabando.
 const LOW_STOCK_QUANTITY = 2
 const TOP_ITEMS = 5
+
+// Um valor para cada período dos rankings: semana, mês e ano correntes.
+function byPeriod<T>(value: (view: CashFlowView) => T): Record<CashFlowView, T> {
+  return { week: value("week"), month: value("month"), year: value("year") }
+}
 
 // Os dias são do calendário, então são formatados em UTC para não deslocar.
 const monthFormat = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" })
@@ -143,11 +151,17 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
     )
   }
 
-  // Mês corrente para os indicadores e rankings; semana corrente para o gráfico.
+  // Mês corrente para os indicadores e rankings; semana corrente para o gráfico; semana, mês
+  // e ano para o ranking das massagistas.
   const today = parseCashFlowQuery({}, now).date
   const monthBuckets = cashFlowBuckets({ view: "month", date: today })
   const weekBuckets = cashFlowBuckets({ view: "week", date: today })
-  const month = { from: monthBuckets[0].from, to: monthBuckets.at(-1)!.to }
+  const yearBuckets = cashFlowBuckets({ view: "year", date: today })
+  const periods = byPeriod((view): DayRange => {
+    const buckets = cashFlowBuckets({ view, date: today })
+    return { from: buckets[0].from, to: buckets.at(-1)!.to }
+  })
+  const month = periods.month
   const [year, monthNumber, day] = today.split("-").map(Number)
   const todayStart = new Date(Date.UTC(year, monthNumber - 1, day, BRT_OFFSET_HOURS))
   const todayEnd = new Date(todayStart.getTime() + DAY_MS)
@@ -159,11 +173,11 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
     Promise.all(
       units.map(async (unit) => {
         const period = unit.revenueShare?.period ?? null
-        const monthRange = cashFlowFetchRange(monthBuckets, period)
+        const yearRange = cashFlowFetchRange(yearBuckets, period)
         const weekRange = cashFlowFetchRange(weekBuckets, period)
         const range = {
-          from: monthRange.from < weekRange.from ? monthRange.from : weekRange.from,
-          to: monthRange.to > weekRange.to ? monthRange.to : weekRange.to,
+          from: yearRange.from < weekRange.from ? yearRange.from : weekRange.from,
+          to: yearRange.to > weekRange.to ? yearRange.to : weekRange.to,
         }
         const unitMatch = { $match: { unitId: new Types.ObjectId(unit.id) } }
         const [appointments, bookings, serviceAppointments, serviceBookings] = await Promise.all([
@@ -226,12 +240,8 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
   const deductionsCents = monthTotal.real.partnerShareCents + monthTotal.real.commissionCents
 
   // Massagistas somando todas as unidades em que atenderam; só os valores brutos são usados.
-  const therapistRows = summarizeTherapists(
-    month,
-    perUnit.flatMap((unit) => unit.appointments),
-    perUnit.flatMap((unit) => unit.bookings),
-    {},
-  )
+  const allAppointments = perUnit.flatMap((unit) => unit.appointments)
+  const allBookings = perUnit.flatMap((unit) => unit.bookings)
   const therapistImages = new Map(workspace.therapists.map((therapist) => [therapist.id, therapist.image]))
   const unitRanking = [...unitSummaries].sort(
     (a, b) =>
@@ -264,6 +274,23 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
 
   const base = `/workspace/${workspace.id}`
   const monthName = monthFormat.format(toDate(today))
+  const periodLabels: Record<CashFlowView, string> = { week: "Esta semana", month: monthName, year: today.slice(0, 4) }
+  const periodNouns: Record<CashFlowView, string> = { week: "nesta semana", month: "neste mês", year: "neste ano" }
+  const therapistPeriods = byPeriod(
+    (view): RankPeriod => ({
+      label: periodLabels[view],
+      items: summarizeTherapists(periods[view], allAppointments, allBookings, {})
+        .slice(0, TOP_ITEMS)
+        .map((therapist) => ({
+          id: therapist.therapistId,
+          name: therapist.therapistName,
+          image: therapistImages.get(therapist.therapistId) ?? null,
+          real: therapist.real,
+          forecast: therapist.forecast,
+        })),
+      empty: <CardEmpty icon={UsersIcon}>Ninguém atendeu nem tem agendamentos {periodNouns[view]}.</CardEmpty>,
+    }),
+  )
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4">
@@ -376,29 +403,12 @@ export default async function WorkspacePage({ params }: PageProps<"/workspace/[w
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Massagistas</CardTitle>
-            <CardDescription className="first-letter:uppercase">{monthName}, pelo previsto</CardDescription>
-            <CardLink href={`${base}/users`}>Usuários</CardLink>
-          </CardHeader>
-          <CardContent className="flex-1">
-            {therapistRows.length ? (
-              <RankList
-                avatar="round"
-                items={therapistRows.slice(0, TOP_ITEMS).map((therapist) => ({
-                  id: therapist.therapistId,
-                  name: therapist.therapistName,
-                  image: therapistImages.get(therapist.therapistId) ?? null,
-                  real: therapist.real,
-                  forecast: therapist.forecast,
-                }))}
-              />
-            ) : (
-              <CardEmpty icon={UsersIcon}>Ninguém atendeu nem tem agendamentos neste mês.</CardEmpty>
-            )}
-          </CardContent>
-        </Card>
+        <PeriodRankCard
+          title="Massagistas"
+          avatar="round"
+          action={<CardLink href={`${base}/users`}>Usuários</CardLink>}
+          periods={therapistPeriods}
+        />
 
         <Card className="md:col-span-2 xl:col-span-1">
           <CardHeader>

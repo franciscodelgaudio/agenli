@@ -1,14 +1,26 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { canUseInbox, type WorkspaceRole } from "@/lib/member-role"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
 import { InboxShell, type ConversationListItem } from "@/components/inbox-shell"
+import { InboxSkeleton } from "@/components/page-skeletons"
 
 // Conversas mais recentes primeiro; as mais antigas ficam de fora da lista.
 const CONVERSATION_LIMIT = 100
 
+// A lista de conversas carrega sob o skeleton da inbox. A conversa fica dentro do mesmo limite:
+// a página vazia (sem conversa aberta) depende da verificação de acesso feita aqui.
 export default async function InboxLayout({ children, params }: LayoutProps<"/workspace/[workspaceId]/inbox">) {
   const { workspaceId } = await params
+  return (
+    <Suspense fallback={<InboxSkeleton />}>
+      <Inbox workspaceId={workspaceId}>{children}</Inbox>
+    </Suspense>
+  )
+}
+
+async function Inbox({ workspaceId, children }: { workspaceId: string; children: React.ReactNode }) {
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access) notFound()

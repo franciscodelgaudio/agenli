@@ -71,18 +71,22 @@ export function PageAccessForm({ workspaceId, visible }: { workspaceId: string; 
               {section.pages.map((page) => (
                 <TableRow key={page}>
                   <TableCell className="max-w-0 truncate px-4">{(section.labels as Record<string, string>)[page]}</TableCell>
-                  {RESTRICTED_ROLES.map((role) => (
-                    <TableCell key={role} className="px-4">
-                      <div className="flex justify-center">
-                        <Checkbox
-                          name={`${role}.${section.scope}`}
-                          value={page}
-                          defaultChecked={(visible[role][section.scope] as string[]).includes(page)}
-                          aria-label={`${roleLabels[role]}: ${section.title} · ${(section.labels as Record<string, string>)[page]}`}
-                        />
-                      </div>
-                    </TableCell>
-                  ))}
+                  {RESTRICTED_ROLES.map((role) => {
+                    const checked = (visible[role][section.scope] as string[]).includes(page)
+                    return (
+                      <TableCell key={role} className="px-4">
+                        <div className="flex justify-center">
+                          <Checkbox
+                            key={String(checked)}
+                            name={`${role}.${section.scope}`}
+                            value={page}
+                            defaultChecked={checked}
+                            aria-label={`${roleLabels[role]}: ${section.title} · ${(section.labels as Record<string, string>)[page]}`}
+                          />
+                        </div>
+                      </TableCell>
+                    )
+                  })}
                 </TableRow>
               ))}
             </TableBody>

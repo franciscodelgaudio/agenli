@@ -1,6 +1,12 @@
-import Link from "@/components/link"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 type Props = {
   // Os demais campos da query (busca, filtros, ordenação) são preservados nos links.
@@ -13,7 +19,17 @@ type Props = {
   itemLabel: string
 }
 
-// Anterior/próxima com a faixa mostrada; some quando tudo cabe numa página.
+// Primeira, última e as vizinhas da atual; null marca um salto (reticências).
+function visiblePages(page: number, pages: number) {
+  const shown = [...new Set([1, page - 1, page, page + 1, pages])]
+    .filter((n) => n >= 1 && n <= pages)
+    .sort((a, b) => a - b)
+  return shown.flatMap((n, i) => (i > 0 && n - shown[i - 1] > 1 ? [null, n] : [n]))
+}
+
+const disabledLink = { "aria-disabled": true, tabIndex: -1, className: "pointer-events-none opacity-50" }
+
+// Anterior/próxima e páginas numeradas, com a faixa mostrada; some quando tudo cabe numa página.
 export function ListPagination({ query, page, pageSize, total, pathname, itemLabel }: Props) {
   const pages = Math.ceil(total / pageSize)
   if (pages <= 1) return null
@@ -32,41 +48,37 @@ export function ListPagination({ query, page, pageSize, total, pathname, itemLab
       <p className="text-sm text-muted-foreground tabular-nums">
         {firstRow}–{lastRow} de {total} {itemLabel}
       </p>
-      <div className="flex items-center gap-2">
-        <span className="text-sm tabular-nums">
-          Página {page} de {pages}
-        </span>
-        {page > 1 ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Página anterior"
-            nativeButton={false}
-            render={<Link href={pageHref(page - 1)} replace />}
-          >
-            <ChevronLeftIcon />
-          </Button>
-        ) : (
-          <Button variant="outline" size="icon-sm" aria-label="Página anterior" disabled>
-            <ChevronLeftIcon />
-          </Button>
-        )}
-        {page < pages ? (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Próxima página"
-            nativeButton={false}
-            render={<Link href={pageHref(page + 1)} replace />}
-          >
-            <ChevronRightIcon />
-          </Button>
-        ) : (
-          <Button variant="outline" size="icon-sm" aria-label="Próxima página" disabled>
-            <ChevronRightIcon />
-          </Button>
-        )}
-      </div>
+      <Pagination className="mx-0 w-auto">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              href={pageHref(Math.max(page - 1, 1))}
+              replace
+              {...(page > 1 ? {} : disabledLink)}
+            />
+          </PaginationItem>
+          {visiblePages(page, pages).map((n, i) =>
+            n === null ? (
+              <PaginationItem key={`gap-${i}`}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={n}>
+                <PaginationLink href={pageHref(n)} replace isActive={n === page} className="tabular-nums">
+                  {n}
+                </PaginationLink>
+              </PaginationItem>
+            ),
+          )}
+          <PaginationItem>
+            <PaginationNext
+              href={pageHref(Math.min(page + 1, pages))}
+              replace
+              {...(page < pages ? {} : disabledLink)}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </div>
   )
 }

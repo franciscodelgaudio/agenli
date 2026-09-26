@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import FullCalendar, {
   type CalendarRef,
   type EventChangeInfo,
@@ -99,7 +99,15 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
-  const [eventsLoading, setEventsLoading] = useState(false)
+  // A primeira busca começa junto com o calendário, então ele já nasce carregando.
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const mounted = useRef(false)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const therapistsById = new Map(therapists.map((option) => [option.id, option]))
   // Uma cor por massagista, na ordem da lista (o proprietário primeiro).
@@ -344,7 +352,10 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           nowIndicator
           dayMaxEvents
           eventSources={eventSources}
-          loading={setEventsLoading}
+          // O FullCalendar avisa do carregamento no meio do próprio render; o estado muda logo depois dele.
+          loading={(isLoading) => {
+            if (mounted.current) queueMicrotask(() => setEventsLoading(isLoading))
+          }}
           eventDidMount={({ event, el }) => {
             if (event.extendedProps.draft) setDraftEl(el)
           }}

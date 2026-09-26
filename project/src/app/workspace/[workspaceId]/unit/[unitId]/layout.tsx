@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
@@ -7,12 +8,27 @@ import { Workspace } from "@/models/Workspace"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { InitialFallback } from "@/components/initial-fallback"
 import { ServicesSetupNotice, UnitNav } from "@/components/unit-nav"
+import { UnitHeaderSkeleton } from "@/components/page-skeletons"
 
+// O cabeçalho da unidade carrega à parte, para a aba mostrar seu skeleton logo abaixo dele.
+// As páginas verificam o acesso por conta própria.
 export default async function UnitLayout({
   children,
   params,
 }: LayoutProps<"/workspace/[workspaceId]/unit/[unitId]">) {
   const { workspaceId, unitId } = await params
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4">
+      <Suspense fallback={<UnitHeaderSkeleton />}>
+        <UnitHeader workspaceId={workspaceId} unitId={unitId} />
+      </Suspense>
+      {children}
+    </div>
+  )
+}
+
+async function UnitHeader({ workspaceId, unitId }: { workspaceId: string; unitId: string }) {
   const user = await requireUser()
   const access = workspaceAccessStages(workspaceId, user.id)
   if (!access || !isObjectIdOrHexString(unitId)) notFound()
@@ -60,7 +76,7 @@ export default async function UnitLayout({
   if (!unit) notFound()
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4">
+    <>
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-lg after:rounded-lg">
           {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg object-contain" />}
@@ -77,7 +93,6 @@ export default async function UnitLayout({
         hasServices={unit.hasServices}
         pages={visiblePages(workspace.role, workspace.hiddenPages).unit}
       />
-      {children}
-    </div>
+    </>
   )
 }
