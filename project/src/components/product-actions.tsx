@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState, useState, useTransition } from "react"
-import Link from "next/link"
+import Link from "@/components/link"
 import { EllipsisIcon, HistoryIcon, PackageXIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import {
   deleteProductAction,
@@ -152,7 +152,7 @@ function EditProductForm({ workspaceId, unitId, product, onDone }: Props & { onD
         />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>
@@ -196,7 +196,7 @@ function DeleteProductDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Excluindo..." : "Excluir"}
           </Button>
         </AlertDialogFooter>
@@ -243,7 +243,7 @@ function DepleteProductDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button onClick={handleDeplete} disabled={pending}>
+          <Button onClick={handleDeplete} loading={pending}>
             {pending ? "Registrando..." : "Acabou"}
           </Button>
         </AlertDialogFooter>

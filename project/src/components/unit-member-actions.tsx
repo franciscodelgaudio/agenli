@@ -135,7 +135,7 @@ function UnitMemberForm({ workspaceId, unitId, unitName, member, onDone }: Props
         )}
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>

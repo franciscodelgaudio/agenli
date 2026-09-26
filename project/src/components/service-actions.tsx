@@ -114,7 +114,7 @@ function EditServiceForm({ workspaceId, unitId, service, onDone }: Props & { onD
         <ServiceFields idPrefix={`edit-service-${service.id}`} defaultValues={service} />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>
@@ -158,7 +158,7 @@ function DeleteServiceDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Excluindo..." : "Excluir"}
           </Button>
         </AlertDialogFooter>

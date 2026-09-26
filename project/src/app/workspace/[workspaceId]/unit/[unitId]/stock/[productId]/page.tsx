@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { notFound, redirect } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowLeftIcon } from "lucide-react"
@@ -107,7 +107,7 @@ export default async function ProductHistoryPage({
       </Button>
       <div className="flex items-center gap-3">
         <Avatar className="size-10 rounded-md after:rounded-md">
-          {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
+          {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md object-contain" />}
           <InitialFallback name={product.name} className="rounded-md" />
         </Avatar>
         <div className="grid gap-0.5">

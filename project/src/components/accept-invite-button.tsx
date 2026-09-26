@@ -22,7 +22,7 @@ export function AcceptInviteButton({ token }: { token: string }) {
   return (
     <div className="flex w-full flex-col gap-3">
       {error && <FieldError>{error}</FieldError>}
-      <Button onClick={handleAccept} disabled={pending} className="w-full">
+      <Button onClick={handleAccept} loading={pending} className="w-full">
         {pending ? "Aceitando..." : "Aceitar convite"}
       </Button>
     </div>

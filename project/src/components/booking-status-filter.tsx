@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useReplaceQuery } from "@/components/navigation-progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const ALL = "all"
@@ -17,8 +17,7 @@ type Props = {
 }
 
 export function BookingStatusFilter({ query }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
 
   return (
     <Select
@@ -26,8 +25,7 @@ export function BookingStatusFilter({ query }: Props) {
       value={query.status || ALL}
       onValueChange={(value) => {
         const status = value === ALL ? "" : (value as string)
-        const params = new URLSearchParams(Object.entries({ ...query, status }).filter(([, v]) => v))
-        router.replace(`${pathname}?${params}`)
+        replaceQuery({ ...query, status })
       }}
     >
       <SelectTrigger className="w-full sm:w-44" aria-label="Filtrar por status">

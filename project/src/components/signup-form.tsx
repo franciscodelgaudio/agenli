@@ -1,7 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
-import Link from "next/link"
+import Link from "@/components/link"
 import { cn } from "@/lib/utils"
 import { signupAction } from "@/lib/actions/auth"
 
@@ -69,7 +69,7 @@ export function SignupForm({
           <FieldDescription>Pelo menos 8 caracteres.</FieldDescription>
         </Field>
         <Field>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" loading={pending}>
             {pending ? "Criando conta..." : "Criar conta"}
           </Button>
           <FieldDescription className="text-center">

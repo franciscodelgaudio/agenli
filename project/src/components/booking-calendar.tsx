@@ -14,7 +14,7 @@ import interactionPlugin from "@fullcalendar/react/interaction"
 import ptBrLocale from "@fullcalendar/react/locales/pt-br"
 import "@fullcalendar/react/skeleton.css"
 import "@fullcalendar/react/themes/monarch/theme.css"
-import Link from "next/link"
+import Link from "@/components/link"
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react"
 import { convertBookingAction } from "@/lib/actions/appointment"
 import {
@@ -99,6 +99,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleting, startDelete] = useTransition()
+  const [eventsLoading, setEventsLoading] = useState(false)
 
   const therapistsById = new Map(therapists.map((option) => [option.id, option]))
   // Uma cor por massagista, na ordem da lista (o proprietário primeiro).
@@ -322,7 +323,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       )}
       {error && <FieldError>{error}</FieldError>}
 
-      <div className="booking-calendar" {...{ [KEEPS_DRAFT]: "" }}>
+      <div className="booking-calendar" aria-busy={eventsLoading} {...{ [KEEPS_DRAFT]: "" }}>
         <FullCalendar
           ref={calendarRef}
           plugins={[monarchThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -343,6 +344,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           nowIndicator
           dayMaxEvents
           eventSources={eventSources}
+          loading={setEventsLoading}
           eventDidMount={({ event, el }) => {
             if (event.extendedProps.draft) setDraftEl(el)
           }}
@@ -559,7 +561,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
             {deleteError && <FieldError>{deleteError}</FieldError>}
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-              <Button variant="destructive" onClick={() => handleDelete(sheet.booking)} disabled={deleting}>
+              <Button variant="destructive" onClick={() => handleDelete(sheet.booking)} loading={deleting}>
                 {deleting ? "Excluindo..." : "Excluir"}
               </Button>
             </AlertDialogFooter>

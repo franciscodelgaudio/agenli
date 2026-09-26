@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/link"
 import { usePathname } from "next/navigation"
 import { ArrowRightIcon, CalendarIcon, CircleCheckIcon, LayoutDashboardIcon, LeafIcon, PackageIcon, UsersIcon, WalletIcon, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,7 @@ export function UnitNav({
   const items = pages.map((page) => ({ ...tabs[page], href: `${base}${UNIT_PAGE_PATHS[page]}` }))
 
   return (
-    <nav className="flex gap-1 overflow-x-auto overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="sticky top-0 z-20 -mx-4 flex gap-1 overflow-x-auto bg-background px-4 pt-2 overflow-y-hidden shadow-[inset_0_-1px_0_var(--border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {items.map((item) => {
         // Abas com subpáginas (ex.: a lista do calendário) seguem ativas nelas.
         const isActive = pathname === item.href || (item.href !== base && pathname.startsWith(`${item.href}/`))
@@ -46,7 +46,7 @@ export function UnitNav({
             href={item.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-medium transition-colors [&_svg]:size-4",
+              "flex shrink-0 items-center gap-2 border-b-2 px-3 pt-2 pb-4 text-sm font-medium transition-colors [&_svg]:size-4",
               isActive
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",

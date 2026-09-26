@@ -78,7 +78,7 @@ function InviteMemberForm({ workspaceId, onDone }: { workspaceId: string; onDone
         <RoleField idPrefix="invite-member" />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Enviando..." : "Enviar convite"}
         </Button>
       </SheetFooter>

@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useReplaceQuery } from "@/components/navigation-progress"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { TherapistLabel, TherapistSelectValue, type TherapistOption } from "@/components/therapist-avatar"
 
@@ -13,8 +13,7 @@ type Props = {
 }
 
 export function TherapistFilter({ query, therapists }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
   const items = [
     { value: ALL, label: "Todas as massagistas" },
     ...therapists.map((therapist) => ({ value: therapist.id, label: therapist.name })),
@@ -26,8 +25,7 @@ export function TherapistFilter({ query, therapists }: Props) {
       value={query.therapist || ALL}
       onValueChange={(value) => {
         const therapist = value === ALL ? "" : (value as string)
-        const params = new URLSearchParams(Object.entries({ ...query, therapist }).filter(([, v]) => v))
-        router.replace(`${pathname}?${params}`)
+        replaceQuery({ ...query, therapist })
       }}
     >
       <SelectTrigger className="w-full sm:w-56" aria-label="Filtrar por massagista">

@@ -90,7 +90,7 @@ export function PageAccessForm({ workspaceId, visible }: { workspaceId: string; 
         </Table>
       </div>
       <div>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </div>

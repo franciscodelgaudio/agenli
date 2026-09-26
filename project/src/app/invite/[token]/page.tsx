@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { hashInviteToken } from "@/lib/member"
 import { requireUser } from "@/lib/session"
 import { WorkspaceMember } from "@/models/WorkspaceMember"

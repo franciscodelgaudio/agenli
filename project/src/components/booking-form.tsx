@@ -284,7 +284,7 @@ export function BookingForm({
         </Field>
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? copy[mode].pending : copy[mode].submit}
         </Button>
         {onConvert && (

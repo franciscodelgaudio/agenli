@@ -46,7 +46,7 @@ export function CreateUnitSheet({ workspaceId, team }: { workspaceId: string; te
             <UnitFields idPrefix="create-unit" workspaceId={workspaceId} team={team} />
           </FieldGroup>
           <SheetFooter>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Cadastrando..." : "Cadastrar"}
             </Button>
           </SheetFooter>

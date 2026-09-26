@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { MapPinIcon, CalendarClockIcon, CalendarPlusIcon, SettingsIcon } from "lucide-react"
 import { UnitActions } from "@/components/unit-actions"
 import type { UnitTeamOptions } from "@/components/unit-fields"
@@ -84,7 +84,7 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
                   <div className="flex items-center gap-3">
                     <Avatar className="size-8 rounded-lg after:rounded-lg">
                       {unit.avatarUrl && (
-                        <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />
+                        <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg object-contain" />
                       )}
                       <InitialFallback name={unit.name} className="rounded-lg" />
                     </Avatar>

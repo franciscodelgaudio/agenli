@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
 import { ptBR } from "react-day-picker/locale"
 import { CalendarIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useReplaceQuery } from "@/components/navigation-progress"
 
 const dayFormat = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", year: "numeric" })
 
@@ -36,13 +36,11 @@ type Props = {
 
 // Intervalo de dias (ambos incluídos) escolhido num Calendar de intervalo.
 export function PeriodFilter({ query }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
   const [open, setOpen] = useState(false)
 
   function apply(from: string, to: string) {
-    const params = new URLSearchParams(Object.entries({ ...query, from, to }).filter(([, v]) => v))
-    router.replace(`${pathname}?${params}`)
+    replaceQuery({ ...query, from, to })
   }
 
   const selected = query.from ? { from: toDate(query.from), to: query.to ? toDate(query.to) : undefined } : undefined

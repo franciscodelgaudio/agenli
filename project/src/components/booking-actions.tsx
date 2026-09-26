@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import Link from "next/link"
+import Link from "@/components/link"
 import { useRouter } from "next/navigation"
 import { ClipboardCheckIcon, CircleCheckIcon, EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react"
 import { convertBookingAction } from "@/lib/actions/appointment"
@@ -194,7 +194,7 @@ function DeleteBookingDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Excluindo..." : "Excluir"}
           </Button>
         </AlertDialogFooter>

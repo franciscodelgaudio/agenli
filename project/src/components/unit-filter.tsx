@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useReplaceQuery } from "@/components/navigation-progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const ALL = "all"
@@ -12,8 +12,7 @@ type Props = {
 }
 
 export function UnitFilter({ query, units }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
   const items = [{ value: ALL, label: "Todas as unidades" }, ...units.map((unit) => ({ value: unit.id, label: unit.name }))]
 
   return (
@@ -22,8 +21,7 @@ export function UnitFilter({ query, units }: Props) {
       value={query.unit || ALL}
       onValueChange={(value) => {
         const unit = value === ALL ? "" : (value as string)
-        const params = new URLSearchParams(Object.entries({ ...query, unit }).filter(([, v]) => v))
-        router.replace(`${pathname}?${params}`)
+        replaceQuery({ ...query, unit })
       }}
     >
       <SelectTrigger className="w-full sm:w-56" aria-label="Filtrar por unidade">

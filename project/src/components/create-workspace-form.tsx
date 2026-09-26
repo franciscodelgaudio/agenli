@@ -44,7 +44,7 @@ export function CreateWorkspaceForm({
           />
         </Field>
         <Field>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" loading={pending}>
             {pending ? "Criando..." : "Criar workspace"}
           </Button>
         </Field>

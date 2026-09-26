@@ -156,7 +156,7 @@ function DeleteAppointmentDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Excluindo..." : "Excluir"}
           </Button>
         </AlertDialogFooter>

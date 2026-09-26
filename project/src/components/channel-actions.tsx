@@ -102,7 +102,7 @@ function EditChannelForm({ workspaceId, channel, onDone }: Props & { onDone: () 
         <ChannelFields idPrefix={`edit-channel-${channel.id}`} channel={channel} />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>
@@ -146,7 +146,7 @@ function DeleteChannelDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Removendo..." : "Remover"}
           </Button>
         </AlertDialogFooter>

@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useReplaceQuery } from "@/components/navigation-progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const ALL = "all"
@@ -18,8 +18,7 @@ type Props = {
 }
 
 export function ProductHistoryKindFilter({ query }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
 
   return (
     <Select
@@ -27,8 +26,7 @@ export function ProductHistoryKindFilter({ query }: Props) {
       value={query.kind || ALL}
       onValueChange={(value) => {
         const kind = value === ALL ? "" : (value as string)
-        const params = new URLSearchParams(Object.entries({ ...query, kind }).filter(([, v]) => v))
-        router.replace(`${pathname}?${params}`)
+        replaceQuery({ ...query, kind })
       }}
     >
       <SelectTrigger className="w-full sm:w-44" aria-label="Filtrar por tipo">

@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { InitialFallback } from "@/components/initial-fallback"
+import { Spinner } from "@/components/ui/spinner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,8 +76,8 @@ export function NavUser({ user, logoutAction }: Props) {
               disabled={isPending}
               onClick={() => startTransition(() => logoutAction())}
             >
-              <LogOutIcon />
-              Sair
+              {isPending ? <Spinner /> : <LogOutIcon />}
+              {isPending ? "Saindo..." : "Sair"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

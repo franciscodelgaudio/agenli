@@ -42,7 +42,7 @@ export function WorkspaceHeader({ workspace, canManage }: Props) {
           >
             <Avatar className="size-8 rounded-lg after:rounded-lg">
               {workspace.avatarUrl && (
-                <AvatarImage src={workspace.avatarUrl} alt={workspace.name} className="rounded-lg" />
+                <AvatarImage src={workspace.avatarUrl} alt={workspace.name} className="rounded-lg object-contain" />
               )}
               <AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 {workspace.name.charAt(0).toUpperCase()}
@@ -105,7 +105,7 @@ function EditWorkspaceForm({ workspace, onDone }: { workspace: Workspace; onDone
         />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>

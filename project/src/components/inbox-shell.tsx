@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import Link from "next/link"
+import Link from "@/components/link"
 import { useParams, useRouter } from "next/navigation"
 import { InboxIcon } from "lucide-react"
 import { cn } from "@/lib/utils"

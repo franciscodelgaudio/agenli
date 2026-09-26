@@ -9,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "cn"
-import Link from "next/link"
+import Link from "@/components/link"
 import { ProductActions } from "@/components/product-actions"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
@@ -110,7 +110,7 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                   <div className="flex items-center gap-3">
                     <Avatar className="rounded-md after:rounded-md">
                       {product.avatarUrl && (
-                        <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />
+                        <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md object-contain" />
                       )}
                       <InitialFallback name={product.name} className="rounded-md" />
                     </Avatar>

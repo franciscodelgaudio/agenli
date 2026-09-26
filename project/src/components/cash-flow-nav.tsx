@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import { CASH_FLOW_VIEWS, shiftCashFlowDate, type CashFlowQuery, type CashFlowView, type DayRange } from "@/lib/cash-flow"
 import { Button } from "@/components/ui/button"

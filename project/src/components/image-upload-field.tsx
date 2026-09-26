@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ImagePlusIcon, Loader2Icon, Trash2Icon } from "lucide-react"
+import { ImagePlusIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { FileDropzone } from "@/components/ui/file-dropzone"
+import { Spinner } from "@/components/ui/spinner"
 import { MAX_IMAGE_BYTES } from "@/lib/image-upload"
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"]
@@ -70,13 +71,13 @@ export function ImageUploadField({ id, label, workspaceId, target, unitId, defau
             <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground">
               {shown ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={shown} alt="" className="size-full object-cover" />
+                <img src={shown} alt="" className="size-full object-contain" />
               ) : (
                 <ImagePlusIcon className="size-6" />
               )}
               {uploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                  <Loader2Icon className="size-5 animate-spin text-foreground" />
+                  <Spinner className="size-5 text-foreground" />
                 </div>
               )}
             </div>

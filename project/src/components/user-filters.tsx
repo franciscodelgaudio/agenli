@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname, useRouter } from "next/navigation"
+import { useReplaceQuery } from "@/components/navigation-progress"
 import { roleLabels } from "@/components/role-labels"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -43,8 +43,7 @@ export function QuerySelect<F extends string>({
   items: { value: string; label: string }[]
   label: string
 }) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const replaceQuery = useReplaceQuery()
 
   return (
     <Select
@@ -52,8 +51,7 @@ export function QuerySelect<F extends string>({
       value={query[field] || ALL}
       onValueChange={(value) => {
         const selected = value === ALL ? "" : (value as string)
-        const params = new URLSearchParams(Object.entries({ ...query, [field]: selected }).filter(([, v]) => v))
-        router.replace(`${pathname}?${params}`)
+        replaceQuery({ ...query, [field]: selected })
       }}
     >
       <SelectTrigger className="w-full sm:w-44" aria-label={label}>

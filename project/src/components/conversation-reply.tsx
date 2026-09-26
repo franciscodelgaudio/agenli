@@ -45,7 +45,7 @@ export function ConversationReply({ workspaceId, conversationId, maxLength }: Pr
             }
           }}
         />
-        <Button type="submit" size="icon" disabled={pending} aria-label="Enviar">
+        <Button type="submit" size="icon" loading={pending} aria-label="Enviar">
           <SendHorizontalIcon />
         </Button>
       </div>

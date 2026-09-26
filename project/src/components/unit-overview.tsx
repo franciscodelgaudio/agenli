@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { ArrowRightIcon, CheckIcon, PackageCheckIcon, type LucideIcon } from "lucide-react"
 import type { CashFlowBucket } from "@/lib/cash-flow"
 import { currencyFormat, timeFormat } from "@/components/service-format"
@@ -300,7 +300,7 @@ export function LowStockList({ products, href }: { products: StockItem[]; href: 
       {products.map((product) => (
         <li key={product.id} className="flex items-center gap-3">
           <Avatar className="rounded-md after:rounded-md">
-            {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
+            {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md object-contain" />}
             <InitialFallback name={product.name} className="rounded-md" />
           </Avatar>
           <div className="grid min-w-0 flex-1">

@@ -131,7 +131,7 @@ function EditMemberForm({
         )}
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>
@@ -188,7 +188,7 @@ function RemoveMemberDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Voltar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleRemove} disabled={pending}>
+          <Button variant="destructive" onClick={handleRemove} loading={pending}>
             {pending ? "Removendo..." : member.pending ? "Cancelar convite" : "Remover"}
           </Button>
         </AlertDialogFooter>

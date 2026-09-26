@@ -1,4 +1,4 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { notFound } from "next/navigation"
 import { isObjectIdOrHexString, Types } from "mongoose"
 import { ArrowLeftIcon, CheckCheckIcon, CheckIcon, CircleAlertIcon, ClockIcon, PaperclipIcon } from "lucide-react"

@@ -121,7 +121,7 @@ function EditUnitForm({
         <UnitFields idPrefix={`edit-unit-${unit.id}`} workspaceId={workspaceId} defaultValues={unit} team={team} />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Salvando..." : "Salvar"}
         </Button>
       </SheetFooter>
@@ -169,7 +169,7 @@ function DeleteUnitDialog({
         {error && <FieldError>{error}</FieldError>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Cancelar</AlertDialogCancel>
-          <Button variant="destructive" onClick={handleDelete} disabled={pending}>
+          <Button variant="destructive" onClick={handleDelete} loading={pending}>
             {pending ? "Excluindo..." : "Excluir"}
           </Button>
         </AlertDialogFooter>

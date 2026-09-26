@@ -63,7 +63,7 @@ export default async function UnitLayout({
     <div className="flex flex-1 flex-col gap-4 p-4">
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-lg after:rounded-lg">
-          {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />}
+          {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg object-contain" />}
           <InitialFallback name={unit.name} className="rounded-lg text-lg" />
         </Avatar>
         <h2 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{unit.name}</h2>

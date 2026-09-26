@@ -63,7 +63,7 @@ function CreateChannelForm({ workspaceId, onDone }: { workspaceId: string; onDon
         <ChannelFields idPrefix="create-channel" />
       </FieldGroup>
       <SheetFooter>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? "Conectando..." : "Conectar"}
         </Button>
       </SheetFooter>

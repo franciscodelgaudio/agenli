@@ -1,7 +1,7 @@
-import Link from "next/link"
+import Link from "@/components/link"
 import { cn } from "@/lib/utils"
 
-import { Button } from "@/components/ui/button"
+import { SubmitButton } from "@/components/submit-button"
 import {
   Field,
   FieldDescription,
@@ -72,15 +72,18 @@ export function LoginForm({
           />
         </Field>
         <Field>
-          <Button type="submit">Entrar</Button>
+          <SubmitButton name="intent" value="credentials">
+            Entrar
+          </SubmitButton>
         </Field>
         <FieldSeparator>Ou continue com</FieldSeparator>
         <Field>
           {/* formAction troca a action só deste botão; formNoValidate
               evita exigir email/senha para entrar com Google. */}
-          <Button
+          <SubmitButton
+            name="intent"
+            value="google"
             variant="outline"
-            type="submit"
             formAction={googleAction}
             formNoValidate
           >
@@ -103,7 +106,7 @@ export function LoginForm({
               />
             </svg>
             Entrar com Google
-          </Button>
+          </SubmitButton>
           <FieldDescription className="text-center">
             Não tem uma conta?{" "}
             <Link href={signupHref} className="underline underline-offset-4">

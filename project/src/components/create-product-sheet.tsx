@@ -46,7 +46,7 @@ export function CreateProductSheet({ workspaceId, unitId }: { workspaceId: strin
             <ProductFields idPrefix="create-product" workspaceId={workspaceId} unitId={unitId} />
           </FieldGroup>
           <SheetFooter>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" loading={pending}>
               {pending ? "Cadastrando..." : "Cadastrar"}
             </Button>
           </SheetFooter>
