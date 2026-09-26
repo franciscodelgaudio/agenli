@@ -7,7 +7,8 @@ import { CodeCell, CodeHead } from "@/components/record-code"
 import { roleLabels } from "@/components/role-labels"
 import { UnitMemberActions } from "@/components/unit-member-actions"
 import { currencyFormat } from "@/components/service-format"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -137,7 +138,7 @@ export default async function UnitTeamPage({ params }: PageProps<"/workspace/[wo
                       <div className="flex items-center gap-3">
                         <Avatar className="size-8">
                           {member.image && <AvatarImage src={member.image} alt={label} />}
-                          <AvatarFallback>{label.charAt(0).toUpperCase()}</AvatarFallback>
+                          <InitialFallback name={label} />
                         </Avatar>
                         <div className="grid min-w-0">
                           <span className="truncate font-medium">{label}</span>

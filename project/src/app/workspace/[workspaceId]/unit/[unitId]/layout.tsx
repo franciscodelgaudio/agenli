@@ -5,7 +5,8 @@ import { ArrowLeftIcon } from "lucide-react"
 import { canManageMembers, type WorkspaceRole } from "@/lib/member"
 import { requireUser, workspaceAccessStages } from "@/lib/session"
 import { Workspace } from "@/models/Workspace"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { Button } from "@/components/ui/button"
 import { ServicesSetupNotice, UnitNav } from "@/components/unit-nav"
 
@@ -74,7 +75,7 @@ export default async function UnitLayout({
       <div className="flex items-center gap-4">
         <Avatar className="size-14 rounded-lg after:rounded-lg">
           {unit.avatarUrl && <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />}
-          <AvatarFallback className="rounded-lg text-lg">{unit.name.charAt(0).toUpperCase()}</AvatarFallback>
+          <InitialFallback name={unit.name} className="rounded-lg text-lg" />
         </Avatar>
         <h2 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{unit.name}</h2>
       </div>

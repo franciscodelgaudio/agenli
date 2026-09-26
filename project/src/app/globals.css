@@ -118,34 +118,42 @@
   --sidebar-ring: oklch(0.594 0.101 193);
 }
 
-/* FullCalendar (tema classic) com os tokens do app; segue o claro/escuro sozinho. */
+/* FullCalendar (tema monarch, no estilo do Google Agenda) com os tokens do app; segue o claro/escuro sozinho. */
 .booking-calendar {
-  --fc-classic-button: var(--secondary);
-  --fc-classic-button-border: var(--border);
-  --fc-classic-button-strong: var(--primary);
-  --fc-classic-button-strong-border: var(--primary);
-  --fc-classic-button-outline: var(--ring);
-  --fc-classic-button-foreground: var(--secondary-foreground);
-  --fc-classic-primary: var(--primary);
-  --fc-classic-primary-foreground: var(--primary-foreground);
-  --fc-classic-highlight: color-mix(in oklch, var(--primary) 15%, transparent);
-  --fc-classic-today: color-mix(in oklch, var(--primary) 8%, transparent);
-  --fc-classic-now: var(--destructive);
-  --fc-classic-background: var(--background);
-  --fc-classic-faint: color-mix(in oklch, var(--foreground) 4%, transparent);
-  --fc-classic-muted: var(--muted);
-  --fc-classic-strong: color-mix(in oklch, var(--foreground) 14%, transparent);
-  --fc-classic-foreground: var(--foreground);
-  --fc-classic-faint-foreground: var(--muted-foreground);
-  --fc-classic-muted-foreground: var(--muted-foreground);
-  --fc-classic-border: var(--border);
-  --fc-classic-strong-border: var(--input);
-}
-
-/* O tema pinta o botão da barra selecionado (e o hover) com --primary, mas não troca a cor do texto. */
-.booking-calendar button:is([aria-pressed="true"], [aria-selected="true"]),
-.booking-calendar button:is([aria-pressed], [role="tab"]):not(:disabled):is(:hover, :active) {
-  color: var(--primary-foreground);
+  --fc-monarch-primary: var(--primary);
+  --fc-monarch-primary-foreground: var(--primary-foreground);
+  --fc-monarch-primary-over: color-mix(in oklch, var(--primary) 90%, var(--background));
+  --fc-monarch-primary-down: color-mix(in oklch, var(--primary) 80%, var(--background));
+  --fc-monarch-secondary: color-mix(in oklch, var(--primary) 16%, var(--background));
+  --fc-monarch-secondary-foreground: var(--foreground);
+  --fc-monarch-secondary-over: color-mix(in oklch, var(--primary) 22%, var(--background));
+  --fc-monarch-secondary-down: color-mix(in oklch, var(--primary) 28%, var(--background));
+  --fc-monarch-tertiary: var(--primary);
+  --fc-monarch-tertiary-foreground: var(--primary-foreground);
+  --fc-monarch-tertiary-over: color-mix(in oklch, var(--primary) 90%, var(--background));
+  --fc-monarch-tertiary-down: color-mix(in oklch, var(--primary) 80%, var(--background));
+  --fc-monarch-event: var(--primary);
+  --fc-monarch-event-contrast: var(--primary-foreground);
+  --fc-monarch-highlight: color-mix(in oklch, var(--primary) 15%, transparent);
+  --fc-monarch-now: var(--destructive);
+  --fc-monarch-selected: color-mix(in oklch, var(--primary) 16%, var(--background));
+  --fc-monarch-selected-foreground: var(--foreground);
+  --fc-monarch-selected-over: color-mix(in oklch, var(--primary) 22%, var(--background));
+  --fc-monarch-selected-down: color-mix(in oklch, var(--primary) 28%, var(--background));
+  --fc-monarch-outline: var(--ring);
+  --fc-monarch-popover: var(--popover);
+  --fc-monarch-popover-foreground: var(--popover-foreground);
+  --fc-monarch-background: var(--background);
+  --fc-monarch-faint: color-mix(in oklch, var(--foreground) 4%, transparent);
+  --fc-monarch-muted: color-mix(in oklch, var(--foreground) 7%, transparent);
+  --fc-monarch-strong: color-mix(in oklch, var(--foreground) 14%, transparent);
+  --fc-monarch-stronger: color-mix(in oklch, var(--foreground) 18%, transparent);
+  --fc-monarch-strongest: color-mix(in oklch, var(--foreground) 22%, transparent);
+  --fc-monarch-foreground: var(--foreground);
+  --fc-monarch-faint-foreground: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+  --fc-monarch-muted-foreground: var(--muted-foreground);
+  --fc-monarch-border: var(--border);
+  --fc-monarch-strong-border: var(--input);
 }
 
 @layer base {

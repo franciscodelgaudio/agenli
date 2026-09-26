@@ -12,7 +12,8 @@ import { roleLabels } from "@/components/role-labels"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { UserRoleFilter, UserStatusFilter } from "@/components/user-filters"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -219,7 +220,7 @@ function PersonRow({
         <div className="flex items-center gap-3">
           <Avatar className="size-8">
             {person.image && <AvatarImage src={person.image} alt={displayName} />}
-            <AvatarFallback>{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+            <InitialFallback name={displayName} />
           </Avatar>
           <span className={person.name ? "truncate font-medium" : "truncate text-muted-foreground"}>
             {person.name ?? "—"}

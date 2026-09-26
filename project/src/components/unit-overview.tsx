@@ -3,7 +3,8 @@ import { ArrowRightIcon, CheckIcon, PackageCheckIcon, type LucideIcon } from "lu
 import type { CashFlowBucket } from "@/lib/cash-flow"
 import { currencyFormat, timeFormat } from "@/components/service-format"
 import { TherapistAvatar, type TherapistOption } from "@/components/therapist-avatar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent } from "@/components/ui/card"
@@ -256,7 +257,7 @@ export function RankList({ items, avatar }: { items: RankItem[]; avatar?: "round
             {avatar === "square" && (
               <Avatar className="size-8 rounded-md after:rounded-md">
                 {item.image && <AvatarImage src={item.image} alt={item.name} className="rounded-md" />}
-                <AvatarFallback className="rounded-md">{item.name.charAt(0).toUpperCase()}</AvatarFallback>
+                <InitialFallback name={item.name} className="rounded-md" />
               </Avatar>
             )}
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -300,7 +301,7 @@ export function LowStockList({ products, href }: { products: StockItem[]; href: 
         <li key={product.id} className="flex items-center gap-3">
           <Avatar className="rounded-md after:rounded-md">
             {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
-            <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
+            <InitialFallback name={product.name} className="rounded-md" />
           </Avatar>
           <div className="grid min-w-0 flex-1">
             <Link href={href(product)} className="truncate font-medium hover:underline">

@@ -4,7 +4,8 @@ import { UnitActions } from "@/components/unit-actions"
 import type { UnitTeamOptions } from "@/components/unit-fields"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import {
   Table,
   TableBody,
@@ -71,9 +72,7 @@ export function UnitTable({ units, query, pathname, workspaceId, canManage, team
                       {unit.avatarUrl && (
                         <AvatarImage src={unit.avatarUrl} alt={unit.name} className="rounded-lg" />
                       )}
-                      <AvatarFallback className="rounded-lg">
-                        {unit.name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
+                      <InitialFallback name={unit.name} className="rounded-lg" />
                     </Avatar>
                     {/* O ::after estica o link sobre a linha inteira; a célula de ações fica por cima. */}
                     <Link

@@ -2,7 +2,8 @@
 
 import { useTransition } from "react"
 import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +34,7 @@ export function NavUser({ user, logoutAction }: Props) {
     <>
       <Avatar className="size-8 rounded-lg after:rounded-lg">
         {user.image && <AvatarImage src={user.image} alt={name} className="rounded-lg" />}
-        <AvatarFallback className="rounded-lg">{name.charAt(0).toUpperCase()}</AvatarFallback>
+        <InitialFallback name={name} className="rounded-lg" />
       </Avatar>
       <div className="grid flex-1 text-left text-sm leading-tight">
         <span className="truncate font-medium">{name}</span>

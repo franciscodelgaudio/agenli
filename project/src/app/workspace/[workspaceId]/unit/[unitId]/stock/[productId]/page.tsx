@@ -18,7 +18,8 @@ import { PeriodFilter } from "@/components/period-filter"
 import { formatAverage, formatUses } from "@/components/product-format"
 import { ProductHistoryKindFilter } from "@/components/product-history-kind-filter"
 import { ProductHistoryTable } from "@/components/product-history-table"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { Button } from "@/components/ui/button"
 
 type ProductHeader = { name: string; quantity: number; avatarUrl: string | null }
@@ -105,7 +106,7 @@ export default async function ProductHistoryPage({
       <div className="flex items-center gap-3">
         <Avatar className="size-10 rounded-md after:rounded-md">
           {product.avatarUrl && <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />}
-          <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
+          <InitialFallback name={product.name} className="rounded-md" />
         </Avatar>
         <div className="grid gap-0.5">
           <h3 className="truncate text-lg font-semibold tracking-tight">{product.name}</h3>

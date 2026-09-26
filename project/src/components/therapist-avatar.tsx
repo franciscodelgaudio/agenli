@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import { SelectValue } from "@/components/ui/select"
 import { cn } from "cn"
 
@@ -19,7 +20,7 @@ export function TherapistAvatar({
   return (
     <Avatar size={size} className={className} style={style}>
       {therapist.image && <AvatarImage src={therapist.image} alt={therapist.name} />}
-      <AvatarFallback>{therapist.name.charAt(0).toUpperCase()}</AvatarFallback>
+      <InitialFallback name={therapist.name} />
     </Avatar>
   )
 }

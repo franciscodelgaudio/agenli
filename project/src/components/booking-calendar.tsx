@@ -7,14 +7,13 @@ import FullCalendar, {
   type EventInput,
   type EventSourceFuncInfo,
 } from "@fullcalendar/react"
-import classicThemePlugin from "@fullcalendar/react/themes/classic"
+import monarchThemePlugin from "@fullcalendar/react/themes/monarch"
 import dayGridPlugin from "@fullcalendar/react/daygrid"
 import timeGridPlugin from "@fullcalendar/react/timegrid"
 import interactionPlugin from "@fullcalendar/react/interaction"
 import ptBrLocale from "@fullcalendar/react/locales/pt-br"
 import "@fullcalendar/react/skeleton.css"
-import "@fullcalendar/react/themes/classic/theme.css"
-import "@fullcalendar/react/themes/classic/palette.css"
+import "@fullcalendar/react/themes/monarch/theme.css"
 import Link from "next/link"
 import { CheckIcon, PlusIcon, XIcon } from "lucide-react"
 import { convertBookingAction } from "@/lib/actions/appointment"
@@ -109,6 +108,30 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
   const canCreate = canManage && units.length > 0
   const options = { units: unitId ? undefined : units, therapists, services }
 
+  // Cada busca recria os ids internos dos eventos, e ao soltar um arraste o FullCalendar grava
+  // a cópia do evento feita no início dele. Uma busca que chegasse no meio deixaria as duas
+  // versões no calendário (o agendamento duplicado), então a resposta espera arrastes e
+  // remarcações acabarem e, se algo mudou nesse meio-tempo, busca de novo.
+  const busy = useRef(0)
+  const changes = useRef(0)
+  const idleWaiters = useRef<(() => void)[]>([])
+
+  function whenIdle() {
+    return busy.current ? new Promise<void>((resolve) => idleWaiters.current.push(resolve)) : Promise.resolve()
+  }
+
+  function hold() {
+    busy.current += 1
+  }
+
+  function release() {
+    busy.current -= 1
+    if (busy.current > 0) return
+    const waiters = idleWaiters.current
+    idleWaiters.current = []
+    for (const resolve of waiters) resolve()
+  }
+
   // Uma nova função a cada troca de filtro faz o calendário buscar de novo.
   const fetchEvents = useCallback(
     async (info: EventSourceFuncInfo): Promise<EventInput[]> => {
@@ -118,13 +141,23 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       const params = new URLSearchParams(
         Object.entries({ start: toDay(info.start), end: toDay(info.end), unit, therapist }).filter(([, v]) => v),
       )
-      const response = await fetch(`/api/workspace/${workspaceId}/bookings?${params}`)
-      const result: { bookings: BookingRow[] } | { error: string } = await response.json()
-      if ("error" in result) {
-        setError(result.error)
-        throw new Error(result.error)
+      let bookings: BookingRow[]
+      for (;;) {
+        await whenIdle()
+        const seen = changes.current
+        const response = await fetch(`/api/workspace/${workspaceId}/bookings?${params}`)
+        const result: { bookings: BookingRow[] } | { error: string } = await response.json()
+        if ("error" in result) {
+          setError(result.error)
+          throw new Error(result.error)
+        }
+        await whenIdle()
+        if (changes.current === seen) {
+          bookings = result.bookings
+          break
+        }
       }
-      return result.bookings.map((booking) => ({
+      return bookings.map((booking) => ({
         id: booking.id,
         title: `${booking.guest.name} · Quarto ${booking.guest.room}`,
         start: booking.startsAt,
@@ -189,16 +222,28 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
 
   async function handleChange({ event, revert }: EventChangeInfo) {
     setError(null)
-    const result = await rescheduleBookingAction(workspaceId, event.id, {
-      startsAt: toWallTime(event.start!),
-      endsAt: toWallTime(event.end!),
-    })
-    if (result.error) {
-      revert()
-      setError(result.error)
-    } else {
-      refetch()
+    changes.current += 1
+    hold()
+    try {
+      const result = await rescheduleBookingAction(workspaceId, event.id, {
+        startsAt: toWallTime(event.start!),
+        endsAt: toWallTime(event.end!),
+      })
+      if (result.error) {
+        revert()
+        setError(result.error)
+      } else {
+        refetch()
+      }
+    } finally {
+      release()
     }
+  }
+
+  // O fim do arraste vem antes do eventDrop/eventResize, que são disparados em seguida no mesmo
+  // tique; liberar só no próximo deixa a remarcação segurar as buscas antes disso.
+  function handleInteractionStop() {
+    queueMicrotask(release)
   }
 
   function handleDelete(booking: BookingRow) {
@@ -295,7 +340,7 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
       <div className="booking-calendar" {...{ [KEEPS_DRAFT]: "" }}>
         <FullCalendar
           ref={calendarRef}
-          plugins={[classicThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={[monarchThemePlugin, dayGridPlugin, timeGridPlugin, interactionPlugin]}
           locale={ptBrLocale}
           timeZone="UTC"
           now={brtNow}
@@ -306,8 +351,10 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           slotMinTime="06:00"
           slotMaxTime="24:00"
           scrollTime="08:00"
-          // Faixas de 30 min mais altas: um agendamento de 45 min já mostra hóspede, hora e quarto.
-          slotMinHeight={32}
+          // Uma faixa por hora, como no Google Agenda; arrastar e selecionar continuam de 30 em 30 min.
+          slotDuration="01:00"
+          snapDuration="00:30"
+          slotMinHeight={48}
           nowIndicator
           dayMaxEvents
           eventSources={eventSources}
@@ -317,14 +364,17 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
           eventWillUnmount={({ event, el }) => {
             if (event.extendedProps.draft) setDraftEl((current) => (current === el ? null : current))
           }}
-          // Mudou o período à vista: o rascunho só fica se ainda estiver nele.
-          datesSet={({ start, end }) =>
+          // Mudou o período à vista: o rascunho só fica se ainda estiver nele. O FullCalendar dispara
+          // isto já ao ser criado, durante o render e antes de este componente montar, então sem
+          // rascunho não há o que atualizar.
+          datesSet={({ start, end }) => {
+            if (!draft) return
             setDraft((current) =>
               current && current.values.startsAt >= toWallTime(start) && current.values.startsAt < toWallTime(end)
                 ? current
                 : null,
             )
-          }
+          }}
           // Altura definida no miolo do evento, para o conteúdo esconder as linhas que não cabem inteiras.
           columnEventInnerClass={({ isShort }) => (isShort ? undefined : "h-full")}
           eventContent={({ event, timeText, view, isShort }) => {
@@ -344,29 +394,41 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
                 <span className="truncate">{booking.guest.name}</span>
               </span>
             )
-            // No mês e em eventos curtos cabe uma linha só: hora e hóspede.
+            // No mês e em eventos curtos cabe uma linha só: hora e hóspede. Estreito (vários
+            // agendamentos no mesmo horário), sai a hora e depois o avatar, e fica só o hóspede.
             if (view.type.startsWith("dayGrid") || isShort) {
               return (
-                <div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-1 text-xs leading-tight">
-                  {therapistAvatar(booking, "size-4 shrink-0")}
-                  <span className="shrink-0 tabular-nums opacity-85">{toWallTime(event.start!).slice(11)}</span>
-                  {guestName}
+                <div className="@container w-full min-w-0">
+                  <div className="flex min-w-0 items-center gap-1.5 overflow-hidden px-1 text-xs leading-tight">
+                    {therapistAvatar(booking, "size-4 shrink-0 @max-[4.5rem]:hidden")}
+                    <span className="shrink-0 tabular-nums opacity-85 @max-[7rem]:hidden">
+                      {toWallTime(event.start!).slice(11)}
+                    </span>
+                    {guestName}
+                  </div>
                 </div>
               )
             }
             // Cada linha trunca sozinha. A coluna quebra (flex-wrap) e cada linha ocupa a largura toda:
             // a linha que não cabe inteira na altura vai para uma coluna fora da vista, em vez de aparecer cortada.
+            // O gap-x maior que o padding impede que o começo dessa coluna apareça no padding da direita.
+            // Na largura, o que é pouco útil cortado sai de propósito: o nome da massagista (o avatar e
+            // a cor já dizem quem é), depois quarto e serviço, e por fim o avatar.
             return (
-              <div className="flex h-full min-w-0 flex-col flex-wrap gap-y-0.5 overflow-hidden px-1.5 py-1 text-xs leading-snug">
-                <div className="flex w-full min-w-0 items-center gap-1.5">
-                  {therapistAvatar(booking, "size-5 shrink-0 ring-1 ring-white/60")}
-                  {guestName}
-                </div>
-                <div className="w-full truncate tabular-nums opacity-85">
-                  {timeText} · Quarto {booking.guest.room}
-                </div>
-                <div className="w-full truncate opacity-85">
-                  {booking.service.serviceName} · {booking.therapistName}
+              <div className="@container h-full w-full min-w-0">
+                <div className="flex h-full min-w-0 flex-col flex-wrap gap-x-3 gap-y-0.5 overflow-hidden px-1.5 py-1 text-xs leading-snug">
+                  <div className="flex w-full min-w-0 items-center gap-1.5">
+                    {therapistAvatar(booking, "size-5 shrink-0 ring-1 ring-white/60 @max-[4.5rem]:hidden")}
+                    {guestName}
+                  </div>
+                  <div className="w-full truncate tabular-nums opacity-85">
+                    {timeText}
+                    <span className="@max-[8rem]:hidden"> · Quarto {booking.guest.room}</span>
+                  </div>
+                  <div className="w-full truncate opacity-85 @max-[8rem]:hidden">
+                    {booking.service.serviceName}
+                    <span className="@max-[12rem]:hidden"> · {booking.therapistName}</span>
+                  </div>
                 </div>
               </div>
             )
@@ -380,6 +442,10 @@ export function BookingCalendar({ workspaceId, canManage, unitId, units, therapi
             else openCreate(toWallTime(info.start), Math.round((info.end.getTime() - info.start.getTime()) / 60000))
           }}
           editable={canManage}
+          eventDragStart={hold}
+          eventDragStop={handleInteractionStop}
+          eventResizeStart={hold}
+          eventResizeStop={handleInteractionStop}
           eventDrop={handleChange}
           eventResize={handleChange}
           eventClick={({ event }) => {

@@ -13,7 +13,8 @@ import { ProductActions } from "@/components/product-actions"
 import { CodeCell, CodeHead } from "@/components/record-code"
 import { SortableHead } from "@/components/sortable-head"
 import { StarRating } from "@/components/star-rating"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
+import { InitialFallback } from "@/components/initial-fallback"
 import {
   Table,
   TableBody,
@@ -100,7 +101,7 @@ export function ProductTable({ products, query, pathname, workspaceId, unitId, c
                       {product.avatarUrl && (
                         <AvatarImage src={product.avatarUrl} alt={product.name} className="rounded-md" />
                       )}
-                      <AvatarFallback className="rounded-md">{product.name.charAt(0).toUpperCase()}</AvatarFallback>
+                      <InitialFallback name={product.name} className="rounded-md" />
                     </Avatar>
                     <div className="grid min-w-0">
                       <Link
